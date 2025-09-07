@@ -512,6 +512,7 @@ const ViewHistoricalData = ({ setCurrentView }) => {
                   <th className="p-3 text-left">Type</th>
                   <th className="p-3 text-left">Rule3</th>
                   <th className="p-3 text-left">Zone</th>
+                  <th className="p-3 text-left">Pattern</th>
                   <th className="p-3 text-left">Stop Size</th>
                   <th className="p-3 text-left">P&L</th>
                   <th className="p-3 text-left">Status</th>
@@ -543,6 +544,7 @@ const ViewHistoricalData = ({ setCurrentView }) => {
                         {trade.zone}
                       </span>
                     </td>
+                    <td className="p-3">{trade.pattern_traded || '-'}</td>
                     <td className="p-3">{trade.stopsize || '-'}</td>
                     <td className="p-3">
                       {trade.pnl ? (
@@ -584,6 +586,7 @@ export default function Home() {
     entrytype: 'RE',
     rule3: 'Impulsive',
     zone: 'Red',
+    pattern_traded: '',
     notes: ''
   })
 
@@ -610,6 +613,7 @@ export default function Home() {
           entrytype: formData.entrytype,
           rule3: formData.rule3,
           zone: formData.zone,
+          pattern_traded: formData.pattern_traded || null,
           notes: formData.notes || null,
           status: 'open'
         }])
@@ -626,6 +630,7 @@ export default function Home() {
           entrytype: 'RE',
           rule3: 'Impulsive',
           zone: 'Red',
+          pattern_traded: '',
           notes: ''
         })
       }
@@ -752,6 +757,13 @@ export default function Home() {
                 { value: 'Green', label: 'Green' }
               ]}
               required
+            />
+
+            <InputField
+              label="Pattern Traded"
+              value={formData.pattern_traded}
+              onChange={(e) => handleInputChange('pattern_traded', e.target.value)}
+              placeholder="e.g., Head & Shoulders, Flag, Triangle"
             />
 
             <InputField
