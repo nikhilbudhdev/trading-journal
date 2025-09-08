@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Move components OUTSIDE the main component to prevent re-renders
 const MenuButton = ({ onClick, children, className = '' }) => (
   <button
     onClick={onClick}
@@ -14,8 +13,8 @@ const MenuButton = ({ onClick, children, className = '' }) => (
 
 const InputField = ({ label, type = 'text', value, onChange, placeholder, required = false, step }) => (
   <div className="mb-4">
-    <label className="block text-sm font-medium mb-2 text-gray-300">
-      {label} {required && <span className="text-red-400">*</span>}
+    <label className="block text-sm font-medium mb-2 text-slate-300">
+      {label} {required && <span className="text-emerald-400">*</span>}
     </label>
     <input
       type={type}
@@ -24,30 +23,175 @@ const InputField = ({ label, type = 'text', value, onChange, placeholder, requir
       placeholder={placeholder}
       step={step}
       autoComplete="off"
-      className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
     />
   </div>
 )
 
 const SelectField = ({ label, value, onChange, options, required = false }) => (
   <div className="mb-4">
-    <label className="block text-sm font-medium mb-2 text-gray-300">
-      {label} {required && <span className="text-red-400">*</span>}
+    <label className="block text-sm font-medium mb-2 text-slate-300">
+      {label} {required && <span className="text-emerald-400">*</span>}
     </label>
     <select
       value={value}
       onChange={onChange}
-      className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
     >
       {options.map(option => (
-        <option key={option.value} value={option.value}>
+        <option key={option.value} value={option.value} className="bg-slate-800 text-slate-100">
           {option.label}
         </option>
       ))}
     </select>
   </div>
 )
-// Add this component before the Home component
+
+const BalanceManager = ({ setCurrentView }) => {
+  const [currentBalance, setCurrentBalance] = useState(0)
+  const [balanceHistory, setBalanceHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAddBalance, setShowAddBalance] = useState(false)
+  const [newBalance, setNewBalance] = useState({
+    amount: '',
+    reason: ''
+  })
+
+  useEffect(() => {
+    loadBalanceData()
+  }, [])
+
+  const loadBalanceData = async () => {
+    setLoading(true)
+    try {
+      const { data: history, error: historyError } = await supabase
+        .from('balance_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (historyError) throw historyError
+      setBalanceHistory(history || [])
+
+      const latestEntry = history?.[0]
+      setCurrentBalance(latestEntry?.balance || 0)
+
+    } catch (err) {
+      console.error('Error loading balance:', err.message)
+    }
+    setLoading(false)
+  }
+
+  const handleAddBalance = async (e) => {
+    e.preventDefault()
+    if (!newBalance.amount) return
+
+    try {
+      const changeAmount = parseFloat(newBalance.amount)
+      const newBalanceAmount = parseFloat(currentBalance) + changeAmount
+
+      const { error } = await supabase
+        .from('balance_history')
+        .insert([{
+          balance: newBalanceAmount,
+          change_amount: changeAmount,
+          change_reason: newBalance.reason || (changeAmount > 0 ? 'Deposit' : 'Withdrawal')
+        }])
+
+      if (error) throw error
+
+      await loadBalanceData()
+      setShowAddBalance(false)
+      setNewBalance({ amount: '', reason: '' })
+
+    } catch (err) {
+      console.error('Error updating balance:', err.message)
+    }
+  }
+
+  return (
+    <div className="mb-8">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-slate-100">Account Balance</h2>
+        <button
+          onClick={() => setShowAddBalance(!showAddBalance)}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors"
+        >
+          {showAddBalance ? 'Cancel' : 'Add Deposit/Withdrawal'}
+        </button>
+      </div>
+
+      <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg mb-6">
+        <div className="text-center">
+          <h3 className="text-lg text-slate-400">Current Balance</h3>
+          <p className="text-4xl font-bold text-emerald-400">${currentBalance.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {showAddBalance && (
+        <form onSubmit={handleAddBalance} className="bg-slate-800 border border-slate-700 p-4 rounded-lg mb-6">
+          <h3 className="font-semibold mb-4 text-slate-100">Add Deposit or Withdrawal</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="Amount (use negative for withdrawals)"
+              type="number"
+              step="0.01"
+              value={newBalance.amount}
+              onChange={(e) => setNewBalance(prev => ({ ...prev, amount: e.target.value }))}
+              placeholder="e.g., 500.00 or -200.00"
+              required
+            />
+            <InputField
+              label="Reason"
+              value={newBalance.reason}
+              onChange={(e) => setNewBalance(prev => ({ ...prev, reason: e.target.value }))}
+              placeholder="e.g., Monthly deposit, Profit withdrawal"
+            />
+          </div>
+          <div className="flex gap-4 mt-4">
+            <button
+              type="submit"
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+            >
+              Add Transaction
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddBalance(false)}
+              className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+        <h3 className="p-4 font-semibold border-b border-slate-700 text-slate-100">Recent Balance Changes</h3>
+        <div className="max-h-60 overflow-y-auto">
+          {balanceHistory.slice(0, 10).map((entry) => (
+            <div key={entry.id} className="p-4 border-b border-slate-700 last:border-b-0">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium text-slate-100">{entry.change_reason}</p>
+                  <p className="text-sm text-slate-400">
+                    {new Date(entry.created_at).toLocaleDateString()} at {new Date(entry.created_at).toLocaleTimeString()}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-semibold ${entry.change_amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {entry.change_amount >= 0 ? '+' : ''}${entry.change_amount.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-slate-400">Balance: ${entry.balance.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, setIsSubmitting }) => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedTrade, setSelectedTrade] = useState(null)
@@ -58,7 +202,6 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
     notes: ''
   })
 
-  // Load open trades when component mounts
   useEffect(() => {
     const loadOpenTrades = async () => {
       setLoading(true)
@@ -105,11 +248,10 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
       if (error) {
         setMessage(`Error: ${error.message}`)
       } else {
-        setMessage('✅ Trade updated successfully!')
+        setMessage('Trade updated successfully!')
         setSelectedTrade(null)
         setUpdateData({ exit_url: '', pnl: '', notes: '' })
         
-        // Reload open trades
         const { data: updatedTrades } = await supabase
           .from('trades')
           .select('*')
@@ -125,10 +267,10 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
       <button 
         onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
       >
         ← Back to Menu
       </button>
@@ -137,17 +279,19 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
         <h1 className="text-3xl font-bold mb-8">Update Existing Trade</h1>
         
         {message && (
-          <div className={`p-4 rounded-lg mb-6 ${
-            message.includes('Error') ? 'bg-red-900 text-red-300' : 'bg-green-900 text-green-300'
+          <div className={`p-4 rounded-lg mb-6 border ${
+            message.includes('Error') 
+              ? 'bg-red-900/20 text-red-300 border-red-800' 
+              : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
           }`}>
             {message}
           </div>
         )}
 
         {loading ? (
-          <p className="text-gray-300">Loading open trades...</p>
+          <p className="text-slate-400">Loading open trades...</p>
         ) : openTrades.length === 0 ? (
-          <p className="text-gray-300">No open trades found.</p>
+          <p className="text-slate-400">No open trades found.</p>
         ) : (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Open Trades ({openTrades.length})</h2>
@@ -158,8 +302,8 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                   key={trade.id}
                   className={`p-4 border rounded-lg cursor-pointer transition-colors ${
                     selectedTrade?.id === trade.id 
-                      ? 'border-blue-500 bg-blue-900/20' 
-                      : 'border-gray-600 hover:border-gray-500'
+                      ? 'border-emerald-500 bg-emerald-900/20' 
+                      : 'border-slate-700 hover:border-slate-600 bg-slate-800'
                   }`}
                   onClick={() => setSelectedTrade(trade)}
                 >
@@ -168,15 +312,18 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                       <h3 className="font-semibold text-lg">
                         {trade.pair} - {trade.direction.toUpperCase()}
                       </h3>
-                      <p className="text-gray-300 text-sm">
+                      <p className="text-slate-400 text-sm">
                         Entry: {new Date(trade.entry_date).toLocaleDateString()}
                       </p>
-                      <p className="text-gray-400 text-sm">
+                      <p className="text-slate-500 text-sm">
                         Type: {trade.entrytype} | Rule3: {trade.rule3} | Zone: {trade.zone}
                       </p>
+                      {trade.pattern_traded && (
+                        <p className="text-slate-500 text-sm">Pattern: {trade.pattern_traded}</p>
+                      )}
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-400">Stop Size: {trade.stopsize}</p>
+                      <p className="text-sm text-slate-400">Stop Size: {trade.stopsize}</p>
                     </div>
                   </div>
                 </div>
@@ -184,7 +331,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
             </div>
 
             {selectedTrade && (
-              <div className="mt-8 p-6 bg-gray-800 rounded-lg">
+              <div className="mt-8 p-6 bg-slate-800 border border-slate-700 rounded-lg">
                 <h3 className="text-xl font-semibold mb-4">
                   Close Trade: {selectedTrade.pair} - {selectedTrade.direction.toUpperCase()}
                 </h3>
@@ -209,7 +356,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                   />
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-2 text-gray-300">
+                    <label className="block text-sm font-medium mb-2 text-slate-300">
                       Additional Notes (Optional)
                     </label>
                     <textarea
@@ -217,7 +364,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                       onChange={(e) => setUpdateData(prev => ({ ...prev, notes: e.target.value }))}
                       placeholder="Exit reasons, lessons learned..."
                       rows="3"
-                      className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
                     />
                   </div>
 
@@ -225,14 +372,14 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                     <button
                       type="button"
                       onClick={() => setSelectedTrade(null)}
-                      className="px-6 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+                      className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 rounded-lg font-semibold"
+                      className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
                     >
                       {isSubmitting ? 'Closing Trade...' : 'Close Trade'}
                     </button>
@@ -246,157 +393,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
     </div>
   )
 }
-// Add this component before ViewHistoricalData component
-const BalanceManager = ({ setCurrentView }) => {
-  const [currentBalance, setCurrentBalance] = useState(0)
-  const [balanceHistory, setBalanceHistory] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showAddBalance, setShowAddBalance] = useState(false)
-  const [newBalance, setNewBalance] = useState({
-    amount: '',
-    reason: ''
-  })
 
-  useEffect(() => {
-    loadBalanceData()
-  }, [])
-
-  const loadBalanceData = async () => {
-  setLoading(true)
-  try {
-    // Get ALL balance history to calculate current balance
-    const { data: history, error: historyError } = await supabase
-      .from('balance_history')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (historyError) throw historyError
-    setBalanceHistory(history || [])
-
-    // Calculate current balance from the most recent entry
-    // (Each entry should store the running total, not just changes)
-    const latestEntry = history?.[0]
-    setCurrentBalance(latestEntry?.balance || 0)
-
-  } catch (err) {
-    console.error('Error loading balance:', err.message)
-  }
-  setLoading(false)
-}
-
-  const handleAddBalance = async (e) => {
-  e.preventDefault()
-  if (!newBalance.amount) return
-
-  try {
-    const changeAmount = parseFloat(newBalance.amount)
-    const newBalanceAmount = parseFloat(currentBalance) + changeAmount
-
-    const { error } = await supabase
-      .from('balance_history')
-      .insert([{
-        balance: newBalanceAmount,
-        change_amount: changeAmount,
-        change_reason: newBalance.reason || (changeAmount > 0 ? 'Deposit' : 'Withdrawal')
-      }])
-
-    if (error) throw error
-
-    // Reload data
-    await loadBalanceData()
-    setShowAddBalance(false)
-    setNewBalance({ amount: '', reason: '' })
-
-  } catch (err) {
-    console.error('Error updating balance:', err.message)
-  }
-}
-
-  return (
-    <div className="mb-8">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Account Balance</h2>
-        <button
-          onClick={() => setShowAddBalance(!showAddBalance)}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm"
-        >
-          {showAddBalance ? 'Cancel' : 'Add Deposit/Withdrawal'}
-        </button>
-      </div>
-
-      <div className="bg-gray-800 p-6 rounded-lg mb-6">
-        <div className="text-center">
-          <h3 className="text-lg text-gray-400">Current Balance</h3>
-          <p className="text-4xl font-bold text-green-400">${currentBalance.toFixed(2)}</p>
-        </div>
-      </div>
-
-      {showAddBalance && (
-        <form onSubmit={handleAddBalance} className="bg-gray-800 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold mb-4">Add Deposit or Withdrawal</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField
-              label="Amount (use negative for withdrawals)"
-              type="number"
-              step="0.01"
-              value={newBalance.amount}
-              onChange={(e) => setNewBalance(prev => ({ ...prev, amount: e.target.value }))}
-              placeholder="e.g., 500.00 or -200.00"
-              required
-            />
-            <InputField
-              label="Reason"
-              value={newBalance.reason}
-              onChange={(e) => setNewBalance(prev => ({ ...prev, reason: e.target.value }))}
-              placeholder="e.g., Monthly deposit, Profit withdrawal"
-            />
-          </div>
-          <div className="flex gap-4 mt-4">
-            <button
-              type="submit"
-              className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg"
-            >
-              Add Transaction
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddBalance(false)}
-              className="px-6 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Recent Balance History */}
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
-        <h3 className="p-4 font-semibold border-b border-gray-700">Recent Balance Changes</h3>
-        <div className="max-h-60 overflow-y-auto">
-          {balanceHistory.slice(0, 10).map((entry) => (
-            <div key={entry.id} className="p-4 border-b border-gray-700 last:border-b-0">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium">{entry.change_reason}</p>
-                  <p className="text-sm text-gray-400">
-                    {new Date(entry.created_at).toLocaleDateString()} at {new Date(entry.created_at).toLocaleTimeString()}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-semibold ${entry.change_amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {entry.change_amount >= 0 ? '+' : ''}${entry.change_amount.toFixed(2)}
-                  </p>
-                  <p className="text-sm text-gray-400">Balance: ${entry.balance.toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-// Add this component before the Home component (around line 200)
 const ViewHistoricalData = ({ setCurrentView }) => {
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
@@ -437,10 +434,10 @@ const ViewHistoricalData = ({ setCurrentView }) => {
   const winRate = trades.length > 0 ? ((winningTrades / (winningTrades + losingTrades)) * 100).toFixed(1) : 0
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
       <button 
         onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
       >
         ← Back to Menu
       </button>
@@ -448,119 +445,131 @@ const ViewHistoricalData = ({ setCurrentView }) => {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">View Historical Data</h1>
         
-        {/* Balance Section */}
         <BalanceManager setCurrentView={setCurrentView} />
         
-        {/* Trading Stats */}
         <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm text-gray-400">Total Trades</h3>
-            <p className="text-2xl font-bold">{trades.length}</p>
+          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+            <h3 className="text-sm text-slate-400">Total Trades</h3>
+            <p className="text-2xl font-bold text-slate-100">{trades.length}</p>
           </div>
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm text-gray-400">Trading P&L</h3>
-            <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+            <h3 className="text-sm text-slate-400">Trading P&L</h3>
+            <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               ${totalPnL.toFixed(2)}
             </p>
           </div>
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm text-gray-400">Win Rate</h3>
-            <p className="text-2xl font-bold">{winRate}%</p>
+          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+            <h3 className="text-sm text-slate-400">Win Rate</h3>
+            <p className="text-2xl font-bold text-slate-100">{winRate}%</p>
           </div>
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm text-gray-400">W/L Ratio</h3>
-            <p className="text-2xl font-bold">{winningTrades}/{losingTrades}</p>
+          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+            <h3 className="text-sm text-slate-400">W/L Ratio</h3>
+            <p className="text-2xl font-bold text-slate-100">{winningTrades}/{losingTrades}</p>
           </div>
         </div>
 
-        {/* Filter Buttons */}
         <div className="flex gap-4 mb-6">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg ${filter === 'all' ? 'bg-blue-600' : 'bg-gray-700'}`}
+            className={`px-4 py-2 rounded-lg border transition-colors ${
+              filter === 'all' 
+                ? 'bg-emerald-600 text-white border-emerald-500' 
+                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+            }`}
           >
             All Trades
           </button>
           <button
             onClick={() => setFilter('open')}
-            className={`px-4 py-2 rounded-lg ${filter === 'open' ? 'bg-green-600' : 'bg-gray-700'}`}
+            className={`px-4 py-2 rounded-lg border transition-colors ${
+              filter === 'open' 
+                ? 'bg-emerald-600 text-white border-emerald-500' 
+                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+            }`}
           >
             Open Trades
           </button>
           <button
             onClick={() => setFilter('closed')}
-            className={`px-4 py-2 rounded-lg ${filter === 'closed' ? 'bg-red-600' : 'bg-gray-700'}`}
+            className={`px-4 py-2 rounded-lg border transition-colors ${
+              filter === 'closed' 
+                ? 'bg-emerald-600 text-white border-emerald-500' 
+                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+            }`}
           >
             Closed Trades
           </button>
         </div>
 
-        {/* Trades Table */}
         {loading ? (
-          <p className="text-gray-300">Loading trades...</p>
+          <p className="text-slate-400">Loading trades...</p>
         ) : trades.length === 0 ? (
-          <p className="text-gray-300">No trades found.</p>
+          <p className="text-slate-400">No trades found.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full bg-gray-800 rounded-lg overflow-hidden">
-              <thead className="bg-gray-700">
+            <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
+              <thead className="bg-slate-700">
                 <tr>
-                  <th className="p-3 text-left">Pair</th>
-                  <th className="p-3 text-left">Direction</th>
-                  <th className="p-3 text-left">Entry Date</th>
-                  <th className="p-3 text-left">Type</th>
-                  <th className="p-3 text-left">Rule3</th>
-                  <th className="p-3 text-left">Zone</th>
-                  <th className="p-3 text-left">Pattern</th>
-                  <th className="p-3 text-left">Stop Size</th>
-                  <th className="p-3 text-left">P&L</th>
-                  <th className="p-3 text-left">Status</th>
-                  <th className="p-3 text-left">Exit Date</th>
+                  <th className="p-3 text-left text-slate-300">Pair</th>
+                  <th className="p-3 text-left text-slate-300">Direction</th>
+                  <th className="p-3 text-left text-slate-300">Entry Date</th>
+                  <th className="p-3 text-left text-slate-300">Type</th>
+                  <th className="p-3 text-left text-slate-300">Rule3</th>
+                  <th className="p-3 text-left text-slate-300">Zone</th>
+                  <th className="p-3 text-left text-slate-300">Pattern</th>
+                  <th className="p-3 text-left text-slate-300">Stop Size</th>
+                  <th className="p-3 text-left text-slate-300">P&L</th>
+                  <th className="p-3 text-left text-slate-300">Status</th>
+                  <th className="p-3 text-left text-slate-300">Exit Date</th>
                 </tr>
               </thead>
               <tbody>
                 {trades.map((trade, index) => (
-                  <tr key={trade.id} className={index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750'}>
-                    <td className="p-3 font-semibold">{trade.pair}</td>
+                  <tr key={trade.id} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+                    <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
                     <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        trade.direction === 'long' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        trade.direction === 'long' 
+                          ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
+                          : 'bg-red-900/40 text-red-300 border border-red-800'
                       }`}>
                         {trade.direction.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-3 text-sm">
+                    <td className="p-3 text-sm text-slate-300">
                       {new Date(trade.entry_date).toLocaleDateString()}
                     </td>
-                    <td className="p-3">{trade.entrytype}</td>
-                    <td className="p-3">{trade.rule3}</td>
+                    <td className="p-3 text-slate-300">{trade.entrytype}</td>
+                    <td className="p-3 text-slate-300">{trade.rule3}</td>
                     <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        trade.zone === 'Green' ? 'bg-green-900 text-green-300' :
-                        trade.zone === 'Yellow' ? 'bg-yellow-900 text-yellow-300' :
-                        'bg-red-900 text-red-300'
+                      <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                        trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
+                        trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
+                        'bg-red-900/40 text-red-300 border-red-800'
                       }`}>
                         {trade.zone}
                       </span>
                     </td>
-                    <td className="p-3">{trade.pattern_traded || '-'}</td>
-                    <td className="p-3">{trade.stopsize || '-'}</td>
+                    <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
+                    <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
                     <td className="p-3">
                       {trade.pnl ? (
-                        <span className={trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           ${parseFloat(trade.pnl).toFixed(2)}
                         </span>
                       ) : '-'}
                     </td>
                     <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        trade.status === 'open' ? 'bg-blue-900 text-blue-300' : 'bg-gray-600 text-gray-300'
+                      <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                        trade.status === 'open' 
+                          ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
+                          : 'bg-slate-700/40 text-slate-400 border-slate-600'
                       }`}>
                         {trade.status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-3 text-sm">
+                    <td className="p-3 text-sm text-slate-300">
                       {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
                     </td>
                   </tr>
@@ -573,6 +582,7 @@ const ViewHistoricalData = ({ setCurrentView }) => {
     </div>
   )
 }
+
 export default function Home() {
   const [currentView, setCurrentView] = useState('menu')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -621,7 +631,7 @@ export default function Home() {
       if (error) {
         setMessage(`Error: ${error.message}`)
       } else {
-        setMessage('✅ Trade added successfully!')
+        setMessage('Trade added successfully!')
         setFormData({
           pair: '',
           direction: 'long',
@@ -643,30 +653,30 @@ export default function Home() {
 
   if (currentView === 'menu') {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
         <div className="text-center space-y-8">
-          <h1 className="text-5xl font-bold mb-12">Trading Journal</h1>
+          <h1 className="text-5xl font-bold mb-12 text-slate-100">Trading Journal</h1>
           
           <div className="space-y-4">
             <MenuButton
               onClick={() => setCurrentView('new-trade')}
-              className="bg-green-600 hover:bg-green-700 border-green-500"
+              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
             >
-              1. Enter New Trade
+              Enter New Trade
             </MenuButton>
             
             <MenuButton
               onClick={() => setCurrentView('update-trade')}
-              className="bg-blue-600 hover:bg-blue-700 border-blue-500"
+              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
             >
-              2. Update Existing Trade
+              Update Existing Trade
             </MenuButton>
             
             <MenuButton
               onClick={() => setCurrentView('view-data')}
-              className="bg-purple-600 hover:bg-purple-700 border-purple-500"
+              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
             >
-              3. View Historical Data
+              View Historical Data
             </MenuButton>
           </div>
         </div>
@@ -676,10 +686,10 @@ export default function Home() {
 
   if (currentView === 'new-trade') {
     return (
-      <div className="min-h-screen bg-gray-900 text-white p-8">
+      <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
         <button 
           onClick={() => setCurrentView('menu')}
-          className="mb-6 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+          className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
         >
           ← Back to Menu
         </button>
@@ -688,14 +698,16 @@ export default function Home() {
           <h1 className="text-3xl font-bold mb-8">Enter New Trade</h1>
           
           {message && (
-            <div className={`p-4 rounded-lg mb-6 ${
-              message.includes('Error') ? 'bg-red-900 text-red-300' : 'bg-green-900 text-green-300'
+            <div className={`p-4 rounded-lg mb-6 border ${
+              message.includes('Error') 
+                ? 'bg-red-900/20 text-red-300 border-red-800' 
+                : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
             }`}>
               {message}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
             <InputField
               label="Currency Pair"
               value={formData.pair}
@@ -759,11 +771,32 @@ export default function Home() {
               required
             />
 
-            <InputField
+            <SelectField
               label="Pattern Traded"
               value={formData.pattern_traded}
               onChange={(e) => handleInputChange('pattern_traded', e.target.value)}
-              placeholder="e.g., Head & Shoulders, Flag, Triangle"
+              options={[
+                { value: '', label: 'Select a pattern...' },
+                { value: 'Bull Flag', label: 'Bull Flag' },
+                { value: 'Bear Flag', label: 'Bear Flag' },
+                { value: 'Flat Flag', label: 'Flat Flag' },
+                { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
+                { value: 'Expanding Triangle', label: 'Expanding Triangle' },
+                { value: 'Falcon Flag', label: 'Falcon Flag' },
+                { value: 'Ascending Channel', label: 'Ascending Channel' },
+                { value: 'Descending Channel', label: 'Descending Channel' },
+                { value: 'Rising Wedge', label: 'Rising Wedge' },
+                { value: 'Falling Wedge', label: 'Falling Wedge' },
+                { value: 'H&S', label: 'H&S' },
+                { value: 'Double Top', label: 'Double Top' },
+                { value: 'Double Bottom', label: 'Double Bottom' },
+                { value: 'The Arc', label: 'The Arc' },
+                { value: 'Structural Test', label: 'Structural Test' },
+                { value: 'Hook Point', label: 'Hook Point' },
+                { value: 'Reverse M Style', label: 'Reverse M Style' },
+                { value: 'M Style', label: 'M Style' }
+              ]}
+              required
             />
 
             <InputField
@@ -775,7 +808,7 @@ export default function Home() {
             />
 
             <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-gray-300">
+              <label className="block text-sm font-medium mb-2 text-slate-300">
                 Notes (Optional)
               </label>
               <textarea
@@ -783,14 +816,14 @@ export default function Home() {
                 onChange={(e) => handleInputChange('notes', e.target.value)}
                 placeholder="Trade setup, reasons, strategy..."
                 rows="4"
-                className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
               />
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full p-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg font-semibold transition-colors"
+              className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
             >
               {isSubmitting ? 'Adding Trade...' : 'Add Trade'}
             </button>
@@ -801,10 +834,10 @@ export default function Home() {
   }
 
   if (currentView === 'update-trade') {
-  return <UpdateTradeView setCurrentView={setCurrentView} setMessage={setMessage} message={message} isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
-}
+    return <UpdateTradeView setCurrentView={setCurrentView} setMessage={setMessage} message={message} isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+  }
 
   if (currentView === 'view-data') {
-  return <ViewHistoricalData setCurrentView={setCurrentView} />
-}
+    return <ViewHistoricalData setCurrentView={setCurrentView} />
+  }
 }
