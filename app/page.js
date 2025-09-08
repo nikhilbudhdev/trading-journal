@@ -394,10 +394,321 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   )
 }
 
+// Add this component before the ViewHistoricalData component in your code
+
+const TradingAnalytics = ({ trades }) => {
+  const closedTrades = trades.filter(trade => trade.status === 'closed' && trade.pnl !== null)
+  
+  if (closedTrades.length < 5) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+        <h2 className="text-2xl font-bold mb-4 text-slate-100">Trading Analytics</h2>
+        <p className="text-slate-400">Need at least 5 completed trades for meaningful analysis. Current: {closedTrades.length}</p>
+      </div>
+    )
+  }
+
+  // Pattern Performance Analysis
+  const patternStats = {}
+  closedTrades.forEach(trade => {
+    if (trade.pattern_traded) {
+      if (!patternStats[trade.pattern_traded]) {
+        patternStats[trade.pattern_traded] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+      }
+      patternStats[trade.pattern_traded].count++
+      patternStats[trade.pattern_traded].totalPnL += parseFloat(trade.pnl)
+      if (parseFloat(trade.pnl) > 0) {
+        patternStats[trade.pattern_traded].wins++
+      } else {
+        patternStats[trade.pattern_traded].losses++
+      }
+    }
+  })
+
+  // Zone Performance Analysis
+  const zoneStats = {}
+  closedTrades.forEach(trade => {
+    if (!zoneStats[trade.zone]) {
+      zoneStats[trade.zone] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+    }
+    zoneStats[trade.zone].count++
+    zoneStats[trade.zone].totalPnL += parseFloat(trade.pnl)
+    if (parseFloat(trade.pnl) > 0) {
+      zoneStats[trade.zone].wins++
+    } else {
+      zoneStats[trade.zone].losses++
+    }
+  })
+
+  // Entry Type Analysis
+  const entryTypeStats = {}
+  closedTrades.forEach(trade => {
+    if (!entryTypeStats[trade.entrytype]) {
+      entryTypeStats[trade.entrytype] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+    }
+    entryTypeStats[trade.entrytype].count++
+    entryTypeStats[trade.entrytype].totalPnL += parseFloat(trade.pnl)
+    if (parseFloat(trade.pnl) > 0) {
+      entryTypeStats[trade.entrytype].wins++
+    } else {
+      entryTypeStats[trade.entrytype].losses++
+    }
+  })
+
+  // Rule3 Analysis
+  const rule3Stats = {}
+  closedTrades.forEach(trade => {
+    if (!rule3Stats[trade.rule3]) {
+      rule3Stats[trade.rule3] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+    }
+    rule3Stats[trade.rule3].count++
+    rule3Stats[trade.rule3].totalPnL += parseFloat(trade.pnl)
+    if (parseFloat(trade.pnl) > 0) {
+      rule3Stats[trade.rule3].wins++
+    } else {
+      rule3Stats[trade.rule3].losses++
+    }
+  })
+
+  // Day of Week Analysis
+  const dayStats = {}
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  closedTrades.forEach(trade => {
+    const day = dayNames[new Date(trade.entry_date).getDay()]
+    if (!dayStats[day]) {
+      dayStats[day] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+    }
+    dayStats[day].count++
+    dayStats[day].totalPnL += parseFloat(trade.pnl)
+    if (parseFloat(trade.pnl) > 0) {
+      dayStats[day].wins++
+    } else {
+      dayStats[day].losses++
+    }
+  })
+
+  // Currency Pair Analysis
+  const pairStats = {}
+  closedTrades.forEach(trade => {
+    if (!pairStats[trade.pair]) {
+      pairStats[trade.pair] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+    }
+    pairStats[trade.pair].count++
+    pairStats[trade.pair].totalPnL += parseFloat(trade.pnl)
+    if (parseFloat(trade.pnl) > 0) {
+      pairStats[trade.pair].wins++
+    } else {
+      pairStats[trade.pair].losses++
+    }
+  })
+
+  // Risk-Reward Analysis
+  const winningTrades = closedTrades.filter(trade => parseFloat(trade.pnl) > 0)
+  const losingTrades = closedTrades.filter(trade => parseFloat(trade.pnl) < 0)
+  const avgWin = winningTrades.length > 0 ? winningTrades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0) / winningTrades.length : 0
+  const avgLoss = losingTrades.length > 0 ? Math.abs(losingTrades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0) / losingTrades.length) : 0
+  const riskRewardRatio = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : 'N/A'
+
+  // Streak Analysis
+  let currentStreak = 0
+  let streakType = null
+  let maxWinStreak = 0
+  let maxLossStreak = 0
+  let tempWinStreak = 0
+  let tempLossStreak = 0
+
+  const sortedTrades = [...closedTrades].sort((a, b) => new Date(a.exit_date) - new Date(b.exit_date))
+  
+  sortedTrades.forEach(trade => {
+    const isWin = parseFloat(trade.pnl) > 0
+    
+    if (isWin) {
+      tempWinStreak++
+      tempLossStreak = 0
+      maxWinStreak = Math.max(maxWinStreak, tempWinStreak)
+    } else {
+      tempLossStreak++
+      tempWinStreak = 0
+      maxLossStreak = Math.max(maxLossStreak, tempLossStreak)
+    }
+  })
+
+  // Current streak
+  if (sortedTrades.length > 0) {
+    const recentTrades = sortedTrades.slice(-10)
+    let streak = 1
+    const lastTradeWin = parseFloat(recentTrades[recentTrades.length - 1].pnl) > 0
+    
+    for (let i = recentTrades.length - 2; i >= 0; i--) {
+      const isWin = parseFloat(recentTrades[i].pnl) > 0
+      if (isWin === lastTradeWin) {
+        streak++
+      } else {
+        break
+      }
+    }
+    
+    currentStreak = streak
+    streakType = lastTradeWin ? 'winning' : 'losing'
+  }
+
+  const StatCard = ({ title, stats, colorKey }) => (
+    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+      <h3 className="text-lg font-semibold mb-3 text-slate-100">{title}</h3>
+      <div className="space-y-2">
+        {Object.entries(stats)
+          .filter(([_, data]) => data.count >= 2) // Only show items with 2+ trades
+          .sort((a, b) => (b[1].totalPnL - a[1].totalPnL))
+          .slice(0, 5) // Top 5 performers
+          .map(([key, data]) => {
+            const winRate = ((data.wins / data.count) * 100).toFixed(1)
+            const avgPnL = (data.totalPnL / data.count).toFixed(2)
+            return (
+              <div key={key} className="flex justify-between items-center">
+                <div>
+                  <span className="text-slate-200 font-medium">{key}</span>
+                  <span className="text-slate-400 text-sm ml-2">({data.count} trades)</span>
+                </div>
+                <div className="text-right">
+                  <div className={`text-sm font-semibold ${data.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    ${data.totalPnL.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {winRate}% • Avg: ${avgPnL}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-2xl font-bold mb-6 text-slate-100">Trading Analytics</h2>
+      
+      {/* Key Insights */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-2 text-slate-100">Risk-Reward Profile</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Average Win:</span>
+              <span className="text-emerald-400 font-semibold">${avgWin.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Average Loss:</span>
+              <span className="text-red-400 font-semibold">${avgLoss.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Risk-Reward Ratio:</span>
+              <span className="text-slate-100 font-semibold">{riskRewardRatio}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-2 text-slate-100">Streak Analysis</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Current Streak:</span>
+              <span className={`font-semibold ${streakType === 'winning' ? 'text-emerald-400' : 'text-red-400'}`}>
+                {currentStreak} {streakType}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Max Win Streak:</span>
+              <span className="text-emerald-400 font-semibold">{maxWinStreak}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Max Loss Streak:</span>
+              <span className="text-red-400 font-semibold">{maxLossStreak}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-2 text-slate-100">Trading Volume</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Total Trades:</span>
+              <span className="text-slate-100 font-semibold">{closedTrades.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Winning Trades:</span>
+              <span className="text-emerald-400 font-semibold">{winningTrades.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Losing Trades:</span>
+              <span className="text-red-400 font-semibold">{losingTrades.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Performance by Category */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <StatCard title="Top Performing Patterns" stats={patternStats} />
+        <StatCard title="Zone Performance" stats={zoneStats} />
+        <StatCard title="Entry Type Performance" stats={entryTypeStats} />
+        <StatCard title="Rule3 Performance" stats={rule3Stats} />
+        <StatCard title="Day of Week Performance" stats={dayStats} />
+        <StatCard title="Currency Pair Performance" stats={pairStats} />
+      </div>
+
+      {/* Insights and Recommendations */}
+      <div className="mt-6 bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4 text-slate-100">Key Insights</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <h4 className="font-medium text-emerald-400 mb-2">Strengths</h4>
+            <ul className="text-sm text-slate-300 space-y-1">
+              {Object.entries(patternStats)
+                .filter(([_, data]) => data.count >= 3 && (data.wins / data.count) >= 0.6)
+                .slice(0, 3)
+                .map(([pattern, data]) => (
+                  <li key={pattern}>• {pattern}: {((data.wins / data.count) * 100).toFixed(1)}% win rate</li>
+                ))}
+              {Object.entries(zoneStats)
+                .filter(([_, data]) => data.count >= 3)
+                .sort((a, b) => (b[1].wins / b[1].count) - (a[1].wins / a[1].count))
+                .slice(0, 1)
+                .map(([zone, data]) => (
+                  <li key={zone}>• {zone} zone trades: {((data.wins / data.count) * 100).toFixed(1)}% win rate</li>
+                ))}
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-medium text-red-400 mb-2">Areas for Improvement</h4>
+            <ul className="text-sm text-slate-300 space-y-1">
+              {riskRewardRatio !== 'N/A' && parseFloat(riskRewardRatio) < 1.5 && (
+                <li>• Consider improving risk-reward ratio (current: {riskRewardRatio})</li>
+              )}
+              {maxLossStreak > 3 && (
+                <li>• Work on cutting losing streaks early (max: {maxLossStreak})</li>
+              )}
+              {Object.entries(patternStats)
+                .filter(([_, data]) => data.count >= 3 && (data.wins / data.count) < 0.4)
+                .slice(0, 2)
+                .map(([pattern, data]) => (
+                  <li key={pattern}>• Review {pattern} setups: {((data.wins / data.count) * 100).toFixed(1)}% win rate</li>
+                ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Replace your ViewHistoricalData component with this updated version
+
 const ViewHistoricalData = ({ setCurrentView }) => {
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [activeTab, setActiveTab] = useState('overview') // New state for tabs
 
   useEffect(() => {
     const loadTrades = async () => {
@@ -447,136 +758,185 @@ const ViewHistoricalData = ({ setCurrentView }) => {
         
         <BalanceManager setCurrentView={setCurrentView} />
         
-        <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <h3 className="text-sm text-slate-400">Total Trades</h3>
-            <p className="text-2xl font-bold text-slate-100">{trades.length}</p>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <h3 className="text-sm text-slate-400">Trading P&L</h3>
-            <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              ${totalPnL.toFixed(2)}
-            </p>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <h3 className="text-sm text-slate-400">Win Rate</h3>
-            <p className="text-2xl font-bold text-slate-100">{winRate}%</p>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-            <h3 className="text-sm text-slate-400">W/L Ratio</h3>
-            <p className="text-2xl font-bold text-slate-100">{winningTrades}/{losingTrades}</p>
-          </div>
-        </div>
-
-        <div className="flex gap-4 mb-6">
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-6">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-lg border transition-colors ${
-              filter === 'all' 
+              activeTab === 'overview' 
                 ? 'bg-emerald-600 text-white border-emerald-500' 
                 : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
             }`}
           >
-            All Trades
+            Overview
           </button>
           <button
-            onClick={() => setFilter('open')}
+            onClick={() => setActiveTab('analytics')}
             className={`px-4 py-2 rounded-lg border transition-colors ${
-              filter === 'open' 
+              activeTab === 'analytics' 
                 ? 'bg-emerald-600 text-white border-emerald-500' 
                 : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
             }`}
           >
-            Open Trades
+            Analytics
           </button>
           <button
-            onClick={() => setFilter('closed')}
+            onClick={() => setActiveTab('trades')}
             className={`px-4 py-2 rounded-lg border transition-colors ${
-              filter === 'closed' 
+              activeTab === 'trades' 
                 ? 'bg-emerald-600 text-white border-emerald-500' 
                 : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
             }`}
           >
-            Closed Trades
+            Trade History
           </button>
         </div>
 
-        {loading ? (
-          <p className="text-slate-400">Loading trades...</p>
-        ) : trades.length === 0 ? (
-          <p className="text-slate-400">No trades found.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-              <thead className="bg-slate-700">
-                <tr>
-                  <th className="p-3 text-left text-slate-300">Pair</th>
-                  <th className="p-3 text-left text-slate-300">Direction</th>
-                  <th className="p-3 text-left text-slate-300">Entry Date</th>
-                  <th className="p-3 text-left text-slate-300">Type</th>
-                  <th className="p-3 text-left text-slate-300">Rule3</th>
-                  <th className="p-3 text-left text-slate-300">Zone</th>
-                  <th className="p-3 text-left text-slate-300">Pattern</th>
-                  <th className="p-3 text-left text-slate-300">Stop Size</th>
-                  <th className="p-3 text-left text-slate-300">P&L</th>
-                  <th className="p-3 text-left text-slate-300">Status</th>
-                  <th className="p-3 text-left text-slate-300">Exit Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((trade, index) => (
-                  <tr key={trade.id} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
-                    <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        trade.direction === 'long' 
-                          ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
-                          : 'bg-red-900/40 text-red-300 border border-red-800'
-                      }`}>
-                        {trade.direction.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="p-3 text-sm text-slate-300">
-                      {new Date(trade.entry_date).toLocaleDateString()}
-                    </td>
-                    <td className="p-3 text-slate-300">{trade.entrytype}</td>
-                    <td className="p-3 text-slate-300">{trade.rule3}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                        trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
-                        trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
-                        'bg-red-900/40 text-red-300 border-red-800'
-                      }`}>
-                        {trade.zone}
-                      </span>
-                    </td>
-                    <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
-                    <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
-                    <td className="p-3">
-                      {trade.pnl ? (
-                        <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          ${parseFloat(trade.pnl).toFixed(2)}
-                        </span>
-                      ) : '-'}
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                        trade.status === 'open' 
-                          ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
-                          : 'bg-slate-700/40 text-slate-400 border-slate-600'
-                      }`}>
-                        {trade.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="p-3 text-sm text-slate-300">
-                      {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <>
+            <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Total Trades</h3>
+                <p className="text-2xl font-bold text-slate-100">{trades.length}</p>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Trading P&L</h3>
+                <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ${totalPnL.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Win Rate</h3>
+                <p className="text-2xl font-bold text-slate-100">{winRate}%</p>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">W/L Ratio</h3>
+                <p className="text-2xl font-bold text-slate-100">{winningTrades}/{losingTrades}</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <TradingAnalytics trades={trades} />
+        )}
+
+        {/* Trade History Tab */}
+        {activeTab === 'trades' && (
+          <>
+            <div className="flex gap-4 mb-6">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${
+                  filter === 'all' 
+                    ? 'bg-emerald-600 text-white border-emerald-500' 
+                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+                }`}
+              >
+                All Trades
+              </button>
+              <button
+                onClick={() => setFilter('open')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${
+                  filter === 'open' 
+                    ? 'bg-emerald-600 text-white border-emerald-500' 
+                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+                }`}
+              >
+                Open Trades
+              </button>
+              <button
+                onClick={() => setFilter('closed')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${
+                  filter === 'closed' 
+                    ? 'bg-emerald-600 text-white border-emerald-500' 
+                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+                }`}
+              >
+                Closed Trades
+              </button>
+            </div>
+
+            {loading ? (
+              <p className="text-slate-400">Loading trades...</p>
+            ) : trades.length === 0 ? (
+              <p className="text-slate-400">No trades found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
+                  <thead className="bg-slate-700">
+                    <tr>
+                      <th className="p-3 text-left text-slate-300">Pair</th>
+                      <th className="p-3 text-left text-slate-300">Direction</th>
+                      <th className="p-3 text-left text-slate-300">Entry Date</th>
+                      <th className="p-3 text-left text-slate-300">Type</th>
+                      <th className="p-3 text-left text-slate-300">Rule3</th>
+                      <th className="p-3 text-left text-slate-300">Zone</th>
+                      <th className="p-3 text-left text-slate-300">Pattern</th>
+                      <th className="p-3 text-left text-slate-300">Stop Size</th>
+                      <th className="p-3 text-left text-slate-300">P&L</th>
+                      <th className="p-3 text-left text-slate-300">Status</th>
+                      <th className="p-3 text-left text-slate-300">Exit Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trades.map((trade, index) => (
+                      <tr key={trade.id} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+                        <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            trade.direction === 'long' 
+                              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
+                              : 'bg-red-900/40 text-red-300 border border-red-800'
+                          }`}>
+                            {trade.direction.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-slate-300">
+                          {new Date(trade.entry_date).toLocaleDateString()}
+                        </td>
+                        <td className="p-3 text-slate-300">{trade.entrytype}</td>
+                        <td className="p-3 text-slate-300">{trade.rule3}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                            trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
+                            trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
+                            'bg-red-900/40 text-red-300 border-red-800'
+                          }`}>
+                            {trade.zone}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
+                        <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
+                        <td className="p-3">
+                          {trade.pnl ? (
+                            <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              ${parseFloat(trade.pnl).toFixed(2)}
+                            </span>
+                          ) : '-'}
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                            trade.status === 'open' 
+                              ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
+                              : 'bg-slate-700/40 text-slate-400 border-slate-600'
+                          }`}>
+                            {trade.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-slate-300">
+                          {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
