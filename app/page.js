@@ -227,44 +227,74 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   }, [])
 
   const handleUpdateTrade = async (e) => {
-    e.preventDefault()
-    if (!selectedTrade) return
+  e.preventDefault()
+  if (!selectedTrade) return
 
-    setIsSubmitting(true)
-    setMessage('')
+  setIsSubmitting(true)
+  setMessage('')
 
-    try {
-      const { data, error } = await supabase
-        .from('trades')
-        .update({
-          exit_date: new Date().toISOString(),
-          exit_url: updateData.exit_url || null,
-          pnl: updateData.pnl ? parseFloat(updateData.pnl) : null,
-          notes: updateData.notes || selectedTrade.notes,
-          status: 'closed'
-        })
-        .eq('id', selectedTrade.id)
+  try {
+    const pnlAmount = updateData.pnl ? parseFloat(updateData.pnl) : 0
 
-      if (error) {
-        setMessage(`Error: ${error.message}`)
-      } else {
-        setMessage('Trade updated successfully!')
-        setSelectedTrade(null)
-        setUpdateData({ exit_url: '', pnl: '', notes: '' })
-        
-        const { data: updatedTrades } = await supabase
-          .from('trades')
-          .select('*')
-          .eq('status', 'open')
-          .order('entry_date', { ascending: false })
-        setOpenTrades(updatedTrades || [])
-      }
-    } catch (err) {
-      setMessage(`Error: ${err.message}`)
+    // Update the trade
+    const { data, error } = await supabase
+      .from('trades')
+      .update({
+        exit_date: new Date().toISOString(),
+        exit_url: updateData.exit_url || null,
+        pnl: pnlAmount,
+        notes: updateData.notes || selectedTrade.notes,
+        status: 'closed'
+      })
+      .eq('id', selectedTrade.id)
+
+    if (error) throw error
+
+    // Automatically update balance if P&L is not zero
+    if (pnlAmount !== 0) {
+      // Get current balance
+      const { data: balanceHistory, error: balanceError } = await supabase
+        .from('balance_history')
+        .select('balance')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (balanceError) throw balanceError
+
+      const currentBalance = balanceHistory[0]?.balance || 0
+      const newBalance = currentBalance + pnlAmount
+
+      // Add balance entry
+      const { error: balanceInsertError } = await supabase
+        .from('balance_history')
+        .insert([{
+          balance: newBalance,
+          change_amount: pnlAmount,
+          change_reason: `Trade P&L: ${selectedTrade.pair} ${selectedTrade.direction}`,
+          trade_id: selectedTrade.id
+        }])
+
+      if (balanceInsertError) throw balanceInsertError
     }
 
-    setIsSubmitting(false)
+    setMessage('Trade updated successfully! Balance automatically adjusted.')
+    setSelectedTrade(null)
+    setUpdateData({ exit_url: '', pnl: '', notes: '' })
+    
+    // Reload open trades
+    const { data: updatedTrades } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('status', 'open')
+      .order('entry_date', { ascending: false })
+    setOpenTrades(updatedTrades || [])
+
+  } catch (err) {
+    setMessage(`Error: ${err.message}`)
   }
+
+  setIsSubmitting(false)
+}
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
