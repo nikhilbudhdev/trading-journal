@@ -168,8 +168,8 @@ const BalanceManager = ({ setCurrentView }) => {
       <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
         <h3 className="p-4 font-semibold border-b border-slate-700 text-slate-100">Recent Balance Changes</h3>
         <div className="max-h-60 overflow-y-auto">
-          {balanceHistory.slice(0, 10).map((entry) => (
-            <div key={entry.id} className="p-4 border-b border-slate-700 last:border-b-0">
+          {balanceHistory.slice(0, 10).map((entry, index) => (
+            <div key={entry.id || index} className="p-4 border-b border-slate-700 last:border-b-0">
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium text-slate-100">{entry.change_reason}</p>
@@ -224,86 +224,72 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
     }
 
     loadOpenTrades()
-  }, [])
+  }, [setMessage])
 
   const handleUpdateTrade = async (e) => {
-  e.preventDefault()
-  if (!selectedTrade) return
+    e.preventDefault()
+    if (!selectedTrade) return
 
-  setIsSubmitting(true)
-  setMessage('')
+    setIsSubmitting(true)
+    setMessage('')
 
-  try {
-    const pnlAmount = updateData.pnl ? parseFloat(updateData.pnl) : 0
-    console.log('P&L Amount:', pnlAmount) // DEBUG
+    try {
+      const pnlAmount = updateData.pnl ? parseFloat(updateData.pnl) : 0
 
-    // Update the trade
-    const { data, error } = await supabase
-      .from('trades')
-      .update({
-        exit_date: new Date().toISOString(),
-        exit_url: updateData.exit_url || null,
-        pnl: pnlAmount,
-        notes: updateData.notes || selectedTrade.notes,
-        status: 'closed'
-      })
-      .eq('id', selectedTrade.id)
+      const { error } = await supabase
+        .from('trades')
+        .update({
+          exit_date: new Date().toISOString(),
+          exit_url: updateData.exit_url || null,
+          pnl: pnlAmount,
+          notes: updateData.notes || selectedTrade.notes,
+          status: 'closed'
+        })
+        .eq('id', selectedTrade.id)
 
-    if (error) throw error
-    console.log('Trade updated successfully') // DEBUG
+      if (error) throw error
 
-    // Automatically update balance if P&L is not zero
-    if (pnlAmount !== 0) {
-      console.log('Updating balance...') // DEBUG
+      if (pnlAmount !== 0) {
+        const { data: balanceHistory, error: balanceError } = await supabase
+          .from('balance_history')
+          .select('balance')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (balanceError) throw balanceError
+
+        const currentBalance = balanceHistory[0]?.balance || 0
+        const newBalance = currentBalance + pnlAmount
+
+        const { error: balanceInsertError } = await supabase
+          .from('balance_history')
+          .insert([{
+            balance: newBalance,
+            change_amount: pnlAmount,
+            change_reason: `Trade P&L: ${selectedTrade.pair} ${selectedTrade.direction}`,
+            trade_id: selectedTrade.id
+          }])
+
+        if (balanceInsertError) throw balanceInsertError
+      }
+
+      setMessage('Trade updated successfully! Balance automatically adjusted.')
+      setSelectedTrade(null)
+      setUpdateData({ exit_url: '', pnl: '', notes: '' })
       
-      // Get current balance
-      const { data: balanceHistory, error: balanceError } = await supabase
-        .from('balance_history')
-        .select('balance')
-        .order('created_at', { ascending: false })
-        .limit(1)
+      const { data: updatedTrades } = await supabase
+        .from('trades')
+        .select('*')
+        .eq('status', 'open')
+        .order('entry_date', { ascending: false })
+      setOpenTrades(updatedTrades || [])
 
-      if (balanceError) throw balanceError
-      console.log('Current balance data:', balanceHistory) // DEBUG
-
-      const currentBalance = balanceHistory[0]?.balance || 0
-      const newBalance = currentBalance + pnlAmount
-      console.log('Current balance:', currentBalance, 'New balance:', newBalance) // DEBUG
-
-      // Add balance entry
-      const { error: balanceInsertError } = await supabase
-        .from('balance_history')
-        .insert([{
-          balance: newBalance,
-          change_amount: pnlAmount,
-          change_reason: `Trade P&L: ${selectedTrade.pair} ${selectedTrade.direction}`,
-          trade_id: selectedTrade.id
-        }])
-
-      if (balanceInsertError) throw balanceInsertError
-      console.log('Balance updated successfully') // DEBUG
-    } else {
-      console.log('P&L is zero, skipping balance update') // DEBUG
+    } catch (err) {
+      setMessage(`Error: ${err.message}`)
     }
 
-    setMessage('Trade updated successfully! Balance automatically adjusted.')
-    setSelectedTrade(null)
-    setUpdateData({ exit_url: '', pnl: '', notes: '' })
-    
-    // Reload open trades
-    const { data: updatedTrades } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('status', 'open')
-      .order('entry_date', { ascending: false })
-    setOpenTrades(updatedTrades || [])
-
-  } catch (err) {
-    setMessage(`Error: ${err.message}`)
+    setIsSubmitting(false)
   }
-
-  setIsSubmitting(false)
-}
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
@@ -359,6 +345,9 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                       </p>
                       {trade.pattern_traded && (
                         <p className="text-slate-500 text-sm">Pattern: {trade.pattern_traded}</p>
+                      )}
+                      {trade.risk_amount && (
+                        <p className="text-slate-500 text-sm">Risk: ${trade.risk_amount}</p>
                       )}
                     </div>
                     <div className="text-right">
@@ -433,8 +422,6 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   )
 }
 
-// Add this component before the ViewHistoricalData component in your code
-
 const TradingAnalytics = ({ trades }) => {
   const closedTrades = trades.filter(trade => trade.status === 'closed' && trade.pnl !== null)
   
@@ -447,69 +434,32 @@ const TradingAnalytics = ({ trades }) => {
     )
   }
 
-  // Pattern Performance Analysis
-  const patternStats = {}
-  closedTrades.forEach(trade => {
-    if (trade.pattern_traded) {
-      if (!patternStats[trade.pattern_traded]) {
-        patternStats[trade.pattern_traded] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+  const calculateStats = (trades, field) => {
+    const stats = {}
+    trades.forEach(trade => {
+      const key = trade[field]
+      if (key) {
+        if (!stats[key]) {
+          stats[key] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
+        }
+        stats[key].count++
+        stats[key].totalPnL += parseFloat(trade.pnl)
+        if (parseFloat(trade.pnl) > 0) {
+          stats[key].wins++
+        } else {
+          stats[key].losses++
+        }
       }
-      patternStats[trade.pattern_traded].count++
-      patternStats[trade.pattern_traded].totalPnL += parseFloat(trade.pnl)
-      if (parseFloat(trade.pnl) > 0) {
-        patternStats[trade.pattern_traded].wins++
-      } else {
-        patternStats[trade.pattern_traded].losses++
-      }
-    }
-  })
+    })
+    return stats
+  }
 
-  // Zone Performance Analysis
-  const zoneStats = {}
-  closedTrades.forEach(trade => {
-    if (!zoneStats[trade.zone]) {
-      zoneStats[trade.zone] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
-    }
-    zoneStats[trade.zone].count++
-    zoneStats[trade.zone].totalPnL += parseFloat(trade.pnl)
-    if (parseFloat(trade.pnl) > 0) {
-      zoneStats[trade.zone].wins++
-    } else {
-      zoneStats[trade.zone].losses++
-    }
-  })
+  const patternStats = calculateStats(closedTrades, 'pattern_traded')
+  const zoneStats = calculateStats(closedTrades, 'zone')
+  const entryTypeStats = calculateStats(closedTrades, 'entrytype')
+  const rule3Stats = calculateStats(closedTrades, 'rule3')
+  const pairStats = calculateStats(closedTrades, 'pair')
 
-  // Entry Type Analysis
-  const entryTypeStats = {}
-  closedTrades.forEach(trade => {
-    if (!entryTypeStats[trade.entrytype]) {
-      entryTypeStats[trade.entrytype] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
-    }
-    entryTypeStats[trade.entrytype].count++
-    entryTypeStats[trade.entrytype].totalPnL += parseFloat(trade.pnl)
-    if (parseFloat(trade.pnl) > 0) {
-      entryTypeStats[trade.entrytype].wins++
-    } else {
-      entryTypeStats[trade.entrytype].losses++
-    }
-  })
-
-  // Rule3 Analysis
-  const rule3Stats = {}
-  closedTrades.forEach(trade => {
-    if (!rule3Stats[trade.rule3]) {
-      rule3Stats[trade.rule3] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
-    }
-    rule3Stats[trade.rule3].count++
-    rule3Stats[trade.rule3].totalPnL += parseFloat(trade.pnl)
-    if (parseFloat(trade.pnl) > 0) {
-      rule3Stats[trade.rule3].wins++
-    } else {
-      rule3Stats[trade.rule3].losses++
-    }
-  })
-
-  // Day of Week Analysis
   const dayStats = {}
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   closedTrades.forEach(trade => {
@@ -526,79 +476,20 @@ const TradingAnalytics = ({ trades }) => {
     }
   })
 
-  // Currency Pair Analysis
-  const pairStats = {}
-  closedTrades.forEach(trade => {
-    if (!pairStats[trade.pair]) {
-      pairStats[trade.pair] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
-    }
-    pairStats[trade.pair].count++
-    pairStats[trade.pair].totalPnL += parseFloat(trade.pnl)
-    if (parseFloat(trade.pnl) > 0) {
-      pairStats[trade.pair].wins++
-    } else {
-      pairStats[trade.pair].losses++
-    }
-  })
-
-  // Risk-Reward Analysis
   const winningTrades = closedTrades.filter(trade => parseFloat(trade.pnl) > 0)
   const losingTrades = closedTrades.filter(trade => parseFloat(trade.pnl) < 0)
   const avgWin = winningTrades.length > 0 ? winningTrades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0) / winningTrades.length : 0
   const avgLoss = losingTrades.length > 0 ? Math.abs(losingTrades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0) / losingTrades.length) : 0
   const riskRewardRatio = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : 'N/A'
 
-  // Streak Analysis
-  let currentStreak = 0
-  let streakType = null
-  let maxWinStreak = 0
-  let maxLossStreak = 0
-  let tempWinStreak = 0
-  let tempLossStreak = 0
-
-  const sortedTrades = [...closedTrades].sort((a, b) => new Date(a.exit_date) - new Date(b.exit_date))
-  
-  sortedTrades.forEach(trade => {
-    const isWin = parseFloat(trade.pnl) > 0
-    
-    if (isWin) {
-      tempWinStreak++
-      tempLossStreak = 0
-      maxWinStreak = Math.max(maxWinStreak, tempWinStreak)
-    } else {
-      tempLossStreak++
-      tempWinStreak = 0
-      maxLossStreak = Math.max(maxLossStreak, tempLossStreak)
-    }
-  })
-
-  // Current streak
-  if (sortedTrades.length > 0) {
-    const recentTrades = sortedTrades.slice(-10)
-    let streak = 1
-    const lastTradeWin = parseFloat(recentTrades[recentTrades.length - 1].pnl) > 0
-    
-    for (let i = recentTrades.length - 2; i >= 0; i--) {
-      const isWin = parseFloat(recentTrades[i].pnl) > 0
-      if (isWin === lastTradeWin) {
-        streak++
-      } else {
-        break
-      }
-    }
-    
-    currentStreak = streak
-    streakType = lastTradeWin ? 'winning' : 'losing'
-  }
-
-  const StatCard = ({ title, stats, colorKey }) => (
+  const StatCard = ({ title, stats }) => (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
       <h3 className="text-lg font-semibold mb-3 text-slate-100">{title}</h3>
       <div className="space-y-2">
         {Object.entries(stats)
-          .filter(([_, data]) => data.count >= 2) // Only show items with 2+ trades
+          .filter(([_, data]) => data.count >= 2)
           .sort((a, b) => (b[1].totalPnL - a[1].totalPnL))
-          .slice(0, 5) // Top 5 performers
+          .slice(0, 5)
           .map(([key, data]) => {
             const winRate = ((data.wins / data.count) * 100).toFixed(1)
             const avgPnL = (data.totalPnL / data.count).toFixed(2)
@@ -627,7 +518,6 @@ const TradingAnalytics = ({ trades }) => {
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6 text-slate-100">Trading Analytics</h2>
       
-      {/* Key Insights */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Risk-Reward Profile</h3>
@@ -643,26 +533,6 @@ const TradingAnalytics = ({ trades }) => {
             <div className="flex justify-between">
               <span className="text-slate-400">Risk-Reward Ratio:</span>
               <span className="text-slate-100 font-semibold">{riskRewardRatio}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-2 text-slate-100">Streak Analysis</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Current Streak:</span>
-              <span className={`font-semibold ${streakType === 'winning' ? 'text-emerald-400' : 'text-red-400'}`}>
-                {currentStreak} {streakType}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Max Win Streak:</span>
-              <span className="text-emerald-400 font-semibold">{maxWinStreak}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Max Loss Streak:</span>
-              <span className="text-red-400 font-semibold">{maxLossStreak}</span>
             </div>
           </div>
         </div>
@@ -684,9 +554,26 @@ const TradingAnalytics = ({ trades }) => {
             </div>
           </div>
         </div>
+
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-2 text-slate-100">Performance Summary</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Total P&L:</span>
+              <span className={`font-semibold ${closedTrades.reduce((sum, t) => sum + parseFloat(t.pnl), 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                ${closedTrades.reduce((sum, t) => sum + parseFloat(t.pnl), 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Win Rate:</span>
+              <span className="text-slate-100 font-semibold">
+                {((winningTrades.length / closedTrades.length) * 100).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Performance by Category */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <StatCard title="Top Performing Patterns" stats={patternStats} />
         <StatCard title="Zone Performance" stats={zoneStats} />
@@ -695,59 +582,15 @@ const TradingAnalytics = ({ trades }) => {
         <StatCard title="Day of Week Performance" stats={dayStats} />
         <StatCard title="Currency Pair Performance" stats={pairStats} />
       </div>
-
-      {/* Insights and Recommendations */}
-      <div className="mt-6 bg-slate-800 border border-slate-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4 text-slate-100">Key Insights</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h4 className="font-medium text-emerald-400 mb-2">Strengths</h4>
-            <ul className="text-sm text-slate-300 space-y-1">
-              {Object.entries(patternStats)
-                .filter(([_, data]) => data.count >= 3 && (data.wins / data.count) >= 0.6)
-                .slice(0, 3)
-                .map(([pattern, data]) => (
-                  <li key={pattern}>• {pattern}: {((data.wins / data.count) * 100).toFixed(1)}% win rate</li>
-                ))}
-              {Object.entries(zoneStats)
-                .filter(([_, data]) => data.count >= 3)
-                .sort((a, b) => (b[1].wins / b[1].count) - (a[1].wins / a[1].count))
-                .slice(0, 1)
-                .map(([zone, data]) => (
-                  <li key={zone}>• {zone} zone trades: {((data.wins / data.count) * 100).toFixed(1)}% win rate</li>
-                ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-medium text-red-400 mb-2">Areas for Improvement</h4>
-            <ul className="text-sm text-slate-300 space-y-1">
-              {riskRewardRatio !== 'N/A' && parseFloat(riskRewardRatio) < 1.5 && (
-                <li>• Consider improving risk-reward ratio (current: {riskRewardRatio})</li>
-              )}
-              {maxLossStreak > 3 && (
-                <li>• Work on cutting losing streaks early (max: {maxLossStreak})</li>
-              )}
-              {Object.entries(patternStats)
-                .filter(([_, data]) => data.count >= 3 && (data.wins / data.count) < 0.4)
-                .slice(0, 2)
-                .map(([pattern, data]) => (
-                  <li key={pattern}>• Review {pattern} setups: {((data.wins / data.count) * 100).toFixed(1)}% win rate</li>
-                ))}
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
-
-// Replace your ViewHistoricalData component with this updated version
 
 const ViewHistoricalData = ({ setCurrentView }) => {
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
-  const [activeTab, setActiveTab] = useState('overview') // New state for tabs
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
     const loadTrades = async () => {
@@ -797,7 +640,6 @@ const ViewHistoricalData = ({ setCurrentView }) => {
         
         <BalanceManager setCurrentView={setCurrentView} />
         
-        {/* Tab Navigation */}
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setActiveTab('overview')}
@@ -831,7 +673,6 @@ const ViewHistoricalData = ({ setCurrentView }) => {
           </button>
         </div>
 
-        {/* Overview Tab */}
         {activeTab === 'overview' && (
           <>
             <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
@@ -858,12 +699,10 @@ const ViewHistoricalData = ({ setCurrentView }) => {
           </>
         )}
 
-        {/* Analytics Tab */}
         {activeTab === 'analytics' && (
           <TradingAnalytics trades={trades} />
         )}
 
-        {/* Trade History Tab */}
         {activeTab === 'trades' && (
           <>
             <div className="flex gap-4 mb-6">
@@ -906,101 +745,105 @@ const ViewHistoricalData = ({ setCurrentView }) => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-  <thead className="bg-slate-700">
-    <tr>
-      <th className="p-3 text-left text-slate-300">Pair</th>
-      <th className="p-3 text-left text-slate-300">Direction</th>
-      <th className="p-3 text-left text-slate-300">Entry Date</th>
-      <th className="p-3 text-left text-slate-300">Type</th>
-      <th className="p-3 text-left text-slate-300">Rule3</th>
-      <th className="p-3 text-left text-slate-300">Zone</th>
-      <th className="p-3 text-left text-slate-300">Pattern</th>
-      <th className="p-3 text-left text-slate-300">Stop Size</th>
-      <th className="p-3 text-left text-slate-300">Charts</th>
-      <th className="p-3 text-left text-slate-300">P&L</th>
-      <th className="p-3 text-left text-slate-300">Status</th>
-      <th className="p-3 text-left text-slate-300">Exit Date</th>
-    </tr>
-  </thead>
-  <tbody>
-    {trades.map((trade, index) => (
-      <tr key={trade.id} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
-        <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
-        <td className="p-3">
-          <span className={`px-2 py-1 rounded text-xs font-medium ${
-            trade.direction === 'long' 
-              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
-              : 'bg-red-900/40 text-red-300 border border-red-800'
-          }`}>
-            {trade.direction.toUpperCase()}
-          </span>
-        </td>
-        <td className="p-3 text-sm text-slate-300">
-          {new Date(trade.entry_date).toLocaleDateString()}
-        </td>
-        <td className="p-3 text-slate-300">{trade.entrytype}</td>
-        <td className="p-3 text-slate-300">{trade.rule3}</td>
-        <td className="p-3">
-          <span className={`px-2 py-1 rounded text-xs font-medium border ${
-            trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
-            trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
-            'bg-red-900/40 text-red-300 border-red-800'
-          }`}>
-            {trade.zone}
-          </span>
-        </td>
-        <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
-        <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
-        <td className="p-3">
-          <div className="flex flex-col gap-1">
-            {trade.entry_url && (
-              <a 
-                href={trade.entry_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-emerald-400 hover:text-emerald-300 text-xs underline"
-              >
-                Entry Chart
-              </a>
-            )}
-            {trade.exit_url && (
-              <a 
-                href={trade.exit_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 text-xs underline"
-              >
-                Exit Chart
-              </a>
-            )}
-            {!trade.entry_url && !trade.exit_url && (
-              <span className="text-slate-500 text-xs">-</span>
-            )}
-          </div>
-        </td>
-        <td className="p-3">
-          {trade.pnl ? (
-            <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              ${parseFloat(trade.pnl).toFixed(2)}
-            </span>
-          ) : '-'}
-        </td>
-        <td className="p-3">
-          <span className={`px-2 py-1 rounded text-xs font-medium border ${
-            trade.status === 'open' 
-              ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
-              : 'bg-slate-700/40 text-slate-400 border-slate-600'
-          }`}>
-            {trade.status.toUpperCase()}
-          </span>
-        </td>
-        <td className="p-3 text-sm text-slate-300">
-          {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
+                  <thead className="bg-slate-700">
+                    <tr>
+                      <th className="p-3 text-left text-slate-300">Pair</th>
+                      <th className="p-3 text-left text-slate-300">Direction</th>
+                      <th className="p-3 text-left text-slate-300">Entry Date</th>
+                      <th className="p-3 text-left text-slate-300">Type</th>
+                      <th className="p-3 text-left text-slate-300">Rule3</th>
+                      <th className="p-3 text-left text-slate-300">Zone</th>
+                      <th className="p-3 text-left text-slate-300">Pattern</th>
+                      <th className="p-3 text-left text-slate-300">Risk $</th>
+                      <th className="p-3 text-left text-slate-300">Stop Size</th>
+                      <th className="p-3 text-left text-slate-300">Charts</th>
+                      <th className="p-3 text-left text-slate-300">P&L</th>
+                      <th className="p-3 text-left text-slate-300">Status</th>
+                      <th className="p-3 text-left text-slate-300">Exit Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trades.map((trade, index) => (
+                      <tr key={trade.id || index} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+                        <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            trade.direction === 'long' 
+                              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
+                              : 'bg-red-900/40 text-red-300 border border-red-800'
+                          }`}>
+                            {trade.direction.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-slate-300">
+                          {new Date(trade.entry_date).toLocaleDateString()}
+                        </td>
+                        <td className="p-3 text-slate-300">{trade.entrytype}</td>
+                        <td className="p-3 text-slate-300">{trade.rule3}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                            trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
+                            trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
+                            'bg-red-900/40 text-red-300 border-red-800'
+                          }`}>
+                            {trade.zone}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
+                        <td className="p-3 text-slate-300">
+                          {trade.risk_amount ? `${parseFloat(trade.risk_amount).toFixed(2)}` : '-'}
+                        </td>
+                        <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
+                        <td className="p-3">
+                          <div className="flex flex-col gap-1">
+                            {trade.entry_url && (
+                              <a 
+                                href={trade.entry_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-emerald-400 hover:text-emerald-300 text-xs underline"
+                              >
+                                Entry Chart
+                              </a>
+                            )}
+                            {trade.exit_url && (
+                              <a 
+                                href={trade.exit_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 text-xs underline"
+                              >
+                                Exit Chart
+                              </a>
+                            )}
+                            {!trade.entry_url && !trade.exit_url && (
+                              <span className="text-slate-500 text-xs">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          {trade.pnl ? (
+                            <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              ${parseFloat(trade.pnl).toFixed(2)}
+                            </span>
+                          ) : '-'}
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                            trade.status === 'open' 
+                              ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
+                              : 'bg-slate-700/40 text-slate-400 border-slate-600'
+                          }`}>
+                            {trade.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-slate-300">
+                          {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
@@ -1010,22 +853,40 @@ const ViewHistoricalData = ({ setCurrentView }) => {
   )
 }
 
-export default function Home() {
-  const [currentView, setCurrentView] = useState('menu')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [message, setMessage] = useState('')
+const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage }) => {
+  const [currentBalance, setCurrentBalance] = useState(0)
+  const [balanceLoading, setBalanceLoading] = useState(true)
 
-  const [formData, setFormData] = useState({
-    pair: '',
-    direction: 'long',
-    stopsize: '',
-    entry_url: '',
-    entrytype: 'RE',
-    rule3: 'Impulsive',
-    zone: 'Red',
-    pattern_traded: '',
-    notes: ''
-  })
+  useEffect(() => {
+    const loadCurrentBalance = async () => {
+      setBalanceLoading(true)
+      try {
+        const { data: history, error } = await supabase
+          .from('balance_history')
+          .select('balance')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (error) throw error
+        setCurrentBalance(history[0]?.balance || 0)
+      } catch (err) {
+        console.error('Error loading balance:', err.message)
+      }
+      setBalanceLoading(false)
+    }
+
+    loadCurrentBalance()
+  }, [])
+
+  const maxRisk = currentBalance * 0.005
+
+  const validateRisk = () => {
+    const riskAmount = parseFloat(formData.risk_amount) || 0
+    const exceedsLimit = riskAmount > maxRisk
+    return { exceedsLimit, riskAmount }
+  }
+
+  const riskValidation = validateRisk()
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -1040,12 +901,13 @@ export default function Home() {
     setMessage('')
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('trades')
         .insert([{
           pair: formData.pair.toUpperCase(),
           direction: formData.direction,
           stopsize: formData.stopsize ? parseFloat(formData.stopsize) : null,
+          risk_amount: formData.risk_amount ? parseFloat(formData.risk_amount) : null,
           entry_url: formData.entry_url || null,
           entrytype: formData.entrytype,
           rule3: formData.rule3,
@@ -1068,6 +930,7 @@ export default function Home() {
           rule3: 'Impulsive',
           zone: 'Red',
           pattern_traded: '',
+          risk_amount: '',
           notes: ''
         })
       }
@@ -1077,6 +940,215 @@ export default function Home() {
 
     setIsSubmitting(false)
   }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+      <button 
+        onClick={() => setCurrentView('menu')}
+        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+      >
+        ← Back to Menu
+      </button>
+      
+      <div className="max-w-2xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Enter New Trade</h1>
+          <div className="text-right">
+            {balanceLoading ? (
+              <div className="text-slate-400">Loading balance...</div>
+            ) : (
+              <div className="bg-slate-800 border border-slate-700 p-3 rounded-lg">
+                <div className="text-sm text-slate-400">Account Balance</div>
+                <div className="text-lg font-semibold text-slate-100">${currentBalance.toFixed(2)}</div>
+                <div className="text-sm text-emerald-400">Max Risk (0.5%): ${maxRisk.toFixed(2)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {message && (
+          <div className={`p-4 rounded-lg mb-6 border ${
+            message.includes('Error') 
+              ? 'bg-red-900/20 text-red-300 border-red-800' 
+              : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
+          }`}>
+            {message}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
+          <InputField
+            label="Currency Pair"
+            value={formData.pair}
+            onChange={(e) => handleInputChange('pair', e.target.value)}
+            placeholder="e.g., EURUSD, GBPJPY"
+            required
+          />
+
+          <SelectField
+            label="Direction"
+            value={formData.direction}
+            onChange={(e) => handleInputChange('direction', e.target.value)}
+            options={[
+              { value: 'long', label: 'Long (Buy)' },
+              { value: 'short', label: 'Short (Sell)' }
+            ]}
+            required
+          />
+
+          <InputField
+            label="Stop Size"
+            type="number"
+            step="0.00001"
+            value={formData.stopsize}
+            onChange={(e) => handleInputChange('stopsize', e.target.value)}
+            placeholder="e.g., 0.00150"
+          />
+
+          <div className="mb-4">
+            <InputField
+              label="Risk Amount ($)"
+              type="number"
+              step="0.01"
+              value={formData.risk_amount}
+              onChange={(e) => handleInputChange('risk_amount', e.target.value)}
+              placeholder={`Max: ${maxRisk.toFixed(2)}`}
+              required
+            />
+
+            {formData.risk_amount && (
+              <div className={`mt-2 p-2 rounded text-sm ${
+                riskValidation.exceedsLimit 
+                  ? 'bg-red-900/20 text-red-300 border border-red-800' 
+                  : 'bg-emerald-900/20 text-emerald-300 border border-emerald-800'
+              }`}>
+                {riskValidation.exceedsLimit 
+                  ? `Risk exceeds 0.5% limit (${maxRisk.toFixed(2)})`
+                  : `Risk within limit (${((riskValidation.riskAmount / currentBalance) * 100).toFixed(2)}% of balance)`
+                }
+              </div>
+            )}
+          </div>
+
+          <SelectField
+            label="Entry Type"
+            value={formData.entrytype}
+            onChange={(e) => handleInputChange('entrytype', e.target.value)}
+            options={[
+              { value: 'RE', label: 'RE' },
+              { value: 'RRE', label: 'RRE' }
+            ]}
+            required
+          />
+
+          <SelectField
+            label="Rule 3"
+            value={formData.rule3}
+            onChange={(e) => handleInputChange('rule3', e.target.value)}
+            options={[
+              { value: 'Impulsive', label: 'Impulsive' },
+              { value: 'Structural', label: 'Structural' },
+              { value: 'Corrective', label: 'Corrective' }
+            ]}
+            required
+          />
+
+          <SelectField
+            label="Zone"
+            value={formData.zone}
+            onChange={(e) => handleInputChange('zone', e.target.value)}
+            options={[
+              { value: 'Red', label: 'Red' },
+              { value: 'Yellow', label: 'Yellow' },
+              { value: 'Green', label: 'Green' }
+            ]}
+            required
+          />
+
+          <SelectField
+            label="Pattern Traded"
+            value={formData.pattern_traded}
+            onChange={(e) => handleInputChange('pattern_traded', e.target.value)}
+            options={[
+              { value: '', label: 'Select a pattern...' },
+              { value: 'Bull Flag', label: 'Bull Flag' },
+              { value: 'Bear Flag', label: 'Bear Flag' },
+              { value: 'Flat Flag', label: 'Flat Flag' },
+              { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
+              { value: 'Expanding Triangle', label: 'Expanding Triangle' },
+              { value: 'Falcon Flag', label: 'Falcon Flag' },
+              { value: 'Ascending Channel', label: 'Ascending Channel' },
+              { value: 'Descending Channel', label: 'Descending Channel' },
+              { value: 'Rising Wedge', label: 'Rising Wedge' },
+              { value: 'Falling Wedge', label: 'Falling Wedge' },
+              { value: 'H&S', label: 'H&S' },
+              { value: 'Double Top', label: 'Double Top' },
+              { value: 'Double Bottom', label: 'Double Bottom' },
+              { value: 'The Arc', label: 'The Arc' },
+              { value: 'Structural Test', label: 'Structural Test' },
+              { value: 'Hook Point', label: 'Hook Point' },
+              { value: 'Reverse M Style', label: 'Reverse M Style' },
+              { value: 'M Style', label: 'M Style' }
+            ]}
+            required
+          />
+
+          <InputField
+            label="Entry Chart/Analysis URL (Optional)"
+            type="url"
+            value={formData.entry_url}
+            onChange={(e) => handleInputChange('entry_url', e.target.value)}
+            placeholder="https://tradingview.com/chart/..."
+          />
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2 text-slate-300">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => handleInputChange('notes', e.target.value)}
+              placeholder="Trade setup, reasons, strategy..."
+              rows="4"
+              className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting || riskValidation.exceedsLimit}
+            className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+          >
+            {riskValidation.exceedsLimit 
+              ? 'Risk Exceeds 0.5% Limit' 
+              : isSubmitting 
+                ? 'Adding Trade...' 
+                : 'Add Trade'
+            }
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default function Home() {
+  const [currentView, setCurrentView] = useState('menu')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const [formData, setFormData] = useState({
+    pair: '',
+    direction: 'long',
+    stopsize: '',
+    entry_url: '',
+    entrytype: 'RE',
+    rule3: 'Impulsive',
+    zone: 'Red',
+    pattern_traded: '',
+    risk_amount: '',
+    notes: ''
+  })
 
   if (currentView === 'menu') {
     return (
@@ -1113,158 +1185,33 @@ export default function Home() {
 
   if (currentView === 'new-trade') {
     return (
-      <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
-        <button 
-          onClick={() => setCurrentView('menu')}
-          className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-        >
-          ← Back to Menu
-        </button>
-        
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Enter New Trade</h1>
-          
-          {message && (
-            <div className={`p-4 rounded-lg mb-6 border ${
-              message.includes('Error') 
-                ? 'bg-red-900/20 text-red-300 border-red-800' 
-                : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
-            }`}>
-              {message}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
-            <InputField
-              label="Currency Pair"
-              value={formData.pair}
-              onChange={(e) => handleInputChange('pair', e.target.value)}
-              placeholder="e.g., EURUSD, GBPJPY"
-              required
-            />
-
-            <SelectField
-              label="Direction"
-              value={formData.direction}
-              onChange={(e) => handleInputChange('direction', e.target.value)}
-              options={[
-                { value: 'long', label: 'Long (Buy)' },
-                { value: 'short', label: 'Short (Sell)' }
-              ]}
-              required
-            />
-
-            <InputField
-              label="Stop Size"
-              type="number"
-              step="0.00001"
-              value={formData.stopsize}
-              onChange={(e) => handleInputChange('stopsize', e.target.value)}
-              placeholder="e.g., 0.00150"
-            />
-
-            <SelectField
-              label="Entry Type"
-              value={formData.entrytype}
-              onChange={(e) => handleInputChange('entrytype', e.target.value)}
-              options={[
-                { value: 'RE', label: 'RE' },
-                { value: 'RRE', label: 'RRE' }
-              ]}
-              required
-            />
-
-            <SelectField
-              label="Rule 3"
-              value={formData.rule3}
-              onChange={(e) => handleInputChange('rule3', e.target.value)}
-              options={[
-                { value: 'Impulsive', label: 'Impulsive' },
-                { value: 'Structural', label: 'Structural' },
-                { value: 'Corrective', label: 'Corrective' }
-              ]}
-              required
-            />
-
-            <SelectField
-              label="Zone"
-              value={formData.zone}
-              onChange={(e) => handleInputChange('zone', e.target.value)}
-              options={[
-                { value: 'Red', label: 'Red' },
-                { value: 'Yellow', label: 'Yellow' },
-                { value: 'Green', label: 'Green' }
-              ]}
-              required
-            />
-
-            <SelectField
-              label="Pattern Traded"
-              value={formData.pattern_traded}
-              onChange={(e) => handleInputChange('pattern_traded', e.target.value)}
-              options={[
-                { value: '', label: 'Select a pattern...' },
-                { value: 'Bull Flag', label: 'Bull Flag' },
-                { value: 'Bear Flag', label: 'Bear Flag' },
-                { value: 'Flat Flag', label: 'Flat Flag' },
-                { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
-                { value: 'Expanding Triangle', label: 'Expanding Triangle' },
-                { value: 'Falcon Flag', label: 'Falcon Flag' },
-                { value: 'Ascending Channel', label: 'Ascending Channel' },
-                { value: 'Descending Channel', label: 'Descending Channel' },
-                { value: 'Rising Wedge', label: 'Rising Wedge' },
-                { value: 'Falling Wedge', label: 'Falling Wedge' },
-                { value: 'H&S', label: 'H&S' },
-                { value: 'Double Top', label: 'Double Top' },
-                { value: 'Double Bottom', label: 'Double Bottom' },
-                { value: 'The Arc', label: 'The Arc' },
-                { value: 'Structural Test', label: 'Structural Test' },
-                { value: 'Hook Point', label: 'Hook Point' },
-                { value: 'Reverse M Style', label: 'Reverse M Style' },
-                { value: 'M Style', label: 'M Style' }
-              ]}
-              required
-            />
-
-            <InputField
-              label="Entry Chart/Analysis URL (Optional)"
-              type="url"
-              value={formData.entry_url}
-              onChange={(e) => handleInputChange('entry_url', e.target.value)}
-              placeholder="https://tradingview.com/chart/..."
-            />
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-slate-300">
-                Notes (Optional)
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => handleInputChange('notes', e.target.value)}
-                placeholder="Trade setup, reasons, strategy..."
-                rows="4"
-                className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
-            >
-              {isSubmitting ? 'Adding Trade...' : 'Add Trade'}
-            </button>
-          </form>
-        </div>
-      </div>
+      <NewTradeView 
+        setCurrentView={setCurrentView}
+        formData={formData}
+        setFormData={setFormData}
+        isSubmitting={isSubmitting}
+        setIsSubmitting={setIsSubmitting}
+        message={message}
+        setMessage={setMessage}
+      />
     )
   }
 
   if (currentView === 'update-trade') {
-    return <UpdateTradeView setCurrentView={setCurrentView} setMessage={setMessage} message={message} isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+    return (
+      <UpdateTradeView 
+        setCurrentView={setCurrentView} 
+        setMessage={setMessage} 
+        message={message} 
+        isSubmitting={isSubmitting} 
+        setIsSubmitting={setIsSubmitting} 
+      />
+    )
   }
 
   if (currentView === 'view-data') {
     return <ViewHistoricalData setCurrentView={setCurrentView} />
   }
-}
+
+  return null
+} 
