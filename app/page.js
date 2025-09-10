@@ -235,6 +235,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
 
   try {
     const pnlAmount = updateData.pnl ? parseFloat(updateData.pnl) : 0
+    console.log('P&L Amount:', pnlAmount) // DEBUG
 
     // Update the trade
     const { data, error } = await supabase
@@ -249,9 +250,12 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
       .eq('id', selectedTrade.id)
 
     if (error) throw error
+    console.log('Trade updated successfully') // DEBUG
 
     // Automatically update balance if P&L is not zero
     if (pnlAmount !== 0) {
+      console.log('Updating balance...') // DEBUG
+      
       // Get current balance
       const { data: balanceHistory, error: balanceError } = await supabase
         .from('balance_history')
@@ -260,9 +264,11 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
         .limit(1)
 
       if (balanceError) throw balanceError
+      console.log('Current balance data:', balanceHistory) // DEBUG
 
       const currentBalance = balanceHistory[0]?.balance || 0
       const newBalance = currentBalance + pnlAmount
+      console.log('Current balance:', currentBalance, 'New balance:', newBalance) // DEBUG
 
       // Add balance entry
       const { error: balanceInsertError } = await supabase
@@ -275,6 +281,9 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
         }])
 
       if (balanceInsertError) throw balanceInsertError
+      console.log('Balance updated successfully') // DEBUG
+    } else {
+      console.log('P&L is zero, skipping balance update') // DEBUG
     }
 
     setMessage('Trade updated successfully! Balance automatically adjusted.')
