@@ -906,73 +906,101 @@ const ViewHistoricalData = ({ setCurrentView }) => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-                  <thead className="bg-slate-700">
-                    <tr>
-                      <th className="p-3 text-left text-slate-300">Pair</th>
-                      <th className="p-3 text-left text-slate-300">Direction</th>
-                      <th className="p-3 text-left text-slate-300">Entry Date</th>
-                      <th className="p-3 text-left text-slate-300">Type</th>
-                      <th className="p-3 text-left text-slate-300">Rule3</th>
-                      <th className="p-3 text-left text-slate-300">Zone</th>
-                      <th className="p-3 text-left text-slate-300">Pattern</th>
-                      <th className="p-3 text-left text-slate-300">Stop Size</th>
-                      <th className="p-3 text-left text-slate-300">P&L</th>
-                      <th className="p-3 text-left text-slate-300">Status</th>
-                      <th className="p-3 text-left text-slate-300">Exit Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((trade, index) => (
-                      <tr key={trade.id} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
-                        <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            trade.direction === 'long' 
-                              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
-                              : 'bg-red-900/40 text-red-300 border border-red-800'
-                          }`}>
-                            {trade.direction.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="p-3 text-sm text-slate-300">
-                          {new Date(trade.entry_date).toLocaleDateString()}
-                        </td>
-                        <td className="p-3 text-slate-300">{trade.entrytype}</td>
-                        <td className="p-3 text-slate-300">{trade.rule3}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                            trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
-                            trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
-                            'bg-red-900/40 text-red-300 border-red-800'
-                          }`}>
-                            {trade.zone}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
-                        <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
-                        <td className="p-3">
-                          {trade.pnl ? (
-                            <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              ${parseFloat(trade.pnl).toFixed(2)}
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                            trade.status === 'open' 
-                              ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
-                              : 'bg-slate-700/40 text-slate-400 border-slate-600'
-                          }`}>
-                            {trade.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="p-3 text-sm text-slate-300">
-                          {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+  <thead className="bg-slate-700">
+    <tr>
+      <th className="p-3 text-left text-slate-300">Pair</th>
+      <th className="p-3 text-left text-slate-300">Direction</th>
+      <th className="p-3 text-left text-slate-300">Entry Date</th>
+      <th className="p-3 text-left text-slate-300">Type</th>
+      <th className="p-3 text-left text-slate-300">Rule3</th>
+      <th className="p-3 text-left text-slate-300">Zone</th>
+      <th className="p-3 text-left text-slate-300">Pattern</th>
+      <th className="p-3 text-left text-slate-300">Stop Size</th>
+      <th className="p-3 text-left text-slate-300">Charts</th>
+      <th className="p-3 text-left text-slate-300">P&L</th>
+      <th className="p-3 text-left text-slate-300">Status</th>
+      <th className="p-3 text-left text-slate-300">Exit Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {trades.map((trade, index) => (
+      <tr key={trade.id} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+        <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
+        <td className="p-3">
+          <span className={`px-2 py-1 rounded text-xs font-medium ${
+            trade.direction === 'long' 
+              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
+              : 'bg-red-900/40 text-red-300 border border-red-800'
+          }`}>
+            {trade.direction.toUpperCase()}
+          </span>
+        </td>
+        <td className="p-3 text-sm text-slate-300">
+          {new Date(trade.entry_date).toLocaleDateString()}
+        </td>
+        <td className="p-3 text-slate-300">{trade.entrytype}</td>
+        <td className="p-3 text-slate-300">{trade.rule3}</td>
+        <td className="p-3">
+          <span className={`px-2 py-1 rounded text-xs font-medium border ${
+            trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
+            trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
+            'bg-red-900/40 text-red-300 border-red-800'
+          }`}>
+            {trade.zone}
+          </span>
+        </td>
+        <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
+        <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
+        <td className="p-3">
+          <div className="flex flex-col gap-1">
+            {trade.entry_url && (
+              <a 
+                href={trade.entry_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-emerald-400 hover:text-emerald-300 text-xs underline"
+              >
+                Entry Chart
+              </a>
+            )}
+            {trade.exit_url && (
+              <a 
+                href={trade.exit_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 text-xs underline"
+              >
+                Exit Chart
+              </a>
+            )}
+            {!trade.entry_url && !trade.exit_url && (
+              <span className="text-slate-500 text-xs">-</span>
+            )}
+          </div>
+        </td>
+        <td className="p-3">
+          {trade.pnl ? (
+            <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              ${parseFloat(trade.pnl).toFixed(2)}
+            </span>
+          ) : '-'}
+        </td>
+        <td className="p-3">
+          <span className={`px-2 py-1 rounded text-xs font-medium border ${
+            trade.status === 'open' 
+              ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
+              : 'bg-slate-700/40 text-slate-400 border-slate-600'
+          }`}>
+            {trade.status.toUpperCase()}
+          </span>
+        </td>
+        <td className="p-3 text-sm text-slate-300">
+          {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
               </div>
             )}
           </>
