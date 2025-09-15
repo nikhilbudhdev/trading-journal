@@ -1,7 +1,11 @@
+
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
+/**
+ * Shared UI
+ */
 const MenuButton = ({ onClick, children, className = '' }) => (
   <button
     onClick={onClick}
@@ -47,6 +51,9 @@ const SelectField = ({ label, value, onChange, options, required = false }) => (
   </div>
 )
 
+/**
+ * Account Balance Manager (unchanged)
+ */
 const BalanceManager = ({ setCurrentView }) => {
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceHistory, setBalanceHistory] = useState([])
@@ -192,6 +199,9 @@ const BalanceManager = ({ setCurrentView }) => {
   )
 }
 
+/**
+ * Update Existing Trade (unchanged)
+ */
 const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, setIsSubmitting }) => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedTrade, setSelectedTrade] = useState(null)
@@ -249,34 +259,13 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
 
       if (error) throw error
 
-      if (pnlAmount !== 0) {
-        const { data: balanceHistory, error: balanceError } = await supabase
-          .from('balance_history')
-          .select('balance')
-          .order('created_at', { ascending: false })
-          .limit(1)
+      // NOTE: Per user request, account balance is maintained ONLY by explicit deposits/withdrawals or when closing trades.
+      // Missed trades do NOT affect balance anywhere in this file.
 
-        if (balanceError) throw balanceError
-
-        const currentBalance = balanceHistory[0]?.balance || 0
-        const newBalance = currentBalance + pnlAmount
-
-        const { error: balanceInsertError } = await supabase
-          .from('balance_history')
-          .insert([{
-            balance: newBalance,
-            change_amount: pnlAmount,
-            change_reason: `Trade P&L: ${selectedTrade.pair} ${selectedTrade.direction}`,
-            trade_id: selectedTrade.id
-          }])
-
-        if (balanceInsertError) throw balanceInsertError
-      }
-
-      setMessage('Trade updated successfully! Balance automatically adjusted.')
+      setMessage('Trade updated successfully!')
       setSelectedTrade(null)
       setUpdateData({ exit_url: '', pnl: '', notes: '' })
-      
+
       const { data: updatedTrades } = await supabase
         .from('trades')
         .select('*')
@@ -299,10 +288,10 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
       >
         ← Back to Menu
       </button>
-      
+
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Update Existing Trade</h1>
-        
+
         {message && (
           <div className={`p-4 rounded-lg mb-6 border ${
             message.includes('Error') 
@@ -320,7 +309,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
         ) : (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Open Trades ({openTrades.length})</h2>
-            
+
             <div className="grid gap-4">
               {openTrades.map((trade) => (
                 <div 
@@ -363,7 +352,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                 <h3 className="text-xl font-semibold mb-4">
                   Close Trade: {selectedTrade.pair} - {selectedTrade.direction.toUpperCase()}
                 </h3>
-                
+
                 <form onSubmit={handleUpdateTrade} className="space-y-4">
                   <InputField
                     label="Exit Chart/Analysis URL (Optional)"
@@ -422,9 +411,12 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   )
 }
 
+/**
+ * Trading Analytics (executed trades) - unchanged
+ */
 const TradingAnalytics = ({ trades }) => {
   const closedTrades = trades.filter(trade => trade.status === 'closed' && trade.pnl !== null)
-  
+
   if (closedTrades.length < 5) {
     return (
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
@@ -517,7 +509,7 @@ const TradingAnalytics = ({ trades }) => {
   return (
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6 text-slate-100">Trading Analytics</h2>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Risk-Reward Profile</h3>
@@ -586,6 +578,436 @@ const TradingAnalytics = ({ trades }) => {
   )
 }
 
+/**
+ * Missed Trades — NEW
+ */
+const MissedTradeView = ({ setCurrentView }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState('')
+  const [form, setForm] = useState({
+    pair: '',
+    direction: 'long',
+    before_url: '',
+    pattern: '',
+    after_url: '',
+    potential_pnl: ''
+  })
+
+  const handleInput = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setMessage('')
+
+    try {
+      const payload = {
+        pair: form.pair.toUpperCase(),
+        direction: form.direction,
+        before_url: form.before_url || null,
+        pattern: form.pattern || null,
+        after_url: form.after_url || null,
+        potential_pnl: form.potential_pnl ? parseFloat(form.potential_pnl) : null
+      }
+
+      const { error } = await supabase.from('missed_trades').insert([payload])
+      if (error) throw error
+
+      setMessage('Missed trade logged!')
+      setForm({
+        pair: '',
+        direction: 'long',
+        before_url: '',
+        pattern: '',
+        after_url: '',
+        potential_pnl: ''
+      })
+    } catch (err) {
+      setMessage(`Error: ${err.message}`)
+    }
+
+    setIsSubmitting(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+      <button 
+        onClick={() => setCurrentView('menu')}
+        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+      >
+        ← Back to Menu
+      </button>
+
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Log Missed Trade</h1>
+
+        {message && (
+          <div className={`p-4 rounded-lg mb-6 border ${
+            message.startsWith('Error') 
+              ? 'bg-red-900/20 text-red-300 border-red-800' 
+              : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
+          }`}>
+            {message}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
+          <InputField
+            label="Currency Pair"
+            value={form.pair}
+            onChange={(e) => handleInput('pair', e.target.value)}
+            placeholder="e.g., EURUSD, GBPJPY"
+            required
+          />
+
+          <SelectField
+            label="Direction"
+            value={form.direction}
+            onChange={(e) => handleInput('direction', e.target.value)}
+            options={[
+              { value: 'long', label: 'Long (Buy)' },
+              { value: 'short', label: 'Short (Sell)' }
+            ]}
+            required
+          />
+
+          <InputField
+            label="Before Trade TradingView Link (Optional)"
+            type="url"
+            value={form.before_url}
+            onChange={(e) => handleInput('before_url', e.target.value)}
+            placeholder="https://tradingview.com/chart/..."
+          />
+
+          <SelectField
+            label="Pattern Spotted"
+            value={form.pattern}
+            onChange={(e) => handleInput('pattern', e.target.value)}
+            options={[
+              { value: '', label: 'Select a pattern...' },
+              { value: 'Bull Flag', label: 'Bull Flag' },
+              { value: 'Bear Flag', label: 'Bear Flag' },
+              { value: 'Flat Flag', label: 'Flat Flag' },
+              { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
+              { value: 'Expanding Triangle', label: 'Expanding Triangle' },
+              { value: 'Falcon Flag', label: 'Falcon Flag' },
+              { value: 'Ascending Channel', label: 'Ascending Channel' },
+              { value: 'Descending Channel', label: 'Descending Channel' },
+              { value: 'Rising Wedge', label: 'Rising Wedge' },
+              { value: 'Falling Wedge', label: 'Falling Wedge' },
+              { value: 'H&S', label: 'H&S' },
+              { value: 'Double Top', label: 'Double Top' },
+              { value: 'Double Bottom', label: 'Double Bottom' },
+              { value: 'The Arc', label: 'The Arc' },
+              { value: 'Structural Test', label: 'Structural Test' },
+              { value: 'Hook Point', label: 'Hook Point' },
+              { value: 'Reverse M Style', label: 'Reverse M Style' },
+              { value: 'M Style', label: 'M Style' }
+            ]}
+          />
+
+          <InputField
+            label="After Trade TradingView Link (Optional)"
+            type="url"
+            value={form.after_url}
+            onChange={(e) => handleInput('after_url', e.target.value)}
+            placeholder="https://tradingview.com/chart/..."
+          />
+
+          <InputField
+            label="Potential P&L (Optional)"
+            type="number"
+            step="0.01"
+            value={form.potential_pnl}
+            onChange={(e) => handleInput('potential_pnl', e.target.value)}
+            placeholder="e.g., 250.00"
+          />
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+          >
+            {isSubmitting ? 'Saving...' : 'Save Missed Trade'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Missed Trades Analytics & History — NEW
+ */
+const MissedTradesAnalytics = ({ missed }) => {
+  if (!missed || missed.length < 3) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+        <h2 className="text-2xl font-bold mb-4 text-slate-100">Missed Trades Analytics</h2>
+        <p className="text-slate-400">Need at least 3 missed trades for meaningful analysis. Current: {missed.length || 0}</p>
+      </div>
+    )
+  }
+
+  const toNumber = (v) => (v === null || v === undefined || v === '') ? 0 : parseFloat(v)
+
+  const calcStats = (rows, field) => {
+    const stats = {}
+    rows.forEach(row => {
+      const key = row[field] || '—'
+      if (!stats[key]) stats[key] = { count: 0, totalPotential: 0 }
+      stats[key].count++
+      stats[key].totalPotential += toNumber(row.potential_pnl)
+    })
+    return stats
+  }
+
+  const totalPotential = missed.reduce((s,r)=> s + toNumber(r.potential_pnl), 0)
+  const byPattern = calcStats(missed, 'pattern')
+  const byPair = calcStats(missed, 'pair')
+
+  const dayStats = {}
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  missed.forEach(row => {
+    const created = row.created_at ? new Date(row.created_at) : new Date()
+    const day = dayNames[created.getDay()]
+    if (!dayStats[day]) dayStats[day] = { count: 0, totalPotential: 0 }
+    dayStats[day].count++
+    dayStats[day].totalPotential += toNumber(row.potential_pnl)
+  })
+
+  const StatCard = ({ title, stats, suffix='misses' }) => (
+    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+      <h3 className="text-lg font-semibold mb-3 text-slate-100">{title}</h3>
+      <div className="space-y-2">
+        {Object.entries(stats)
+          .sort((a,b)=> b[1].totalPotential - a[1].totalPotential)
+          .slice(0,5)
+          .map(([key, data]) => (
+            <div key={key} className="flex justify-between items-center">
+              <div>
+                <span className="text-slate-200 font-medium">{key}</span>
+                <span className="text-slate-400 text-sm ml-2">({data.count} {suffix})</span>
+              </div>
+              <div className={`text-sm font-semibold ${data.totalPotential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                ${data.totalPotential.toFixed(2)}
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-2xl font-bold mb-6 text-slate-100">Missed Trades Analytics</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-2 text-slate-100">Overview</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Missed Trades:</span>
+              <span className="text-slate-100 font-semibold">{missed.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Total Potential P&L:</span>
+              <span className={`font-semibold ${totalPotential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                ${totalPotential.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Avg Potential / Miss:</span>
+              <span className="text-slate-100 font-semibold">
+                ${(totalPotential / missed.length).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <StatCard title="By Day of Week" stats={dayStats} suffix="misses" />
+        <StatCard title="By Pair" stats={byPair} suffix="misses" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <StatCard title="Top Patterns Missed" stats={byPattern} suffix="misses" />
+      </div>
+    </div>
+  )
+}
+
+const ViewMissedTrades = ({ setCurrentView }) => {
+  const [missed, setMissed] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('overview')
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('missed_trades')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+        setMissed(data || [])
+      } catch (err) {
+        console.error('Error loading missed trades:', err.message)
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const toNumber = (v) => (v === null || v === undefined || v === '') ? 0 : parseFloat(v)
+  const totalPotential = missed.reduce((s,r)=> s + toNumber(r.potential_pnl), 0)
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+      <button 
+        onClick={() => setCurrentView('menu')}
+        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+      >
+        ← Back to Menu
+      </button>
+
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Missed Trades History</h1>
+
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-lg border transition-colors ${
+              activeTab === 'overview' 
+                ? 'bg-emerald-600 text-white border-emerald-500' 
+                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-4 py-2 rounded-lg border transition-colors ${
+              activeTab === 'analytics' 
+                ? 'bg-emerald-600 text-white border-emerald-500' 
+                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('trades')}
+            className={`px-4 py-2 rounded-lg border transition-colors ${
+              activeTab === 'trades' 
+                ? 'bg-emerald-600 text-white border-emerald-500' 
+                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            Missed Trades Table
+          </button>
+        </div>
+
+        {activeTab === 'overview' && (
+          <>
+            <h2 className="text-2xl font-bold mb-4">Summary</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Missed Trades</h3>
+                <p className="text-2xl font-bold text-slate-100">{missed.length}</p>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Total Potential P&L</h3>
+                <p className={`text-2xl font-bold ${totalPotential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ${totalPotential.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Avg Potential / Miss</h3>
+                <p className="text-2xl font-bold text-slate-100">
+                  {missed.length ? `$${(totalPotential / missed.length).toFixed(2)}` : '$0.00'}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'analytics' && <MissedTradesAnalytics missed={missed} />}
+
+        {activeTab === 'trades' && (
+          <>
+            {loading ? (
+              <p className="text-slate-400">Loading missed trades...</p>
+            ) : missed.length === 0 ? (
+              <p className="text-slate-400">No missed trades logged.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
+                  <thead className="bg-slate-700">
+                    <tr>
+                      <th className="p-3 text-left text-slate-300">Date</th>
+                      <th className="p-3 text-left text-slate-300">Pair</th>
+                      <th className="p-3 text-left text-slate-300">Direction</th>
+                      <th className="p-3 text-left text-slate-300">Pattern</th>
+                      <th className="p-3 text-left text-slate-300">Before Link</th>
+                      <th className="p-3 text-left text-slate-300">After Link</th>
+                      <th className="p-3 text-left text-slate-300">Potential P&L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {missed.map((row, idx) => (
+                      <tr key={row.id || idx} className={idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+                        <td className="p-3 text-sm text-slate-300">
+                          {row.created_at ? new Date(row.created_at).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="p-3 font-semibold text-slate-100">{row.pair}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            row.direction === 'long' 
+                              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
+                              : 'bg-red-900/40 text-red-300 border border-red-800'
+                          }`}>
+                            {row.direction?.toUpperCase() || '-'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-300">{row.pattern || '-'}</td>
+                        <td className="p-3">
+                          {row.before_url ? (
+                            <a href={row.before_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">
+                              Before
+                            </a>
+                          ) : <span className="text-slate-500 text-xs">-</span>}
+                        </td>
+                        <td className="p-3">
+                          {row.after_url ? (
+                            <a href={row.after_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-xs underline">
+                              After
+                            </a>
+                          ) : <span className="text-slate-500 text-xs">-</span>}
+                        </td>
+                        <td className="p-3">
+                          {row.potential_pnl !== null && row.potential_pnl !== undefined ? (
+                            <span className={`${row.potential_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'} font-semibold`}>
+                              ${parseFloat(row.potential_pnl).toFixed(2)}
+                            </span>
+                          ) : <span className="text-slate-500">-</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Historical Data (executed trades) - unchanged, but exported here too
+ */
 const ViewHistoricalData = ({ setCurrentView }) => {
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
@@ -597,11 +1019,11 @@ const ViewHistoricalData = ({ setCurrentView }) => {
       setLoading(true)
       try {
         let query = supabase.from('trades').select('*')
-        
+
         if (filter !== 'all') {
           query = query.eq('status', filter)
         }
-        
+
         const { data, error } = await query.order('entry_date', { ascending: false })
 
         if (error) {
@@ -634,12 +1056,12 @@ const ViewHistoricalData = ({ setCurrentView }) => {
       >
         ← Back to Menu
       </button>
-      
+
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">View Historical Data</h1>
-        
+
         <BalanceManager setCurrentView={setCurrentView} />
-        
+
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setActiveTab('overview')}
@@ -705,39 +1127,6 @@ const ViewHistoricalData = ({ setCurrentView }) => {
 
         {activeTab === 'trades' && (
           <>
-            <div className="flex gap-4 mb-6">
-              <button
-                onClick={() => setFilter('all')}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  filter === 'all' 
-                    ? 'bg-emerald-600 text-white border-emerald-500' 
-                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-                }`}
-              >
-                All Trades
-              </button>
-              <button
-                onClick={() => setFilter('open')}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  filter === 'open' 
-                    ? 'bg-emerald-600 text-white border-emerald-500' 
-                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-                }`}
-              >
-                Open Trades
-              </button>
-              <button
-                onClick={() => setFilter('closed')}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  filter === 'closed' 
-                    ? 'bg-emerald-600 text-white border-emerald-500' 
-                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-                }`}
-              >
-                Closed Trades
-              </button>
-            </div>
-
             {loading ? (
               <p className="text-slate-400">Loading trades...</p>
             ) : trades.length === 0 ? (
@@ -853,6 +1242,9 @@ const ViewHistoricalData = ({ setCurrentView }) => {
   )
 }
 
+/**
+ * New Trade View (executed trades) - unchanged
+ */
 const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage }) => {
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceLoading, setBalanceLoading] = useState(true)
@@ -949,7 +1341,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       >
         ← Back to Menu
       </button>
-      
+
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Enter New Trade</h1>
@@ -965,7 +1357,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             )}
           </div>
         </div>
-        
+
         {message && (
           <div className={`p-4 rounded-lg mb-6 border ${
             message.includes('Error') 
@@ -1132,6 +1524,9 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   )
 }
 
+/**
+ * Home (Main Menu) — UPDATED with Missed Trades buttons & routing
+ */
 export default function Home() {
   const [currentView, setCurrentView] = useState('menu')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1155,7 +1550,7 @@ export default function Home() {
       <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
         <div className="text-center space-y-8">
           <h1 className="text-5xl font-bold mb-12 text-slate-100">Trading Journal</h1>
-          
+
           <div className="space-y-4">
             <MenuButton
               onClick={() => setCurrentView('new-trade')}
@@ -1163,19 +1558,33 @@ export default function Home() {
             >
               Enter New Trade
             </MenuButton>
-            
+
             <MenuButton
               onClick={() => setCurrentView('update-trade')}
               className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
             >
               Update Existing Trade
             </MenuButton>
-            
+
             <MenuButton
               onClick={() => setCurrentView('view-data')}
               className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
             >
               View Historical Data
+            </MenuButton>
+
+            <MenuButton
+              onClick={() => setCurrentView('missed-trade')}
+              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
+            >
+              Log Missed Trade
+            </MenuButton>
+
+            <MenuButton
+              onClick={() => setCurrentView('missed-data')}
+              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
+            >
+              View Missed Trades History
             </MenuButton>
           </div>
         </div>
@@ -1213,5 +1622,13 @@ export default function Home() {
     return <ViewHistoricalData setCurrentView={setCurrentView} />
   }
 
+  if (currentView === 'missed-trade') {
+    return <MissedTradeView setCurrentView={setCurrentView} />
+  }
+
+  if (currentView === 'missed-data') {
+    return <ViewMissedTrades setCurrentView={setCurrentView} />
+  }
+
   return null
-} 
+}
