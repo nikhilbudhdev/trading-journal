@@ -1014,6 +1014,7 @@ export default function Home() {
             <MenuButton onClick={() => setCurrentView('view-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Historical Data</MenuButton>
             <MenuButton onClick={() => setCurrentView('missed-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Log Missed Trade</MenuButton>
             <MenuButton onClick={() => setCurrentView('missed-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Missed Trades History</MenuButton>
+            <MenuButton onClick={() => setCurrentView('trading-plan')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Trading Plan</MenuButton>
           </div>
         </div>
       </div>
@@ -1049,5 +1050,125 @@ export default function Home() {
   if (currentView === 'view-data') return <ViewHistoricalData setCurrentView={setCurrentView} />
   if (currentView === 'missed-trade') return <MissedTradeView setCurrentView={setCurrentView} />
   if (currentView === 'missed-data') return <ViewMissedTrades setCurrentView={setCurrentView} />
+  if (currentView === 'trading-plan') return <TradingPlanView setCurrentView={setCurrentView} />
   return null
+}
+
+/* ---------- Trading Plan (editable) ---------- */
+const TradingPlanView = ({ setCurrentView }) => {
+  const [content, setContent] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [planId, setPlanId] = useState(null)
+
+  useEffect(() => {
+    const loadPlan = async () => {
+      setLoading(true)
+      setMessage('')
+      try {
+        const { data, error } = await supabase
+          .from('trading_plan')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+
+        if (error) throw error
+        if (data && data.length > 0) {
+          setContent(data[0].content || '')
+          setLastUpdated(data[0].updated_at)
+          setPlanId(data[0].id)
+        } else {
+          setContent('')
+          setLastUpdated(null)
+          setPlanId(null)
+        }
+      } catch (err) {
+        setMessage(`Error: ${err.message}`)
+      }
+      setLoading(false)
+    }
+    loadPlan()
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setMessage('')
+    try {
+      if (planId) {
+        const { error, data } = await supabase
+          .from('trading_plan')
+          .update({ content })
+          .eq('id', planId)
+          .select()
+          .limit(1)
+        if (error) throw error
+        const row = data?.[0]
+        setLastUpdated(row?.updated_at || new Date().toISOString())
+        setMessage('Trading plan saved!')
+      } else {
+        const { error, data } = await supabase
+          .from('trading_plan')
+          .insert([{ content }])
+          .select()
+          .limit(1)
+        if (error) throw error
+        const row = data?.[0]
+        setPlanId(row?.id || null)
+        setLastUpdated(row?.updated_at || new Date().toISOString())
+        setMessage('Trading plan created!')
+      }
+    } catch (err) {
+      setMessage(`Error: ${err.message}`)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-baseline justify-between mb-4">
+          <h1 className="text-3xl font-bold">Trading Plan</h1>
+          <div className="text-sm text-slate-400">
+            {lastUpdated ? `Last updated: ${new Date(lastUpdated).toLocaleString()}` : 'No plan saved yet'}
+          </div>
+        </div>
+
+        {message && (
+          <div className={`p-4 rounded-lg mb-6 border ${message.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>
+            {message}
+          </div>
+        )}
+
+        <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg">
+          {loading ? (
+            <div className="text-slate-400">Loading trading plan...</div>
+          ) : (
+            <>
+              <label className="block text-sm font-medium mb-2 text-slate-300">Your Trading Plan</label>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Document your strategy, criteria, risk rules, and review checklist here..."
+                rows={18}
+                className="w-full p-4 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-500"
+              />
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-xs text-slate-500">Tip: Use this space to outline entry criteria, risk management, and review routines.</div>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+                >
+                  {saving ? 'Saving...' : 'Save Plan'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
