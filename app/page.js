@@ -1040,7 +1040,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
         <div className="w-full max-w-5xl px-4">
-          <h1 className="text-5xl font-bold text-center mb-6 text-slate-100">Trading Journal</h1>
+          <h1 className="text-5xl font-bold text-center mb-6 text-slate-100">Nik's FX Trading Journal</h1>
           <div className="flex justify-center mb-10">
             <MenuButton onClick={() => setCurrentView('trading-plan')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Trading Plan</MenuButton>
           </div>
