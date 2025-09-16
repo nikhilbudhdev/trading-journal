@@ -1039,15 +1039,21 @@ export default function Home() {
   if (currentView === 'menu') {
     return (
       <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
-        <div className="text-center space-y-8">
-          <h1 className="text-5xl font-bold mb-12 text-slate-100">Trading Journal</h1>
-          <div className="space-y-4">
-            <MenuButton onClick={() => setCurrentView('new-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Enter New Trade</MenuButton>
-            <MenuButton onClick={() => setCurrentView('update-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Update Existing Trade</MenuButton>
-            <MenuButton onClick={() => setCurrentView('view-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Historical Data</MenuButton>
-            <MenuButton onClick={() => setCurrentView('missed-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Log Missed Trade</MenuButton>
-            <MenuButton onClick={() => setCurrentView('missed-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Missed Trades History</MenuButton>
+        <div className="w-full max-w-5xl px-4">
+          <h1 className="text-5xl font-bold text-center mb-6 text-slate-100">Trading Journal</h1>
+          <div className="flex justify-center mb-10">
             <MenuButton onClick={() => setCurrentView('trading-plan')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Trading Plan</MenuButton>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <MenuButton onClick={() => setCurrentView('new-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Enter New Trade</MenuButton>
+              <MenuButton onClick={() => setCurrentView('update-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Update Existing Trade</MenuButton>
+              <MenuButton onClick={() => setCurrentView('view-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Historical Data</MenuButton>
+            </div>
+            <div className="space-y-4">
+              <MenuButton onClick={() => setCurrentView('missed-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Log Missed Trade</MenuButton>
+              <MenuButton onClick={() => setCurrentView('missed-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Missed Trades History</MenuButton>
+            </div>
           </div>
         </div>
       </div>
