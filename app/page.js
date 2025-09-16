@@ -468,6 +468,7 @@ const ViewHistoricalData = ({ setCurrentView }) => {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('overview')
+  const [currentBalance, setCurrentBalance] = useState(0)
 
   useEffect(() => {
     const loadTrades = async () => {
@@ -486,7 +487,26 @@ const ViewHistoricalData = ({ setCurrentView }) => {
     loadTrades()
   }, [filter])
 
+  // Load latest account balance to compute % P&L context
+  useEffect(() => {
+    const loadCurrentBalance = async () => {
+      try {
+        const { data: history, error } = await supabase
+          .from('balance_history')
+          .select('balance')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (error) throw error
+        setCurrentBalance(history?.[0]?.balance || 0)
+      } catch (err) {
+        console.error('Error loading balance:', err.message)
+      }
+    }
+    loadCurrentBalance()
+  }, [])
+
   const totalPnL = trades.filter(t => t.pnl !== null).reduce((s,t)=> s + parseFloat(t.pnl), 0)
+  const totalPnLPercent = currentBalance > 0 ? (totalPnL / currentBalance) * 100 : 0
   const winningTrades = trades.filter(t => t.pnl > 0).length
   const losingTrades = trades.filter(t => t.pnl < 0).length
   const winRate = trades.length > 0 ? ((winningTrades / (winningTrades + losingTrades)) * 100).toFixed(1) : 0
@@ -511,7 +531,12 @@ const ViewHistoricalData = ({ setCurrentView }) => {
             <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Total Trades</h3><p className="text-2xl font-bold text-slate-100">{trades.length}</p></div>
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Trading P&L</h3><p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${totalPnL.toFixed(2)}</p></div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                <h3 className="text-sm text-slate-400">Trading P&L</h3>
+                <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ${totalPnL.toFixed(2)} ({totalPnLPercent.toFixed(2)}%)
+                </p>
+              </div>
               <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Win Rate</h3><p className="text-2xl font-bold text-slate-100">{winRate}%</p></div>
               <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">W/L Ratio</h3><p className="text-2xl font-bold text-slate-100">{winningTrades}/{losingTrades}</p></div>
             </div>
@@ -913,16 +938,24 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Enter New Trade</h1>
-          <div className="text-right">
+        <div className="flex justify-between items-center mb-8 gap-4">
+          <h1 className="text-3xl font-bold whitespace-nowrap">Enter New Trade</h1>
+          <div className="shrink-0">
             {balanceLoading ? (
               <div className="text-slate-400">Loading balance...</div>
             ) : (
-              <div className="bg-slate-800 border border-slate-700 p-3 rounded-lg">
-                <div className="text-sm text-slate-400">Account Balance</div>
-                <div className="text-lg font-semibold text-slate-100">${currentBalance.toFixed(2)}</div>
-                <div className="text-sm text-emerald-400">Max Risk (0.5%): ${maxRisk.toFixed(2)}</div>
+              <div className="bg-slate-800 border border-slate-700 p-5 md:p-6 rounded-lg w-fit min-w-[22rem] md:min-w-[28rem] text-left">
+                <div className="text-base">
+                  <span className="text-slate-400">Account Balance:</span>
+                  <span className="ml-2 text-slate-100 font-semibold">${currentBalance.toFixed(2)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-start text-left text-xs md:text-sm text-slate-300 whitespace-nowrap">
+                  <span>0.25% Risk: <span className="text-emerald-400 font-semibold">${(currentBalance * 0.0025).toFixed(2)}</span></span>
+                  <span className="mx-2 text-slate-600">|</span>
+                  <span>0.5% Risk: <span className="text-emerald-400 font-semibold">${maxRisk.toFixed(2)}</span></span>
+                  <span className="mx-2 text-slate-600">|</span>
+                  <span>1% Risk: <span className="text-emerald-400 font-semibold">${(currentBalance * 0.01).toFixed(2)}</span></span>
+                </div>
               </div>
             )}
           </div>
