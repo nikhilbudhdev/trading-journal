@@ -1,11 +1,8 @@
-
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-/**
- * Shared UI
- */
+/* ---------- Shared UI ---------- */
 const MenuButton = ({ onClick, children, className = '' }) => (
   <button
     onClick={onClick}
@@ -51,22 +48,15 @@ const SelectField = ({ label, value, onChange, options, required = false }) => (
   </div>
 )
 
-/**
- * Account Balance Manager (unchanged)
- */
-const BalanceManager = ({ setCurrentView }) => {
+/* ---------- Balance Manager (for executed trades only) ---------- */
+const BalanceManager = () => {
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceHistory, setBalanceHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddBalance, setShowAddBalance] = useState(false)
-  const [newBalance, setNewBalance] = useState({
-    amount: '',
-    reason: ''
-  })
+  const [newBalance, setNewBalance] = useState({ amount: '', reason: '' })
 
-  useEffect(() => {
-    loadBalanceData()
-  }, [])
+  useEffect(() => { loadBalanceData() }, [])
 
   const loadBalanceData = async () => {
     setLoading(true)
@@ -78,10 +68,8 @@ const BalanceManager = ({ setCurrentView }) => {
 
       if (historyError) throw historyError
       setBalanceHistory(history || [])
-
       const latestEntry = history?.[0]
       setCurrentBalance(latestEntry?.balance || 0)
-
     } catch (err) {
       console.error('Error loading balance:', err.message)
     }
@@ -91,11 +79,9 @@ const BalanceManager = ({ setCurrentView }) => {
   const handleAddBalance = async (e) => {
     e.preventDefault()
     if (!newBalance.amount) return
-
     try {
       const changeAmount = parseFloat(newBalance.amount)
       const newBalanceAmount = parseFloat(currentBalance) + changeAmount
-
       const { error } = await supabase
         .from('balance_history')
         .insert([{
@@ -103,13 +89,10 @@ const BalanceManager = ({ setCurrentView }) => {
           change_amount: changeAmount,
           change_reason: newBalance.reason || (changeAmount > 0 ? 'Deposit' : 'Withdrawal')
         }])
-
       if (error) throw error
-
       await loadBalanceData()
       setShowAddBalance(false)
       setNewBalance({ amount: '', reason: '' })
-
     } catch (err) {
       console.error('Error updating balance:', err.message)
     }
@@ -155,17 +138,10 @@ const BalanceManager = ({ setCurrentView }) => {
             />
           </div>
           <div className="flex gap-4 mt-4">
-            <button
-              type="submit"
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-            >
+            <button type="submit" className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors">
               Add Transaction
             </button>
-            <button
-              type="button"
-              onClick={() => setShowAddBalance(false)}
-              className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-            >
+            <button type="button" onClick={() => setShowAddBalance(false)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors">
               Cancel
             </button>
           </div>
@@ -199,18 +175,12 @@ const BalanceManager = ({ setCurrentView }) => {
   )
 }
 
-/**
- * Update Existing Trade (unchanged)
- */
+/* ---------- Update Existing Trade (executed, updates balance) ---------- */
 const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, setIsSubmitting }) => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedTrade, setSelectedTrade] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [updateData, setUpdateData] = useState({
-    exit_url: '',
-    pnl: '',
-    notes: ''
-  })
+  const [updateData, setUpdateData] = useState({ exit_url: '', pnl: '', notes: '' })
 
   useEffect(() => {
     const loadOpenTrades = async () => {
@@ -221,31 +191,26 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
           .select('*')
           .eq('status', 'open')
           .order('entry_date', { ascending: false })
-
-        if (error) {
-          setMessage(`Error loading trades: ${error.message}`)
-        } else {
-          setOpenTrades(data || [])
-        }
+        if (error) throw error
+        setOpenTrades(data || [])
       } catch (err) {
         setMessage(`Error: ${err.message}`)
       }
       setLoading(false)
     }
-
     loadOpenTrades()
   }, [setMessage])
 
   const handleUpdateTrade = async (e) => {
     e.preventDefault()
     if (!selectedTrade) return
-
     setIsSubmitting(true)
     setMessage('')
 
     try {
       const pnlAmount = updateData.pnl ? parseFloat(updateData.pnl) : 0
 
+      // 1) Close trade
       const { error } = await supabase
         .from('trades')
         .update({
@@ -256,16 +221,37 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
           status: 'closed'
         })
         .eq('id', selectedTrade.id)
-
       if (error) throw error
 
-      // NOTE: Per user request, account balance is maintained ONLY by explicit deposits/withdrawals or when closing trades.
-      // Missed trades do NOT affect balance anywhere in this file.
+      // 2) Update account balance (executed trades only)
+      if (pnlAmount !== 0) {
+        const { data: balanceHistory, error: balanceError } = await supabase
+          .from('balance_history')
+          .select('balance')
+          .order('created_at', { ascending: false })
+          .limit(1)
 
-      setMessage('Trade updated successfully!')
+        if (balanceError) throw balanceError
+
+        const currentBalance = balanceHistory?.[0]?.balance || 0
+        const newBalance = currentBalance + pnlAmount
+
+        const { error: balanceInsertError } = await supabase
+          .from('balance_history')
+          .insert([{
+            balance: newBalance,
+            change_amount: pnlAmount,
+            change_reason: `Trade P&L: ${selectedTrade.pair} ${selectedTrade.direction}`,
+            trade_id: selectedTrade.id
+          }])
+
+        if (balanceInsertError) throw balanceInsertError
+      }
+
+      setMessage('Trade updated successfully! Balance automatically adjusted.')
       setSelectedTrade(null)
       setUpdateData({ exit_url: '', pnl: '', notes: '' })
-
+      
       const { data: updatedTrades } = await supabase
         .from('trades')
         .select('*')
@@ -288,56 +274,30 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
       >
         ← Back to Menu
       </button>
-
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Update Existing Trade</h1>
-
         {message && (
-          <div className={`p-4 rounded-lg mb-6 border ${
-            message.includes('Error') 
-              ? 'bg-red-900/20 text-red-300 border-red-800' 
-              : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
-          }`}>
+          <div className={`p-4 rounded-lg mb-6 border ${message.includes('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>
             {message}
           </div>
         )}
-
-        {loading ? (
-          <p className="text-slate-400">Loading open trades...</p>
-        ) : openTrades.length === 0 ? (
-          <p className="text-slate-400">No open trades found.</p>
-        ) : (
+        {loading ? <p className="text-slate-400">Loading open trades...</p> :
+          openTrades.length === 0 ? <p className="text-slate-400">No open trades found.</p> :
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Open Trades ({openTrades.length})</h2>
-
             <div className="grid gap-4">
-              {openTrades.map((trade) => (
-                <div 
+              {openTrades.map(trade => (
+                <div
                   key={trade.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedTrade?.id === trade.id 
-                      ? 'border-emerald-500 bg-emerald-900/20' 
-                      : 'border-slate-700 hover:border-slate-600 bg-slate-800'
-                  }`}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTrade?.id === trade.id ? 'border-emerald-500 bg-emerald-900/20' : 'border-slate-700 hover:border-slate-600 bg-slate-800'}`}
                   onClick={() => setSelectedTrade(trade)}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-semibold text-lg">
-                        {trade.pair} - {trade.direction.toUpperCase()}
-                      </h3>
-                      <p className="text-slate-400 text-sm">
-                        Entry: {new Date(trade.entry_date).toLocaleDateString()}
-                      </p>
-                      <p className="text-slate-500 text-sm">
-                        Type: {trade.entrytype} | Rule3: {trade.rule3} | Zone: {trade.zone}
-                      </p>
-                      {trade.pattern_traded && (
-                        <p className="text-slate-500 text-sm">Pattern: {trade.pattern_traded}</p>
-                      )}
-                      {trade.risk_amount && (
-                        <p className="text-slate-500 text-sm">Risk: ${trade.risk_amount}</p>
-                      )}
+                      <h3 className="font-semibold text-lg">{trade.pair} - {trade.direction.toUpperCase()}</h3>
+                      <p className="text-slate-400 text-sm">Entry: {new Date(trade.entry_date).toLocaleDateString()}</p>
+                      <p className="text-slate-500 text-sm">Type: {trade.entrytype} | Rule3: {trade.rule3} | Zone: {trade.zone}</p>
+                      {trade.pattern_traded && <p className="text-slate-500 text-sm">Pattern: {trade.pattern_traded}</p>}
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-slate-400">Stop Size: {trade.stopsize}</p>
@@ -349,74 +309,31 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
 
             {selectedTrade && (
               <div className="mt-8 p-6 bg-slate-800 border border-slate-700 rounded-lg">
-                <h3 className="text-xl font-semibold mb-4">
-                  Close Trade: {selectedTrade.pair} - {selectedTrade.direction.toUpperCase()}
-                </h3>
-
+                <h3 className="text-xl font-semibold mb-4">Close Trade: {selectedTrade.pair} - {selectedTrade.direction.toUpperCase()}</h3>
                 <form onSubmit={handleUpdateTrade} className="space-y-4">
-                  <InputField
-                    label="Exit Chart/Analysis URL (Optional)"
-                    type="url"
-                    value={updateData.exit_url}
-                    onChange={(e) => setUpdateData(prev => ({ ...prev, exit_url: e.target.value }))}
-                    placeholder="https://tradingview.com/chart/..."
-                  />
-
-                  <InputField
-                    label="P&L"
-                    type="number"
-                    step="0.01"
-                    value={updateData.pnl}
-                    onChange={(e) => setUpdateData(prev => ({ ...prev, pnl: e.target.value }))}
-                    placeholder="e.g., 150.00 or -75.50"
-                    required
-                  />
-
+                  <InputField label="Exit Chart/Analysis URL (Optional)" type="url" value={updateData.exit_url} onChange={(e) => setUpdateData(prev => ({ ...prev, exit_url: e.target.value }))} placeholder="https://tradingview.com/chart/..." />
+                  <InputField label="P&L ($)" type="number" step="0.01" value={updateData.pnl} onChange={(e) => setUpdateData(prev => ({ ...prev, pnl: e.target.value }))} placeholder="e.g., 150.00 or -75.50" required />
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-2 text-slate-300">
-                      Additional Notes (Optional)
-                    </label>
-                    <textarea
-                      value={updateData.notes}
-                      onChange={(e) => setUpdateData(prev => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Exit reasons, lessons learned..."
-                      rows="3"
-                      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
-                    />
+                    <label className="block text-sm font-medium mb-2 text-slate-300">Additional Notes (Optional)</label>
+                    <textarea value={updateData.notes} onChange={(e) => setUpdateData(prev => ({ ...prev, notes: e.target.value }))} placeholder="Exit reasons, lessons learned..." rows="3" className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
                   </div>
-
                   <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTrade(null)}
-                      className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
-                    >
-                      {isSubmitting ? 'Closing Trade...' : 'Close Trade'}
-                    </button>
+                    <button type="button" onClick={() => setSelectedTrade(null)} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors">Cancel</button>
+                    <button type="submit" className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors">Close Trade</button>
                   </div>
                 </form>
               </div>
             )}
           </div>
-        )}
+        }
       </div>
     </div>
   )
 }
 
-/**
- * Trading Analytics (executed trades) - unchanged
- */
+/* ---------- Trading Analytics (executed) ---------- */
 const TradingAnalytics = ({ trades }) => {
   const closedTrades = trades.filter(trade => trade.status === 'closed' && trade.pnl !== null)
-
   if (closedTrades.length < 5) {
     return (
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
@@ -431,16 +348,11 @@ const TradingAnalytics = ({ trades }) => {
     trades.forEach(trade => {
       const key = trade[field]
       if (key) {
-        if (!stats[key]) {
-          stats[key] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
-        }
+        if (!stats[key]) stats[key] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
         stats[key].count++
         stats[key].totalPnL += parseFloat(trade.pnl)
-        if (parseFloat(trade.pnl) > 0) {
-          stats[key].wins++
-        } else {
-          stats[key].losses++
-        }
+        if (parseFloat(trade.pnl) > 0) stats[key].wins++
+        else stats[key].losses++
       }
     })
     return stats
@@ -453,25 +365,20 @@ const TradingAnalytics = ({ trades }) => {
   const pairStats = calculateStats(closedTrades, 'pair')
 
   const dayStats = {}
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   closedTrades.forEach(trade => {
     const day = dayNames[new Date(trade.entry_date).getDay()]
-    if (!dayStats[day]) {
-      dayStats[day] = { wins: 0, losses: 0, totalPnL: 0, count: 0 }
-    }
+    if (!dayStats[day]) dayStats[day] = { wins:0, losses:0, totalPnL:0, count:0 }
     dayStats[day].count++
     dayStats[day].totalPnL += parseFloat(trade.pnl)
-    if (parseFloat(trade.pnl) > 0) {
-      dayStats[day].wins++
-    } else {
-      dayStats[day].losses++
-    }
+    if (parseFloat(trade.pnl) > 0) dayStats[day].wins++
+    else dayStats[day].losses++
   })
 
-  const winningTrades = closedTrades.filter(trade => parseFloat(trade.pnl) > 0)
-  const losingTrades = closedTrades.filter(trade => parseFloat(trade.pnl) < 0)
-  const avgWin = winningTrades.length > 0 ? winningTrades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0) / winningTrades.length : 0
-  const avgLoss = losingTrades.length > 0 ? Math.abs(losingTrades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0) / losingTrades.length) : 0
+  const winningTrades = closedTrades.filter(t => parseFloat(t.pnl) > 0)
+  const losingTrades = closedTrades.filter(t => parseFloat(t.pnl) < 0)
+  const avgWin = winningTrades.length ? winningTrades.reduce((s,t)=>s+parseFloat(t.pnl),0)/winningTrades.length : 0
+  const avgLoss = losingTrades.length ? Math.abs(losingTrades.reduce((s,t)=>s+parseFloat(t.pnl),0)/losingTrades.length) : 0
   const riskRewardRatio = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : 'N/A'
 
   const StatCard = ({ title, stats }) => (
@@ -509,44 +416,23 @@ const TradingAnalytics = ({ trades }) => {
   return (
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6 text-slate-100">Trading Analytics</h2>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Risk-Reward Profile</h3>
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Average Win:</span>
-              <span className="text-emerald-400 font-semibold">${avgWin.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Average Loss:</span>
-              <span className="text-red-400 font-semibold">${avgLoss.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Risk-Reward Ratio:</span>
-              <span className="text-slate-100 font-semibold">{riskRewardRatio}</span>
-            </div>
+            <div className="flex justify-between"><span className="text-slate-400">Average Win:</span><span className="text-emerald-400 font-semibold">${avgWin.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Average Loss:</span><span className="text-red-400 font-semibold">${avgLoss.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Risk-Reward Ratio:</span><span className="text-slate-100 font-semibold">{riskRewardRatio}</span></div>
           </div>
         </div>
-
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Trading Volume</h3>
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Total Trades:</span>
-              <span className="text-slate-100 font-semibold">{closedTrades.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Winning Trades:</span>
-              <span className="text-emerald-400 font-semibold">{winningTrades.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Losing Trades:</span>
-              <span className="text-red-400 font-semibold">{losingTrades.length}</span>
-            </div>
+            <div className="flex justify-between"><span className="text-slate-400">Total Trades:</span><span className="text-slate-100 font-semibold">{closedTrades.length}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Winning Trades:</span><span className="text-emerald-400 font-semibold">{winningTrades.length}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Losing Trades:</span><span className="text-red-400 font-semibold">{losingTrades.length}</span></div>
           </div>
         </div>
-
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Performance Summary</h3>
           <div className="space-y-2">
@@ -558,9 +444,7 @@ const TradingAnalytics = ({ trades }) => {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Win Rate:</span>
-              <span className="text-slate-100 font-semibold">
-                {((winningTrades.length / closedTrades.length) * 100).toFixed(1)}%
-              </span>
+              <span className="text-slate-100 font-semibold">{((winningTrades.length / closedTrades.length) * 100).toFixed(1)}%</span>
             </div>
           </div>
         </div>
@@ -578,167 +462,122 @@ const TradingAnalytics = ({ trades }) => {
   )
 }
 
-/**
- * Missed Trades — NEW
- */
-const MissedTradeView = ({ setCurrentView }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [message, setMessage] = useState('')
-  const [form, setForm] = useState({
-    pair: '',
-    direction: 'long',
-    before_url: '',
-    pattern: '',
-    after_url: '',
-    potential_pnl: ''
-  })
+/* ---------- View Historical Data (includes BalanceManager) ---------- */
+const ViewHistoricalData = ({ setCurrentView }) => {
+  const [trades, setTrades] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all')
+  const [activeTab, setActiveTab] = useState('overview')
 
-  const handleInput = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setMessage('')
-
-    try {
-      const payload = {
-        pair: form.pair.toUpperCase(),
-        direction: form.direction,
-        before_url: form.before_url || null,
-        pattern: form.pattern || null,
-        after_url: form.after_url || null,
-        potential_pnl: form.potential_pnl ? parseFloat(form.potential_pnl) : null
+  useEffect(() => {
+    const loadTrades = async () => {
+      setLoading(true)
+      try {
+        let query = supabase.from('trades').select('*')
+        if (filter !== 'all') query = query.eq('status', filter)
+        const { data, error } = await query.order('entry_date', { ascending: false })
+        if (error) throw error
+        setTrades(data || [])
+      } catch (err) {
+        console.error('Error:', err.message)
       }
-
-      const { error } = await supabase.from('missed_trades').insert([payload])
-      if (error) throw error
-
-      setMessage('Missed trade logged!')
-      setForm({
-        pair: '',
-        direction: 'long',
-        before_url: '',
-        pattern: '',
-        after_url: '',
-        potential_pnl: ''
-      })
-    } catch (err) {
-      setMessage(`Error: ${err.message}`)
+      setLoading(false)
     }
+    loadTrades()
+  }, [filter])
 
-    setIsSubmitting(false)
-  }
+  const totalPnL = trades.filter(t => t.pnl !== null).reduce((s,t)=> s + parseFloat(t.pnl), 0)
+  const winningTrades = trades.filter(t => t.pnl > 0).length
+  const losingTrades = trades.filter(t => t.pnl < 0).length
+  const winRate = trades.length > 0 ? ((winningTrades / (winningTrades + losingTrades)) * 100).toFixed(1) : 0
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
-      <button 
-        onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-      >
-        ← Back to Menu
-      </button>
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">View Historical Data</h1>
 
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Log Missed Trade</h1>
+        {/* Balance Manager for executed trades only */}
+        <BalanceManager />
 
-        {message && (
-          <div className={`p-4 rounded-lg mb-6 border ${
-            message.startsWith('Error') 
-              ? 'bg-red-900/20 text-red-300 border-red-800' 
-              : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
-          }`}>
-            {message}
-          </div>
+        <div className="flex gap-2 mb-6">
+          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Overview</button>
+          <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Analytics</button>
+          <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Trade History</button>
+        </div>
+
+        {activeTab === 'overview' && (
+          <>
+            <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Total Trades</h3><p className="text-2xl font-bold text-slate-100">{trades.length}</p></div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Trading P&L</h3><p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${totalPnL.toFixed(2)}</p></div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Win Rate</h3><p className="text-2xl font-bold text-slate-100">{winRate}%</p></div>
+              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">W/L Ratio</h3><p className="text-2xl font-bold text-slate-100">{winningTrades}/{losingTrades}</p></div>
+            </div>
+          </>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
-          <InputField
-            label="Currency Pair"
-            value={form.pair}
-            onChange={(e) => handleInput('pair', e.target.value)}
-            placeholder="e.g., EURUSD, GBPJPY"
-            required
-          />
+        {activeTab === 'analytics' && <TradingAnalytics trades={trades} />}
 
-          <SelectField
-            label="Direction"
-            value={form.direction}
-            onChange={(e) => handleInput('direction', e.target.value)}
-            options={[
-              { value: 'long', label: 'Long (Buy)' },
-              { value: 'short', label: 'Short (Sell)' }
-            ]}
-            required
-          />
-
-          <InputField
-            label="Before Trade TradingView Link (Optional)"
-            type="url"
-            value={form.before_url}
-            onChange={(e) => handleInput('before_url', e.target.value)}
-            placeholder="https://tradingview.com/chart/..."
-          />
-
-          <SelectField
-            label="Pattern Spotted"
-            value={form.pattern}
-            onChange={(e) => handleInput('pattern', e.target.value)}
-            options={[
-              { value: '', label: 'Select a pattern...' },
-              { value: 'Bull Flag', label: 'Bull Flag' },
-              { value: 'Bear Flag', label: 'Bear Flag' },
-              { value: 'Flat Flag', label: 'Flat Flag' },
-              { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
-              { value: 'Expanding Triangle', label: 'Expanding Triangle' },
-              { value: 'Falcon Flag', label: 'Falcon Flag' },
-              { value: 'Ascending Channel', label: 'Ascending Channel' },
-              { value: 'Descending Channel', label: 'Descending Channel' },
-              { value: 'Rising Wedge', label: 'Rising Wedge' },
-              { value: 'Falling Wedge', label: 'Falling Wedge' },
-              { value: 'H&S', label: 'H&S' },
-              { value: 'Double Top', label: 'Double Top' },
-              { value: 'Double Bottom', label: 'Double Bottom' },
-              { value: 'The Arc', label: 'The Arc' },
-              { value: 'Structural Test', label: 'Structural Test' },
-              { value: 'Hook Point', label: 'Hook Point' },
-              { value: 'Reverse M Style', label: 'Reverse M Style' },
-              { value: 'M Style', label: 'M Style' }
-            ]}
-          />
-
-          <InputField
-            label="After Trade TradingView Link (Optional)"
-            type="url"
-            value={form.after_url}
-            onChange={(e) => handleInput('after_url', e.target.value)}
-            placeholder="https://tradingview.com/chart/..."
-          />
-
-          <InputField
-            label="Potential P&L (Optional)"
-            type="number"
-            step="0.01"
-            value={form.potential_pnl}
-            onChange={(e) => handleInput('potential_pnl', e.target.value)}
-            placeholder="e.g., 250.00"
-          />
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
-          >
-            {isSubmitting ? 'Saving...' : 'Save Missed Trade'}
-          </button>
-        </form>
+        {activeTab === 'trades' && (
+          <>
+            {loading ? (
+              <p className="text-slate-400">Loading trade history...</p>
+            ) : trades.length === 0 ? (
+              <p className="text-slate-400">No trades found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
+                  <thead className="bg-slate-700">
+                    <tr>
+                      <th className="p-3 text-left text-slate-300">Entry Date</th>
+                      <th className="p-3 text-left text-slate-300">Pair</th>
+                      <th className="p-3 text-left text-slate-300">Direction</th>
+                      <th className="p-3 text-left text-slate-300">Entry Type</th>
+                      <th className="p-3 text-left text-slate-300">Rule3</th>
+                      <th className="p-3 text-left text-slate-300">Zone</th>
+                      <th className="p-3 text-left text-slate-300">Pattern</th>
+                      <th className="p-3 text-left text-slate-300">Entry URL</th>
+                      <th className="p-3 text-left text-slate-300">Exit URL</th>
+                      <th className="p-3 text-left text-slate-300">P&L ($)</th>
+                      <th className="p-3 text-left text-slate-300">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trades.map((t, idx) => (
+                      <tr key={t.id || idx} className={idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-900'}>
+                        <td className="p-3 text-sm text-slate-300">{t.entry_date ? new Date(t.entry_date).toLocaleDateString() : '-'}</td>
+                        <td className="p-3 font-semibold text-slate-100">{t.pair}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${t.direction === 'long' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' : 'bg-red-900/40 text-red-300 border border-red-800'}`}>
+                            {t.direction?.toUpperCase() || '-'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-300">{t.entrytype || '-'}</td>
+                        <td className="p-3 text-slate-300">{t.rule3 || '-'}</td>
+                        <td className="p-3 text-slate-300">{t.zone || '-'}</td>
+                        <td className="p-3 text-slate-300">{t.pattern_traded || '-'}</td>
+                        <td className="p-3">{t.entry_url ? <a href={t.entry_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">Entry</a> : <span className="text-slate-500 text-xs">-</span>}</td>
+                        <td className="p-3">{t.exit_url ? <a href={t.exit_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-xs underline">Exit</a> : <span className="text-slate-500 text-xs">-</span>}</td>
+                        <td className="p-3">{t.pnl !== null && t.pnl !== undefined ? (
+                          <span className={`${parseFloat(t.pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'} font-semibold`}>{parseFloat(t.pnl).toFixed(2)}</span>
+                        ) : <span className="text-slate-500">-</span>}</td>
+                        <td className="p-3 text-slate-300 capitalize">{t.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-/**
- * Missed Trades Analytics & History — NEW
- */
+/* ---------- Missed Trades Analytics (percent) ---------- */
 const MissedTradesAnalytics = ({ missed }) => {
   if (!missed || missed.length < 3) {
     return (
@@ -748,40 +587,38 @@ const MissedTradesAnalytics = ({ missed }) => {
       </div>
     )
   }
-
   const toNumber = (v) => (v === null || v === undefined || v === '') ? 0 : parseFloat(v)
+  const sumPct = missed.reduce((s,r)=> s + toNumber(r.potential_return), 0)
+  const avgPct = sumPct / missed.length
 
   const calcStats = (rows, field) => {
     const stats = {}
     rows.forEach(row => {
       const key = row[field] || '—'
-      if (!stats[key]) stats[key] = { count: 0, totalPotential: 0 }
+      if (!stats[key]) stats[key] = { count: 0, totalPct: 0 }
       stats[key].count++
-      stats[key].totalPotential += toNumber(row.potential_pnl)
+      stats[key].totalPct += toNumber(row.potential_return)
     })
     return stats
   }
-
-  const totalPotential = missed.reduce((s,r)=> s + toNumber(r.potential_pnl), 0)
-  const byPattern = calcStats(missed, 'pattern')
-  const byPair = calcStats(missed, 'pair')
-
-  const dayStats = {}
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const byDay = {}
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   missed.forEach(row => {
-    const created = row.created_at ? new Date(row.created_at) : new Date()
-    const day = dayNames[created.getDay()]
-    if (!dayStats[day]) dayStats[day] = { count: 0, totalPotential: 0 }
-    dayStats[day].count++
-    dayStats[day].totalPotential += toNumber(row.potential_pnl)
+    const d = row.created_at ? new Date(row.created_at) : new Date()
+    const key = dayNames[d.getDay()]
+    if (!byDay[key]) byDay[key] = { count:0, totalPct:0 }
+    byDay[key].count++
+    byDay[key].totalPct += toNumber(row.potential_return)
   })
+  const byPair = calcStats(missed, 'pair')
+  const byPattern = calcStats(missed, 'pattern')
 
   const StatCard = ({ title, stats, suffix='misses' }) => (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
       <h3 className="text-lg font-semibold mb-3 text-slate-100">{title}</h3>
       <div className="space-y-2">
         {Object.entries(stats)
-          .sort((a,b)=> b[1].totalPotential - a[1].totalPotential)
+          .sort((a,b)=> b[1].totalPct - a[1].totalPct)
           .slice(0,5)
           .map(([key, data]) => (
             <div key={key} className="flex justify-between items-center">
@@ -789,8 +626,8 @@ const MissedTradesAnalytics = ({ missed }) => {
                 <span className="text-slate-200 font-medium">{key}</span>
                 <span className="text-slate-400 text-sm ml-2">({data.count} {suffix})</span>
               </div>
-              <div className={`text-sm font-semibold ${data.totalPotential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                ${data.totalPotential.toFixed(2)}
+              <div className={`text-sm font-semibold ${data.totalPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {data.totalPct.toFixed(2)}%
               </div>
             </div>
           ))}
@@ -801,41 +638,99 @@ const MissedTradesAnalytics = ({ missed }) => {
   return (
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6 text-slate-100">Missed Trades Analytics</h2>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Overview</h3>
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Missed Trades:</span>
-              <span className="text-slate-100 font-semibold">{missed.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Total Potential P&L:</span>
-              <span className={`font-semibold ${totalPotential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                ${totalPotential.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Avg Potential / Miss:</span>
-              <span className="text-slate-100 font-semibold">
-                ${(totalPotential / missed.length).toFixed(2)}
-              </span>
-            </div>
+            <div className="flex justify-between"><span className="text-slate-400">Missed Trades:</span><span className="text-slate-100 font-semibold">{missed.length}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Total Potential (Σ%):</span><span className={`font-semibold ${sumPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{sumPct.toFixed(2)}%</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Avg Potential / Miss:</span><span className="text-slate-100 font-semibold">{avgPct.toFixed(2)}%</span></div>
           </div>
         </div>
-
-        <StatCard title="By Day of Week" stats={dayStats} suffix="misses" />
-        <StatCard title="By Pair" stats={byPair} suffix="misses" />
+        <StatCard title="By Day of Week" stats={byDay} />
+        <StatCard title="By Pair" stats={byPair} />
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <StatCard title="Top Patterns Missed" stats={byPattern} suffix="misses" />
+        <StatCard title="Top Patterns Missed" stats={byPattern} />
       </div>
     </div>
   )
 }
 
+/* ---------- Missed Trade entry (percent returns) ---------- */
+const MissedTradeView = ({ setCurrentView }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState('')
+  const [form, setForm] = useState({
+    pair: '',
+    direction: 'long',
+    before_url: '',
+    pattern: '',
+    after_url: '',
+    potential_return: '' // percent value e.g. 2.5 for +2.5%
+  })
+  const handleInput = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setMessage('')
+    try {
+      const payload = {
+        pair: form.pair.toUpperCase(),
+        direction: form.direction,
+        before_url: form.before_url || null,
+        pattern: form.pattern || null,
+        after_url: form.after_url || null,
+        potential_return: form.potential_return === '' ? null : parseFloat(form.potential_return)
+      }
+      const { error } = await supabase.from('missed_trades').insert([payload])
+      if (error) throw error
+      setMessage('Missed trade logged!')
+      setForm({ pair:'', direction:'long', before_url:'', pattern:'', after_url:'', potential_return:'' })
+    } catch (err) { setMessage(`Error: ${err.message}`) }
+    setIsSubmitting(false)
+  }
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Log Missed Trade</h1>
+        {message && <div className={`p-4 rounded-lg mb-6 border ${message.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>{message}</div>}
+        <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
+          <InputField label="Currency Pair" value={form.pair} onChange={(e)=>handleInput('pair', e.target.value)} placeholder="e.g., EURUSD, GBPJPY" required />
+          <SelectField label="Direction" value={form.direction} onChange={(e)=>handleInput('direction', e.target.value)} options={[{value:'long',label:'Long (Buy)'},{value:'short',label:'Short (Sell)'}]} required />
+          <InputField label="Before Trade TradingView Link (Optional)" type="url" value={form.before_url} onChange={(e)=>handleInput('before_url', e.target.value)} placeholder="https://tradingview.com/chart/..." />
+          <SelectField label="Pattern Spotted" value={form.pattern} onChange={(e)=>handleInput('pattern', e.target.value)} options={[
+            { value: '', label: 'Select a pattern...' },
+            { value: 'Bull Flag', label: 'Bull Flag' },
+            { value: 'Bear Flag', label: 'Bear Flag' },
+            { value: 'Flat Flag', label: 'Flat Flag' },
+            { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
+            { value: 'Expanding Triangle', label: 'Expanding Triangle' },
+            { value: 'Falcon Flag', label: 'Falcon Flag' },
+            { value: 'Ascending Channel', label: 'Ascending Channel' },
+            { value: 'Descending Channel', label: 'Descending Channel' },
+            { value: 'Rising Wedge', label: 'Rising Wedge' },
+            { value: 'Falling Wedge', label: 'Falling Wedge' },
+            { value: 'H&S', label: 'H&S' },
+            { value: 'Double Top', label: 'Double Top' },
+            { value: 'Double Bottom', label: 'Double Bottom' },
+            { value: 'The Arc', label: 'The Arc' },
+            { value: 'Structural Test', label: 'Structural Test' },
+            { value: 'Hook Point', label: 'Hook Point' },
+            { value: 'Reverse M Style', label: 'Reverse M Style' },
+            { value: 'M Style', label: 'M Style' }
+          ]} />
+          <InputField label="After Trade TradingView Link (Optional)" type="url" value={form.after_url} onChange={(e)=>handleInput('after_url', e.target.value)} placeholder="https://tradingview.com/chart/..." />
+          <InputField label="Potential Return (%) (Optional)" type="number" step="0.01" value={form.potential_return} onChange={(e)=>handleInput('potential_return', e.target.value)} placeholder="e.g., 2.50 or -1.25" />
+          <button type="submit" disabled={isSubmitting} className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors">{isSubmitting ? 'Saving...' : 'Save Missed Trade'}</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ---------- Missed Trades History ---------- */
 const ViewMissedTrades = ({ setCurrentView }) => {
   const [missed, setMissed] = useState([])
   const [loading, setLoading] = useState(true)
@@ -845,11 +740,7 @@ const ViewMissedTrades = ({ setCurrentView }) => {
     const load = async () => {
       setLoading(true)
       try {
-        const { data, error } = await supabase
-          .from('missed_trades')
-          .select('*')
-          .order('created_at', { ascending: false })
-
+        const { data, error } = await supabase.from('missed_trades').select('*').order('created_at', { ascending: false })
         if (error) throw error
         setMissed(data || [])
       } catch (err) {
@@ -861,75 +752,27 @@ const ViewMissedTrades = ({ setCurrentView }) => {
   }, [])
 
   const toNumber = (v) => (v === null || v === undefined || v === '') ? 0 : parseFloat(v)
-  const totalPotential = missed.reduce((s,r)=> s + toNumber(r.potential_pnl), 0)
+  const totalPct = missed.reduce((s,r)=> s + toNumber(r.potential_return), 0)
+  const avgPct = missed.length ? (totalPct / missed.length) : 0
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
-      <button 
-        onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-      >
-        ← Back to Menu
-      </button>
-
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Missed Trades History</h1>
 
         <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg border transition-colors ${
-              activeTab === 'overview' 
-                ? 'bg-emerald-600 text-white border-emerald-500' 
-                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-            }`}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-4 py-2 rounded-lg border transition-colors ${
-              activeTab === 'analytics' 
-                ? 'bg-emerald-600 text-white border-emerald-500' 
-                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-            }`}
-          >
-            Analytics
-          </button>
-          <button
-            onClick={() => setActiveTab('trades')}
-            className={`px-4 py-2 rounded-lg border transition-colors ${
-              activeTab === 'trades' 
-                ? 'bg-emerald-600 text-white border-emerald-500' 
-                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-            }`}
-          >
-            Missed Trades Table
-          </button>
+          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Overview</button>
+          <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Analytics</button>
+          <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Missed Trades Table</button>
         </div>
 
         {activeTab === 'overview' && (
-          <>
-            <h2 className="text-2xl font-bold mb-4">Summary</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">Missed Trades</h3>
-                <p className="text-2xl font-bold text-slate-100">{missed.length}</p>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">Total Potential P&L</h3>
-                <p className={`text-2xl font-bold ${totalPotential >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  ${totalPotential.toFixed(2)}
-                </p>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">Avg Potential / Miss</h3>
-                <p className="text-2xl font-bold text-slate-100">
-                  {missed.length ? `$${(totalPotential / missed.length).toFixed(2)}` : '$0.00'}
-                </p>
-              </div>
-            </div>
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Missed Trades</h3><p className="text-2xl font-bold text-slate-100">{missed.length}</p></div>
+            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Total Potential (Σ%)</h3><p className={`text-2xl font-bold ${totalPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{totalPct.toFixed(2)}%</p></div>
+            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Avg Potential / Miss</h3><p className="text-2xl font-bold text-slate-100">{avgPct.toFixed(2)}%</p></div>
+          </div>
         )}
 
         {activeTab === 'analytics' && <MissedTradesAnalytics missed={missed} />}
@@ -951,47 +794,25 @@ const ViewMissedTrades = ({ setCurrentView }) => {
                       <th className="p-3 text-left text-slate-300">Pattern</th>
                       <th className="p-3 text-left text-slate-300">Before Link</th>
                       <th className="p-3 text-left text-slate-300">After Link</th>
-                      <th className="p-3 text-left text-slate-300">Potential P&L</th>
+                      <th className="p-3 text-left text-slate-300">Potential Return (%)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {missed.map((row, idx) => (
                       <tr key={row.id || idx} className={idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
-                        <td className="p-3 text-sm text-slate-300">
-                          {row.created_at ? new Date(row.created_at).toLocaleDateString() : '-'}
-                        </td>
+                        <td className="p-3 text-sm text-slate-300">{row.created_at ? new Date(row.created_at).toLocaleDateString() : '-'}</td>
                         <td className="p-3 font-semibold text-slate-100">{row.pair}</td>
                         <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            row.direction === 'long' 
-                              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
-                              : 'bg-red-900/40 text-red-300 border border-red-800'
-                          }`}>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${row.direction === 'long' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' : 'bg-red-900/40 text-red-300 border border-red-800'}`}>
                             {row.direction?.toUpperCase() || '-'}
                           </span>
                         </td>
                         <td className="p-3 text-slate-300">{row.pattern || '-'}</td>
-                        <td className="p-3">
-                          {row.before_url ? (
-                            <a href={row.before_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">
-                              Before
-                            </a>
-                          ) : <span className="text-slate-500 text-xs">-</span>}
-                        </td>
-                        <td className="p-3">
-                          {row.after_url ? (
-                            <a href={row.after_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-xs underline">
-                              After
-                            </a>
-                          ) : <span className="text-slate-500 text-xs">-</span>}
-                        </td>
-                        <td className="p-3">
-                          {row.potential_pnl !== null && row.potential_pnl !== undefined ? (
-                            <span className={`${row.potential_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'} font-semibold`}>
-                              ${parseFloat(row.potential_pnl).toFixed(2)}
-                            </span>
-                          ) : <span className="text-slate-500">-</span>}
-                        </td>
+                        <td className="p-3">{row.before_url ? <a href={row.before_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">Before</a> : <span className="text-slate-500 text-xs">-</span>}</td>
+                        <td className="p-3">{row.after_url ? <a href={row.after_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-xs underline">After</a> : <span className="text-slate-500 text-xs">-</span>}</td>
+                        <td className="p-3">{(row.potential_return !== null && row.potential_return !== undefined && row.potential_return !== '') ? (
+                          <span className={`${row.potential_return >= 0 ? 'text-emerald-400' : 'text-red-400'} font-semibold`}>{parseFloat(row.potential_return).toFixed(2)}%</span>
+                        ) : <span className="text-slate-500">-</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1005,246 +826,7 @@ const ViewMissedTrades = ({ setCurrentView }) => {
   )
 }
 
-/**
- * Historical Data (executed trades) - unchanged, but exported here too
- */
-const ViewHistoricalData = ({ setCurrentView }) => {
-  const [trades, setTrades] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
-  const [activeTab, setActiveTab] = useState('overview')
-
-  useEffect(() => {
-    const loadTrades = async () => {
-      setLoading(true)
-      try {
-        let query = supabase.from('trades').select('*')
-
-        if (filter !== 'all') {
-          query = query.eq('status', filter)
-        }
-
-        const { data, error } = await query.order('entry_date', { ascending: false })
-
-        if (error) {
-          console.error('Error loading trades:', error.message)
-        } else {
-          setTrades(data || [])
-        }
-      } catch (err) {
-        console.error('Error:', err.message)
-      }
-      setLoading(false)
-    }
-
-    loadTrades()
-  }, [filter])
-
-  const totalPnL = trades
-    .filter(trade => trade.pnl !== null)
-    .reduce((sum, trade) => sum + parseFloat(trade.pnl), 0)
-
-  const winningTrades = trades.filter(trade => trade.pnl > 0).length
-  const losingTrades = trades.filter(trade => trade.pnl < 0).length
-  const winRate = trades.length > 0 ? ((winningTrades / (winningTrades + losingTrades)) * 100).toFixed(1) : 0
-
-  return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
-      <button 
-        onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-      >
-        ← Back to Menu
-      </button>
-
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">View Historical Data</h1>
-
-        <BalanceManager setCurrentView={setCurrentView} />
-
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg border transition-colors ${
-              activeTab === 'overview' 
-                ? 'bg-emerald-600 text-white border-emerald-500' 
-                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-            }`}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-4 py-2 rounded-lg border transition-colors ${
-              activeTab === 'analytics' 
-                ? 'bg-emerald-600 text-white border-emerald-500' 
-                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-            }`}
-          >
-            Analytics
-          </button>
-          <button
-            onClick={() => setActiveTab('trades')}
-            className={`px-4 py-2 rounded-lg border transition-colors ${
-              activeTab === 'trades' 
-                ? 'bg-emerald-600 text-white border-emerald-500' 
-                : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'
-            }`}
-          >
-            Trade History
-          </button>
-        </div>
-
-        {activeTab === 'overview' && (
-          <>
-            <h2 className="text-2xl font-bold mb-4">Trading Statistics</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">Total Trades</h3>
-                <p className="text-2xl font-bold text-slate-100">{trades.length}</p>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">Trading P&L</h3>
-                <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  ${totalPnL.toFixed(2)}
-                </p>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">Win Rate</h3>
-                <p className="text-2xl font-bold text-slate-100">{winRate}%</p>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
-                <h3 className="text-sm text-slate-400">W/L Ratio</h3>
-                <p className="text-2xl font-bold text-slate-100">{winningTrades}/{losingTrades}</p>
-              </div>
-            </div>
-          </>
-        )}
-
-        {activeTab === 'analytics' && (
-          <TradingAnalytics trades={trades} />
-        )}
-
-        {activeTab === 'trades' && (
-          <>
-            {loading ? (
-              <p className="text-slate-400">Loading trades...</p>
-            ) : trades.length === 0 ? (
-              <p className="text-slate-400">No trades found.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-                  <thead className="bg-slate-700">
-                    <tr>
-                      <th className="p-3 text-left text-slate-300">Pair</th>
-                      <th className="p-3 text-left text-slate-300">Direction</th>
-                      <th className="p-3 text-left text-slate-300">Entry Date</th>
-                      <th className="p-3 text-left text-slate-300">Type</th>
-                      <th className="p-3 text-left text-slate-300">Rule3</th>
-                      <th className="p-3 text-left text-slate-300">Zone</th>
-                      <th className="p-3 text-left text-slate-300">Pattern</th>
-                      <th className="p-3 text-left text-slate-300">Risk $</th>
-                      <th className="p-3 text-left text-slate-300">Stop Size</th>
-                      <th className="p-3 text-left text-slate-300">Charts</th>
-                      <th className="p-3 text-left text-slate-300">P&L</th>
-                      <th className="p-3 text-left text-slate-300">Status</th>
-                      <th className="p-3 text-left text-slate-300">Exit Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((trade, index) => (
-                      <tr key={trade.id || index} className={index % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
-                        <td className="p-3 font-semibold text-slate-100">{trade.pair}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            trade.direction === 'long' 
-                              ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800' 
-                              : 'bg-red-900/40 text-red-300 border border-red-800'
-                          }`}>
-                            {trade.direction.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="p-3 text-sm text-slate-300">
-                          {new Date(trade.entry_date).toLocaleDateString()}
-                        </td>
-                        <td className="p-3 text-slate-300">{trade.entrytype}</td>
-                        <td className="p-3 text-slate-300">{trade.rule3}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                            trade.zone === 'Green' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-800' :
-                            trade.zone === 'Yellow' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-800' :
-                            'bg-red-900/40 text-red-300 border-red-800'
-                          }`}>
-                            {trade.zone}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-300">{trade.pattern_traded || '-'}</td>
-                        <td className="p-3 text-slate-300">
-                          {trade.risk_amount ? `${parseFloat(trade.risk_amount).toFixed(2)}` : '-'}
-                        </td>
-                        <td className="p-3 text-slate-300">{trade.stopsize || '-'}</td>
-                        <td className="p-3">
-                          <div className="flex flex-col gap-1">
-                            {trade.entry_url && (
-                              <a 
-                                href={trade.entry_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-emerald-400 hover:text-emerald-300 text-xs underline"
-                              >
-                                Entry Chart
-                              </a>
-                            )}
-                            {trade.exit_url && (
-                              <a 
-                                href={trade.exit_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-400 hover:text-blue-300 text-xs underline"
-                              >
-                                Exit Chart
-                              </a>
-                            )}
-                            {!trade.entry_url && !trade.exit_url && (
-                              <span className="text-slate-500 text-xs">-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          {trade.pnl ? (
-                            <span className={`font-semibold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              ${parseFloat(trade.pnl).toFixed(2)}
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                            trade.status === 'open' 
-                              ? 'bg-blue-900/40 text-blue-300 border-blue-800' 
-                              : 'bg-slate-700/40 text-slate-400 border-slate-600'
-                          }`}>
-                            {trade.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="p-3 text-sm text-slate-300">
-                          {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/**
- * New Trade View (executed trades) - unchanged
- */
+/* ---------- New Trade View (executed) ---------- */
 const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage }) => {
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceLoading, setBalanceLoading] = useState(true)
@@ -1266,25 +848,19 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       }
       setBalanceLoading(false)
     }
-
     loadCurrentBalance()
   }, [])
 
   const maxRisk = currentBalance * 0.005
-
   const validateRisk = () => {
     const riskAmount = parseFloat(formData.risk_amount) || 0
     const exceedsLimit = riskAmount > maxRisk
     return { exceedsLimit, riskAmount }
   }
-
   const riskValidation = validateRisk()
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   const handleSubmit = async (e) => {
@@ -1335,13 +911,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
-      <button 
-        onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-      >
-        ← Back to Menu
-      </button>
-
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Enter New Trade</h1>
@@ -1359,164 +929,54 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
         </div>
 
         {message && (
-          <div className={`p-4 rounded-lg mb-6 border ${
-            message.includes('Error') 
-              ? 'bg-red-900/20 text-red-300 border-red-800' 
-              : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'
-          }`}>
+          <div className={`p-4 rounded-lg mb-6 border ${message.includes('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>
             {message}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
-          <InputField
-            label="Currency Pair"
-            value={formData.pair}
-            onChange={(e) => handleInputChange('pair', e.target.value)}
-            placeholder="e.g., EURUSD, GBPJPY"
-            required
-          />
-
-          <SelectField
-            label="Direction"
-            value={formData.direction}
-            onChange={(e) => handleInputChange('direction', e.target.value)}
-            options={[
-              { value: 'long', label: 'Long (Buy)' },
-              { value: 'short', label: 'Short (Sell)' }
-            ]}
-            required
-          />
-
-          <InputField
-            label="Stop Size"
-            type="number"
-            step="0.00001"
-            value={formData.stopsize}
-            onChange={(e) => handleInputChange('stopsize', e.target.value)}
-            placeholder="e.g., 0.00150"
-          />
-
+          <InputField label="Currency Pair" value={formData.pair} onChange={(e) => handleInputChange('pair', e.target.value)} placeholder="e.g., EURUSD, GBPJPY" required />
+          <SelectField label="Direction" value={formData.direction} onChange={(e) => handleInputChange('direction', e.target.value)} options={[{ value: 'long', label: 'Long (Buy)' }, { value: 'short', label: 'Short (Sell)' }]} required />
+          <InputField label="Stop Size" type="number" step="0.00001" value={formData.stopsize} onChange={(e) => handleInputChange('stopsize', e.target.value)} placeholder="e.g., 0.00150" />
           <div className="mb-4">
-            <InputField
-              label="Risk Amount ($)"
-              type="number"
-              step="0.01"
-              value={formData.risk_amount}
-              onChange={(e) => handleInputChange('risk_amount', e.target.value)}
-              placeholder={`Max: ${maxRisk.toFixed(2)}`}
-              required
-            />
-
+            <InputField label="Risk Amount ($)" type="number" step="0.01" value={formData.risk_amount} onChange={(e) => handleInputChange('risk_amount', e.target.value)} placeholder={`Max: ${maxRisk.toFixed(2)}`} required />
             {formData.risk_amount && (
-              <div className={`mt-2 p-2 rounded text-sm ${
-                riskValidation.exceedsLimit 
-                  ? 'bg-red-900/20 text-red-300 border border-red-800' 
-                  : 'bg-emerald-900/20 text-emerald-300 border border-emerald-800'
-              }`}>
-                {riskValidation.exceedsLimit 
-                  ? `Risk exceeds 0.5% limit (${maxRisk.toFixed(2)})`
-                  : `Risk within limit (${((riskValidation.riskAmount / currentBalance) * 100).toFixed(2)}% of balance)`
-                }
+              <div className={`mt-2 p-2 rounded text-sm ${riskValidation.exceedsLimit ? 'bg-red-900/20 text-red-300 border border-red-800' : 'bg-emerald-900/20 text-emerald-300 border border-emerald-800'}`}>
+                {riskValidation.exceedsLimit ? `Risk exceeds 0.5% limit (${maxRisk.toFixed(2)})` : `Risk within limit (${((riskValidation.riskAmount / currentBalance) * 100).toFixed(2)}% of balance)`}
               </div>
             )}
           </div>
-
-          <SelectField
-            label="Entry Type"
-            value={formData.entrytype}
-            onChange={(e) => handleInputChange('entrytype', e.target.value)}
-            options={[
-              { value: 'RE', label: 'RE' },
-              { value: 'RRE', label: 'RRE' }
-            ]}
-            required
-          />
-
-          <SelectField
-            label="Rule 3"
-            value={formData.rule3}
-            onChange={(e) => handleInputChange('rule3', e.target.value)}
-            options={[
-              { value: 'Impulsive', label: 'Impulsive' },
-              { value: 'Structural', label: 'Structural' },
-              { value: 'Corrective', label: 'Corrective' }
-            ]}
-            required
-          />
-
-          <SelectField
-            label="Zone"
-            value={formData.zone}
-            onChange={(e) => handleInputChange('zone', e.target.value)}
-            options={[
-              { value: 'Red', label: 'Red' },
-              { value: 'Yellow', label: 'Yellow' },
-              { value: 'Green', label: 'Green' }
-            ]}
-            required
-          />
-
-          <SelectField
-            label="Pattern Traded"
-            value={formData.pattern_traded}
-            onChange={(e) => handleInputChange('pattern_traded', e.target.value)}
-            options={[
-              { value: '', label: 'Select a pattern...' },
-              { value: 'Bull Flag', label: 'Bull Flag' },
-              { value: 'Bear Flag', label: 'Bear Flag' },
-              { value: 'Flat Flag', label: 'Flat Flag' },
-              { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
-              { value: 'Expanding Triangle', label: 'Expanding Triangle' },
-              { value: 'Falcon Flag', label: 'Falcon Flag' },
-              { value: 'Ascending Channel', label: 'Ascending Channel' },
-              { value: 'Descending Channel', label: 'Descending Channel' },
-              { value: 'Rising Wedge', label: 'Rising Wedge' },
-              { value: 'Falling Wedge', label: 'Falling Wedge' },
-              { value: 'H&S', label: 'H&S' },
-              { value: 'Double Top', label: 'Double Top' },
-              { value: 'Double Bottom', label: 'Double Bottom' },
-              { value: 'The Arc', label: 'The Arc' },
-              { value: 'Structural Test', label: 'Structural Test' },
-              { value: 'Hook Point', label: 'Hook Point' },
-              { value: 'Reverse M Style', label: 'Reverse M Style' },
-              { value: 'M Style', label: 'M Style' }
-            ]}
-            required
-          />
-
-          <InputField
-            label="Entry Chart/Analysis URL (Optional)"
-            type="url"
-            value={formData.entry_url}
-            onChange={(e) => handleInputChange('entry_url', e.target.value)}
-            placeholder="https://tradingview.com/chart/..."
-          />
-
+          <SelectField label="Entry Type" value={formData.entrytype} onChange={(e) => handleInputChange('entrytype', e.target.value)} options={[{ value: 'RE', label: 'RE' }, { value: 'RRE', label: 'RRE' }]} required />
+          <SelectField label="Rule 3" value={formData.rule3} onChange={(e) => handleInputChange('rule3', e.target.value)} options={[{ value: 'Impulsive', label: 'Impulsive' }, { value: 'Structural', label: 'Structural' }, { value: 'Corrective', label: 'Corrective' }]} required />
+          <SelectField label="Zone" value={formData.zone} onChange={(e) => handleInputChange('zone', e.target.value)} options={[{ value: 'Red', label: 'Red' }, { value: 'Yellow', label: 'Yellow' }, { value: 'Green', label: 'Green' }]} required />
+          <SelectField label="Pattern Traded" value={formData.pattern_traded} onChange={(e) => handleInputChange('pattern_traded', e.target.value)} options={[
+            { value: '', label: 'Select a pattern...' },
+            { value: 'Bull Flag', label: 'Bull Flag' },
+            { value: 'Bear Flag', label: 'Bear Flag' },
+            { value: 'Flat Flag', label: 'Flat Flag' },
+            { value: 'Symmetrical Triangle', label: 'Symmetrical Triangle' },
+            { value: 'Expanding Triangle', label: 'Expanding Triangle' },
+            { value: 'Falcon Flag', label: 'Falcon Flag' },
+            { value: 'Ascending Channel', label: 'Ascending Channel' },
+            { value: 'Descending Channel', label: 'Descending Channel' },
+            { value: 'Rising Wedge', label: 'Rising Wedge' },
+            { value: 'Falling Wedge', label: 'Falling Wedge' },
+            { value: 'H&S', label: 'H&S' },
+            { value: 'Double Top', label: 'Double Top' },
+            { value: 'Double Bottom', label: 'Double Bottom' },
+            { value: 'The Arc', label: 'The Arc' },
+            { value: 'Structural Test', label: 'Structural Test' },
+            { value: 'Hook Point', label: 'Hook Point' },
+            { value: 'Reverse M Style', label: 'Reverse M Style' },
+            { value: 'M Style', label: 'M Style' }
+          ]} required />
+          <InputField label="Entry Chart/Analysis URL (Optional)" type="url" value={formData.entry_url} onChange={(e) => handleInputChange('entry_url', e.target.value)} placeholder="https://tradingview.com/chart/..." />
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2 text-slate-300">
-              Notes (Optional)
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => handleInputChange('notes', e.target.value)}
-              placeholder="Trade setup, reasons, strategy..."
-              rows="4"
-              className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
-            />
+            <label className="block text-sm font-medium mb-2 text-slate-300">Notes (Optional)</label>
+            <textarea value={formData.notes} onChange={(e) => handleInputChange('notes', e.target.value)} placeholder="Trade setup, reasons, strategy..." rows="4" className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
           </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting || riskValidation.exceedsLimit}
-            className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
-          >
-            {riskValidation.exceedsLimit 
-              ? 'Risk Exceeds 0.5% Limit' 
-              : isSubmitting 
-                ? 'Adding Trade...' 
-                : 'Add Trade'
-            }
+          <button type="submit" disabled={isSubmitting || riskValidation.exceedsLimit} className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors">
+            {riskValidation.exceedsLimit ? 'Risk Exceeds 0.5% Limit' : isSubmitting ? 'Adding Trade...' : 'Add Trade'}
           </button>
         </form>
       </div>
@@ -1524,9 +984,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   )
 }
 
-/**
- * Home (Main Menu) — UPDATED with Missed Trades buttons & routing
- */
+/* ---------- DEFAULT EXPORT: Home page (menu) ---------- */
 export default function Home() {
   const [currentView, setCurrentView] = useState('menu')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1550,42 +1008,12 @@ export default function Home() {
       <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
         <div className="text-center space-y-8">
           <h1 className="text-5xl font-bold mb-12 text-slate-100">Trading Journal</h1>
-
           <div className="space-y-4">
-            <MenuButton
-              onClick={() => setCurrentView('new-trade')}
-              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
-            >
-              Enter New Trade
-            </MenuButton>
-
-            <MenuButton
-              onClick={() => setCurrentView('update-trade')}
-              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
-            >
-              Update Existing Trade
-            </MenuButton>
-
-            <MenuButton
-              onClick={() => setCurrentView('view-data')}
-              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
-            >
-              View Historical Data
-            </MenuButton>
-
-            <MenuButton
-              onClick={() => setCurrentView('missed-trade')}
-              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
-            >
-              Log Missed Trade
-            </MenuButton>
-
-            <MenuButton
-              onClick={() => setCurrentView('missed-data')}
-              className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white"
-            >
-              View Missed Trades History
-            </MenuButton>
+            <MenuButton onClick={() => setCurrentView('new-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Enter New Trade</MenuButton>
+            <MenuButton onClick={() => setCurrentView('update-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Update Existing Trade</MenuButton>
+            <MenuButton onClick={() => setCurrentView('view-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Historical Data</MenuButton>
+            <MenuButton onClick={() => setCurrentView('missed-trade')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">Log Missed Trade</MenuButton>
+            <MenuButton onClick={() => setCurrentView('missed-data')} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white">View Missed Trades History</MenuButton>
           </div>
         </div>
       </div>
@@ -1618,17 +1046,8 @@ export default function Home() {
     )
   }
 
-  if (currentView === 'view-data') {
-    return <ViewHistoricalData setCurrentView={setCurrentView} />
-  }
-
-  if (currentView === 'missed-trade') {
-    return <MissedTradeView setCurrentView={setCurrentView} />
-  }
-
-  if (currentView === 'missed-data') {
-    return <ViewMissedTrades setCurrentView={setCurrentView} />
-  }
-
+  if (currentView === 'view-data') return <ViewHistoricalData setCurrentView={setCurrentView} />
+  if (currentView === 'missed-trade') return <MissedTradeView setCurrentView={setCurrentView} />
+  if (currentView === 'missed-data') return <ViewMissedTrades setCurrentView={setCurrentView} />
   return null
 }
