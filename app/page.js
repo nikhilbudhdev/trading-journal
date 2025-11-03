@@ -65,6 +65,11 @@ const MODE_CONFIG = {
       { value: 'CAD', label: 'CAD Account' },
       { value: 'USD', label: 'USD Account' }
     ],
+    features: {
+      missedTrades: true,
+      analytics: true,
+      tradingPlan: true
+    },
     tables: {
       trades: 'stock_trades',
       balance: 'stock_balance_history',
@@ -228,6 +233,11 @@ const MODE_CONFIG = {
     environmentDescription: 'Enter, update, and review your currency trades with analytics and balance tracking.',
     homeButtonLabel: 'Forex Trades',
     menuTagline: 'All of your forex tracking in one place.',
+    features: {
+      missedTrades: true,
+      analytics: true,
+      tradingPlan: true
+    },
     accounts: [],
     tables: {
       trades: 'trades',
@@ -390,6 +400,118 @@ const MODE_CONFIG = {
     classes: {
       primaryButton: 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white',
       primaryAction: 'bg-emerald-600 hover:bg-emerald-700 text-white'
+    }
+  },
+  options: {
+    key: 'options',
+    journalTitle: "Nik's Options Trading Journal",
+    environmentTitle: 'Options Trading Workspace',
+    environmentDescription: 'Track option contracts, cash flow, and post-trade notes for your call and put strategies.',
+    homeButtonLabel: 'Options Trades',
+    menuTagline: 'Capture your options trades with full contract details.',
+    features: {
+      missedTrades: false,
+      analytics: false,
+      tradingPlan: true
+    },
+    accounts: [],
+    tables: {
+      trades: 'options_trades',
+      balance: 'options_balance_history',
+      plan: 'options_trading_plan'
+    },
+    tradeColumns: {
+      instrument: 'ticker',
+      direction: 'position_side',
+      optionType: 'option_type',
+      strike: 'strike_price',
+      expiry: 'expiry_date',
+      contracts: 'contracts',
+      premium: 'premium',
+      entryUrl: 'entry_url',
+      notes: 'notes',
+      status: 'status',
+      pnl: 'pnl',
+      entryDate: 'entry_date',
+      exitDate: 'exit_date',
+      exitUrl: 'exit_url',
+      id: 'id'
+    },
+    balanceColumns: {
+      id: 'id',
+      balance: 'balance',
+      changeAmount: 'change_amount',
+      reason: 'change_reason',
+      tradeId: 'trade_id',
+      createdAt: 'created_at',
+      currency: null
+    },
+    planColumns: {
+      id: 'id',
+      content: 'content',
+      updatedAt: 'updated_at'
+    },
+    labels: {
+      instrument: 'Ticker Symbol',
+      instrumentPlaceholder: 'e.g., AAPL',
+      balanceTitle: 'Options Account Balance',
+      balanceHeroLabel: 'Account Balance:',
+      addBalanceButton: 'Add Deposit/Withdrawal',
+      addBalanceModalTitle: 'Add Deposit or Withdrawal',
+      addBalancePlaceholder: 'e.g., Funding account, Broker fees',
+      addBalanceSubmit: 'Add Transaction',
+      newBalanceToggleCancel: 'Cancel',
+      historyTitle: 'Recent Balance Changes',
+      newTradeButton: 'Log Option Trade',
+      updateTradeButton: 'Close Existing Option Trade',
+      viewDataButton: 'View Option History',
+      tradingPlanButton: 'Options Playbook',
+      stopSizeLabel: null,
+      entryUrlLabel: 'Trade Notes URL (Optional)',
+      notesLabel: 'Notes (Optional)',
+      pnlLabel: 'P&L ($)',
+      planTitle: 'Options Playbook',
+      planSave: 'Save Playbook',
+      menuBack: '← All Workspaces',
+      riskSummaryLabel: 'Account Balance',
+      analyticsInstrumentTitle: 'Ticker Performance',
+      missedTableInstrument: 'Ticker',
+      missedTablePattern: 'Pattern',
+      missedPatternPlaceholder: 'Select a pattern...',
+      newTradeTitle: 'Log Option Trade',
+      balanceToggleLabel: 'Add Deposit/Withdrawal',
+      optionTypeLabel: 'Option Type',
+      directionLabel: 'Position',
+      strikeLabel: 'Strike Price ($)',
+      expiryLabel: 'Expiration Date',
+      contractsLabel: 'Contracts',
+      premiumLabel: 'Premium ($ per contract)'
+    },
+    optionTypeOptions: [
+      { value: 'call', label: 'Call' },
+      { value: 'put', label: 'Put' }
+    ],
+    directionOptions: [
+      { value: 'long', label: 'Long (Buy)' },
+      { value: 'short', label: 'Short (Sell)' }
+    ],
+    formDefaults: {
+      instrument: '',
+      optionType: 'call',
+      direction: 'long',
+      strike: '',
+      expiry: '',
+      contracts: '',
+      premium: '',
+      entryUrl: '',
+      notes: ''
+    },
+    riskFraction: 0.005,
+    stopSizeStep: null,
+    uppercaseInstrument: true,
+    classes: {
+      primaryButton: 'bg-purple-600 hover:bg-purple-700 border-purple-500 text-white',
+      primaryAction: 'bg-purple-600 hover:bg-purple-700 text-white'
     }
   }
 }
@@ -767,30 +889,46 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Open Trades ({openTrades.length})</h2>
             <div className="grid gap-4">
-              {openTrades.map(trade => (
-                <div
-                  key={trade[tradeColumns.id]}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTrade?.[tradeColumns.id] === trade[tradeColumns.id] ? 'border-emerald-500 bg-emerald-900/20' : 'border-slate-700 hover:border-slate-600 bg-slate-800'}`}
-                  onClick={() => setSelectedTrade(trade)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-lg">{trade[instrumentColumn]} - {(trade[directionColumn] || '').toString().toUpperCase()}</h3>
-                      <p className="text-slate-400 text-sm">Entry: {trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '—'}</p>
-                      <p className="text-slate-500 text-sm">
-                        Type: {trade[entryTypeColumn] || '-'} | Context: {trade[ruleColumn] || '-'} | Zone: {trade[zoneColumn] || '-'}
-                      </p>
-                      {accountField && trade[accountField] && (
-                        <p className="text-slate-500 text-sm">Account: {trade[accountField]}</p>
-                      )}
-                      {trade[patternColumn] && <p className="text-slate-500 text-sm">{config.labels.pattern}: {trade[patternColumn]}</p>}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-slate-400">Stop Size: {trade[stopSizeColumn] || '-'}</p>
+              {openTrades.map(trade => {
+                const metaParts = []
+                if (entryTypeColumn) metaParts.push(`Type: ${trade[entryTypeColumn] || '-'}`)
+                if (ruleColumn) metaParts.push(`Context: ${trade[ruleColumn] || '-'}`)
+                if (zoneColumn) metaParts.push(`Zone: ${trade[zoneColumn] || '-'}`)
+
+                const optionParts = []
+                if (tradeColumns.optionType) optionParts.push(`Option: ${(trade[tradeColumns.optionType] || '').toString().toUpperCase()}`)
+                if (tradeColumns.strike) optionParts.push(`${labels.strikeLabel || 'Strike'}: ${trade[tradeColumns.strike] ?? '-'}`)
+                if (tradeColumns.expiry) optionParts.push(`${labels.expiryLabel || 'Expiry'}: ${trade[tradeColumns.expiry] ? new Date(trade[tradeColumns.expiry]).toLocaleDateString() : '-'}`)
+                if (tradeColumns.contracts) optionParts.push(`${labels.contractsLabel || 'Contracts'}: ${trade[tradeColumns.contracts] ?? '-'}`)
+                if (tradeColumns.premium) optionParts.push(`${labels.premiumLabel || 'Premium'}: ${trade[tradeColumns.premium] ?? '-'}`)
+
+                return (
+                  <div
+                    key={trade[tradeColumns.id]}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTrade?.[tradeColumns.id] === trade[tradeColumns.id] ? 'border-emerald-500 bg-emerald-900/20' : 'border-slate-700 hover:border-slate-600 bg-slate-800'}`}
+                    onClick={() => setSelectedTrade(trade)}
+                  >
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold text-lg">
+                          {trade[instrumentColumn]}
+                          {directionColumn && trade[directionColumn] ? ` - ${(trade[directionColumn] || '').toString().toUpperCase()}` : ''}
+                        </h3>
+                        <p className="text-slate-400 text-sm">Entry: {trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '—'}</p>
+                        {metaParts.length > 0 && <p className="text-slate-500 text-sm">{metaParts.join(' • ')}</p>}
+                        {optionParts.length > 0 && <p className="text-slate-500 text-sm">{optionParts.join(' • ')}</p>}
+                        {accountField && trade[accountField] && (
+                          <p className="text-slate-500 text-sm">Account: {trade[accountField]}</p>
+                        )}
+                        {patternColumn && trade[patternColumn] && <p className="text-slate-500 text-sm">{config.labels.pattern}: {trade[patternColumn]}</p>}
+                      </div>
+                      <div className="text-right">
+                        {stopSizeColumn && <p className="text-sm text-slate-400">Stop Size: {trade[stopSizeColumn] || '-'}</p>}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {selectedTrade && (
@@ -850,6 +988,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
 }
 
 const TradingAnalytics = ({ trades, config }) => {
+  if (config.features?.analytics === false) return null
   const { tradeColumns, analyticsLabels, labels } = config
   const statusColumn = tradeColumns.status
   const pnlColumn = tradeColumns.pnl
@@ -867,6 +1006,7 @@ const TradingAnalytics = ({ trades, config }) => {
   }
 
   const calculateStats = (field) => {
+    if (!field) return {}
     const stats = {}
     closedTrades.forEach(trade => {
       const key = trade[field]
@@ -1003,7 +1143,14 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const notesColumn = tradeColumns.notes
   const entryUrlColumn = tradeColumns.entryUrl
   const accountField = tradeColumns.account
+  const optionTypeColumn = tradeColumns.optionType
+  const strikeColumn = tradeColumns.strike
+  const expiryColumn = tradeColumns.expiry
+  const contractsColumn = tradeColumns.contracts
+  const premiumColumn = tradeColumns.premium
+  const directionColumn = tradeColumns.direction
   const hasMultipleAccounts = accounts.length > 0 && config.balanceColumns.currency
+  const showAnalytics = config.features?.analytics !== false
 
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1092,9 +1239,11 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Overview</button>
-          <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Analytics</button>
+          {showAnalytics && (
+            <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Analytics</button>
+          )}
           <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Trades Table</button>
         </div>
 
@@ -1106,7 +1255,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
           </div>
         )}
 
-        {activeTab === 'analytics' && <TradingAnalytics trades={trades} config={config} />}
+        {showAnalytics && activeTab === 'analytics' && <TradingAnalytics trades={trades} config={config} />}
 
         {activeTab === 'trades' && (
           <>
@@ -1127,15 +1276,20 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                       <th className="p-3 text-left text-slate-300">Entry Date</th>
                       <th className="p-3 text-left text-slate-300">{labels.instrument}</th>
                       {accountField && <th className="p-3 text-left text-slate-300">Account</th>}
-                      <th className="p-3 text-left text-slate-300">Direction</th>
-                      <th className="p-3 text-left text-slate-300">Entry Type</th>
-                      <th className="p-3 text-left text-slate-300">Context</th>
-                      <th className="p-3 text-left text-slate-300">Zone</th>
-                      <th className="p-3 text-left text-slate-300">{labels.pattern}</th>
-                      <th className="p-3 text-left text-slate-300">Entry Link</th>
+                      {directionColumn && <th className="p-3 text-left text-slate-300">{labels.directionLabel || 'Direction'}</th>}
+                      {optionTypeColumn && <th className="p-3 text-left text-slate-300">{labels.optionTypeLabel || 'Option Type'}</th>}
+                      {strikeColumn && <th className="p-3 text-left text-slate-300">{labels.strikeLabel || 'Strike'}</th>}
+                      {expiryColumn && <th className="p-3 text-left text-slate-300">{labels.expiryLabel || 'Expiry'}</th>}
+                      {contractsColumn && <th className="p-3 text-left text-slate-300">{labels.contractsLabel || 'Contracts'}</th>}
+                      {premiumColumn && <th className="p-3 text-left text-slate-300">{labels.premiumLabel || 'Premium'}</th>}
+                      {entryTypeColumn && <th className="p-3 text-left text-slate-300">Entry Type</th>}
+                      {ruleColumn && <th className="p-3 text-left text-slate-300">Context</th>}
+                      {zoneColumn && <th className="p-3 text-left text-slate-300">Zone</th>}
+                      {patternColumn && <th className="p-3 text-left text-slate-300">{labels.pattern}</th>}
+                      {entryUrlColumn && <th className="p-3 text-left text-slate-300">Entry Link</th>}
                       <th className="p-3 text-left text-slate-300">Status</th>
                       <th className="p-3 text-left text-slate-300">{labels.pnlLabel}</th>
-                      <th className="p-3 text-left text-slate-300">{labels.notesLabel}</th>
+                      {notesColumn && <th className="p-3 text-left text-slate-300">{labels.notesLabel}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1144,16 +1298,23 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         <td className="p-3 text-slate-300">{trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '-'}</td>
                         <td className="p-3 font-semibold text-slate-100">{trade[instrumentColumn]}</td>
                         {accountField && <td className="p-3 text-slate-300">{trade[accountField] || '-'}</td>}
-                        <td className="p-3 text-slate-300">{(trade[tradeColumns.direction] || '').toString().toUpperCase()}</td>
-                        <td className="p-3 text-slate-300">{trade[entryTypeColumn] || '-'}</td>
-                        <td className="p-3 text-slate-300">{trade[ruleColumn] || '-'}</td>
-                        <td className="p-3 text-slate-300">{trade[zoneColumn] || '-'}</td>
-                        <td className="p-3 text-slate-300">{trade[patternColumn] || '-'}</td>
-                        <td className="p-3">
-                          {trade[entryUrlColumn] ? (
-                            <a href={trade[entryUrlColumn]} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">Link</a>
-                          ) : <span className="text-slate-500 text-xs">-</span>}
-                        </td>
+                        {directionColumn && <td className="p-3 text-slate-300">{(trade[directionColumn] || '').toString().toUpperCase()}</td>}
+                        {optionTypeColumn && <td className="p-3 text-slate-300">{(trade[optionTypeColumn] || '').toString().toUpperCase()}</td>}
+                        {strikeColumn && <td className="p-3 text-slate-300">{trade[strikeColumn] ?? '-'}</td>}
+                        {expiryColumn && <td className="p-3 text-slate-300">{trade[expiryColumn] ? new Date(trade[expiryColumn]).toLocaleDateString() : '-'}</td>}
+                        {contractsColumn && <td className="p-3 text-slate-300">{trade[contractsColumn] ?? '-'}</td>}
+                        {premiumColumn && <td className="p-3 text-slate-300">{trade[premiumColumn] ?? '-'}</td>}
+                        {entryTypeColumn && <td className="p-3 text-slate-300">{trade[entryTypeColumn] || '-'}</td>}
+                        {ruleColumn && <td className="p-3 text-slate-300">{trade[ruleColumn] || '-'}</td>}
+                        {zoneColumn && <td className="p-3 text-slate-300">{trade[zoneColumn] || '-'}</td>}
+                        {patternColumn && <td className="p-3 text-slate-300">{trade[patternColumn] || '-'}</td>}
+                        {entryUrlColumn && (
+                          <td className="p-3">
+                            {trade[entryUrlColumn] ? (
+                              <a href={trade[entryUrlColumn]} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">Link</a>
+                            ) : <span className="text-slate-500 text-xs">-</span>}
+                          </td>
+                        )}
                         <td className="p-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
                             trade[statusColumn] === 'closed'
@@ -1166,7 +1327,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         <td className={`p-3 font-semibold ${parseFloat(trade[pnlColumn]) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {trade[pnlColumn] !== null && trade[pnlColumn] !== undefined ? `$${parseFloat(trade[pnlColumn]).toFixed(2)}` : '-'}
                         </td>
-                        <td className="p-3 text-slate-300">{trade[notesColumn] || '-'}</td>
+                        {notesColumn && <td className="p-3 text-slate-300">{trade[notesColumn] || '-'}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -1491,9 +1652,9 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     setCurrentBalance(accountBalances[selected] || 0)
   }, [accounts, accountBalances, formData.account, hasMultipleAccounts])
 
-  const maxRisk = currentBalance * riskFraction
+  const maxRisk = currentBalance * (riskFraction || 0)
   const riskAmount = parseFloat(formData.riskAmount) || 0
-  const exceedsLimit = riskAmount > maxRisk
+  const exceedsLimit = tradeColumns.riskAmount ? riskAmount > maxRisk : false
   const selectedAccountValue = formData.account || accounts[0]?.value || ''
   const selectedAccountLabel = accounts.find(account => account.value === selectedAccountValue)?.label
 
@@ -1507,23 +1668,29 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     setMessage('')
 
     try {
-      const payload = {
-        [tradeColumns.instrument]: config.uppercaseInstrument ? formData.instrument.toUpperCase() : formData.instrument,
-        [tradeColumns.direction]: formData.direction,
-        [tradeColumns.stopSize]: formData.stopSize ? parseFloat(formData.stopSize) : null,
-        [tradeColumns.riskAmount]: formData.riskAmount ? parseFloat(formData.riskAmount) : null,
-        [tradeColumns.entryUrl]: formData.entryUrl || null,
-        [tradeColumns.entryType]: formData.entryType,
-        [tradeColumns.rule]: formData.rule,
-        [tradeColumns.zone]: formData.zone,
-        [tradeColumns.pattern]: formData.pattern || null,
-        [tradeColumns.notes]: formData.notes || null,
-        [tradeColumns.status]: 'open'
+      const payload = {}
+      const assignValue = (column, value) => {
+        if (!column) return
+        payload[column] = value
       }
 
-      if (accountField) {
-        payload[accountField] = formData.account || accounts[0]?.value || null
-      }
+      assignValue(tradeColumns.instrument, config.uppercaseInstrument ? formData.instrument.toUpperCase() : formData.instrument)
+      assignValue(tradeColumns.direction, formData.direction || null)
+      assignValue(tradeColumns.optionType, formData.optionType || null)
+      assignValue(tradeColumns.stopSize, formData.stopSize === '' ? null : (formData.stopSize ? parseFloat(formData.stopSize) : null))
+      assignValue(tradeColumns.strike, formData.strike === '' ? null : (formData.strike ? parseFloat(formData.strike) : null))
+      assignValue(tradeColumns.expiry, formData.expiry || null)
+      assignValue(tradeColumns.contracts, formData.contracts === '' ? null : (formData.contracts ? parseFloat(formData.contracts) : null))
+      assignValue(tradeColumns.premium, formData.premium === '' ? null : (formData.premium ? parseFloat(formData.premium) : null))
+      assignValue(tradeColumns.riskAmount, formData.riskAmount === '' ? null : (formData.riskAmount ? parseFloat(formData.riskAmount) : null))
+      assignValue(tradeColumns.entryUrl, formData.entryUrl || null)
+      assignValue(tradeColumns.entryType, formData.entryType || null)
+      assignValue(tradeColumns.rule, formData.rule || null)
+      assignValue(tradeColumns.zone, formData.zone || null)
+      assignValue(tradeColumns.pattern, formData.pattern || null)
+      assignValue(tradeColumns.notes, formData.notes || null)
+      assignValue(tradeColumns.status, 'open')
+      assignValue(accountField, formData.account || accounts[0]?.value || null)
 
       const { error } = await supabase
         .from(tradesTable)
@@ -1589,25 +1756,85 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             />
           )}
           <InputField label={labels.instrument} value={formData.instrument} onChange={(e) => handleInputChange('instrument', e.target.value)} placeholder={labels.instrumentPlaceholder} required />
-          <SelectField label="Direction" value={formData.direction} onChange={(e) => handleInputChange('direction', e.target.value)} options={LONG_SHORT_OPTIONS} required />
-          <InputField label={labels.stopSizeLabel} type="number" step={stopSizeStep} value={formData.stopSize} onChange={(e) => handleInputChange('stopSize', e.target.value)} placeholder="e.g., 0.50" />
-          <div className="mb-4">
-            <InputField label="Risk Amount ($)" type="number" step="0.01" value={formData.riskAmount} onChange={(e) => handleInputChange('riskAmount', e.target.value)} placeholder={`Max: ${maxRisk.toFixed(2)}`} required />
-            {formData.riskAmount && (
-              <div className={`mt-2 p-2 rounded text-sm ${exceedsLimit ? 'bg-red-900/20 text-red-300 border border-red-800' : 'bg-emerald-900/20 text-emerald-300 border border-emerald-800'}`}>
-                {exceedsLimit ? `Risk exceeds ${(riskFraction * 100).toFixed(1)}% limit (${maxRisk.toFixed(2)})` : `Risk within limit (${currentBalance > 0 ? ((riskAmount / currentBalance) * 100).toFixed(2) : '0.00'}% of balance)`}
-              </div>
-            )}
-          </div>
-          <SelectField label="Entry Type" value={formData.entryType} onChange={(e) => handleInputChange('entryType', e.target.value)} options={entryTypeOptions} required />
-          <SelectField label="Market Context" value={formData.rule} onChange={(e) => handleInputChange('rule', e.target.value)} options={ruleOptions} required />
-          <SelectField label="Zone" value={formData.zone} onChange={(e) => handleInputChange('zone', e.target.value)} options={zoneOptions} required />
-          <SelectField label={labels.pattern} value={formData.pattern} onChange={(e) => handleInputChange('pattern', e.target.value)} options={patternOptions} required />
-          <InputField label={labels.entryUrlLabel} type="url" value={formData.entryUrl} onChange={(e) => handleInputChange('entryUrl', e.target.value)} placeholder="https://tradingview.com/chart/..." />
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2 text-slate-300">{labels.notesLabel}</label>
-            <textarea value={formData.notes} onChange={(e) => handleInputChange('notes', e.target.value)} placeholder="Trade setup, reasons, strategy..." rows="4" className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
-          </div>
+
+          {tradeColumns.optionType && config.optionTypeOptions && (
+            <SelectField
+              label={labels.optionTypeLabel || 'Option Type'}
+              value={formData.optionType}
+              onChange={(e) => handleInputChange('optionType', e.target.value)}
+              options={config.optionTypeOptions}
+              required
+            />
+          )}
+
+          {tradeColumns.direction && (
+            <SelectField
+              label={labels.directionLabel || 'Direction'}
+              value={formData.direction}
+              onChange={(e) => handleInputChange('direction', e.target.value)}
+              options={config.directionOptions || LONG_SHORT_OPTIONS}
+              required
+            />
+          )}
+
+          {tradeColumns.stopSize && labels.stopSizeLabel && (
+            <InputField label={labels.stopSizeLabel} type="number" step={stopSizeStep || '0.01'} value={formData.stopSize} onChange={(e) => handleInputChange('stopSize', e.target.value)} placeholder="e.g., 0.50" />
+          )}
+
+          {tradeColumns.strike && (
+            <InputField label={labels.strikeLabel || 'Strike Price ($)'} type="number" step="0.01" value={formData.strike} onChange={(e) => handleInputChange('strike', e.target.value)} placeholder="e.g., 175.50" />
+          )}
+
+          {tradeColumns.expiry && (
+            <InputField label={labels.expiryLabel || 'Expiration Date'} type="date" value={formData.expiry} onChange={(e) => handleInputChange('expiry', e.target.value)} />
+          )}
+
+          {tradeColumns.contracts && (
+            <InputField label={labels.contractsLabel || 'Contracts'} type="number" step="1" value={formData.contracts} onChange={(e) => handleInputChange('contracts', e.target.value)} placeholder="e.g., 3" />
+          )}
+
+          {tradeColumns.premium && (
+            <InputField label={labels.premiumLabel || 'Premium ($)'} type="number" step="0.01" value={formData.premium} onChange={(e) => handleInputChange('premium', e.target.value)} placeholder="e.g., 2.45" />
+          )}
+
+          {tradeColumns.riskAmount && (
+            <div className="mb-4">
+              <InputField label="Risk Amount ($)" type="number" step="0.01" value={formData.riskAmount} onChange={(e) => handleInputChange('riskAmount', e.target.value)} placeholder={`Max: ${maxRisk.toFixed(2)}`} required />
+              {formData.riskAmount && (
+                <div className={`mt-2 p-2 rounded text-sm ${exceedsLimit ? 'bg-red-900/20 text-red-300 border border-red-800' : 'bg-emerald-900/20 text-emerald-300 border border-emerald-800'}`}>
+                  {exceedsLimit ? `Risk exceeds ${(riskFraction * 100).toFixed(1)}% limit (${maxRisk.toFixed(2)})` : `Risk within limit (${currentBalance > 0 ? ((riskAmount / currentBalance) * 100).toFixed(2) : '0.00'}% of balance)`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tradeColumns.entryType && entryTypeOptions && (
+            <SelectField label="Entry Type" value={formData.entryType} onChange={(e) => handleInputChange('entryType', e.target.value)} options={entryTypeOptions} required />
+          )}
+
+          {tradeColumns.rule && ruleOptions && (
+            <SelectField label="Market Context" value={formData.rule} onChange={(e) => handleInputChange('rule', e.target.value)} options={ruleOptions} required />
+          )}
+
+          {tradeColumns.zone && zoneOptions && (
+            <SelectField label="Zone" value={formData.zone} onChange={(e) => handleInputChange('zone', e.target.value)} options={zoneOptions} required />
+          )}
+
+          {tradeColumns.pattern && patternOptions && (
+            <SelectField label={labels.pattern} value={formData.pattern} onChange={(e) => handleInputChange('pattern', e.target.value)} options={patternOptions} required />
+          )}
+
+          {tradeColumns.entryUrl && (
+            <InputField label={labels.entryUrlLabel || 'Chart / Notes URL'} type="url" value={formData.entryUrl} onChange={(e) => handleInputChange('entryUrl', e.target.value)} placeholder="https://tradingview.com/chart/..." />
+          )}
+
+          {tradeColumns.notes && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2 text-slate-300">{labels.notesLabel || 'Notes'}</label>
+              <textarea value={formData.notes} onChange={(e) => handleInputChange('notes', e.target.value)} placeholder="Trade setup, reasons, strategy..." rows="4" className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
+            </div>
+          )}
+
           <button type="submit" disabled={isSubmitting || exceedsLimit} className={`w-full p-4 rounded-lg font-semibold transition-colors ${isSubmitting || exceedsLimit ? 'bg-slate-600 text-white cursor-not-allowed' : classes.primaryAction}`}>
             {exceedsLimit ? `Risk Exceeds ${(riskFraction * 100).toFixed(1)}% Limit` : isSubmitting ? 'Adding Trade...' : 'Add Trade'}
           </button>
@@ -1743,6 +1970,9 @@ const TradingEnvironment = ({ config, onBack }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState({ ...config.formDefaults })
+  const features = config.features || {}
+  const supportsMissedTrades = features.missedTrades && config.tables?.missed
+  const supportsTradingPlan = features.tradingPlan !== false && config.tables?.plan
 
   useEffect(() => {
     setCurrentView('menu')
@@ -1773,11 +2003,19 @@ const TradingEnvironment = ({ config, onBack }) => {
               <MenuButton onClick={() => setCurrentView('update-trade')} className={config.classes.primaryButton}>{config.labels.updateTradeButton}</MenuButton>
               <MenuButton onClick={() => setCurrentView('view-data')} className={config.classes.primaryButton}>{config.labels.viewDataButton}</MenuButton>
             </div>
-            <div className="space-y-4">
-              <MenuButton onClick={() => setCurrentView('missed-trade')} className={config.classes.primaryButton}>{config.labels.missedTradeButton}</MenuButton>
-              <MenuButton onClick={() => setCurrentView('missed-data')} className={config.classes.primaryButton}>{config.labels.missedDataButton}</MenuButton>
-              <MenuButton onClick={() => setCurrentView('trading-plan')} className={config.classes.primaryButton}>{config.labels.tradingPlanButton}</MenuButton>
-            </div>
+            {(supportsMissedTrades || supportsTradingPlan) && (
+              <div className="space-y-4">
+                {supportsMissedTrades && config.labels.missedTradeButton && (
+                  <MenuButton onClick={() => setCurrentView('missed-trade')} className={config.classes.primaryButton}>{config.labels.missedTradeButton}</MenuButton>
+                )}
+                {supportsMissedTrades && config.labels.missedDataButton && (
+                  <MenuButton onClick={() => setCurrentView('missed-data')} className={config.classes.primaryButton}>{config.labels.missedDataButton}</MenuButton>
+                )}
+                {supportsTradingPlan && (
+                  <MenuButton onClick={() => setCurrentView('trading-plan')} className={config.classes.primaryButton}>{config.labels.tradingPlanButton}</MenuButton>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1813,9 +2051,9 @@ const TradingEnvironment = ({ config, onBack }) => {
   }
 
   if (currentView === 'view-data') return <ViewHistoricalData setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-trade') return <MissedTradeView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-data') return <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'trading-plan') return <TradingPlanView setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'missed-trade' && supportsMissedTrades) return <MissedTradeView setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'missed-data' && supportsMissedTrades) return <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
   return null
 }
 
@@ -1827,13 +2065,16 @@ export default function Home() {
       <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
         <div className="w-full max-w-4xl px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-slate-100 mb-4">Choose Your Trading Workspace</h1>
-          <p className="text-slate-400 mb-10 text-lg">Jump into dedicated environments for stocks or forex and keep every playbook, trade, and review in one place.</p>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center">
+          <p className="text-slate-400 mb-10 text-lg">Jump into dedicated workspaces for stocks, forex, or options and keep every playbook, trade, and review in one place.</p>
+          <div className="flex flex-col sm:flex-row gap-6 justify-center flex-wrap">
             <MenuButton onClick={() => setActiveMode('stocks')} className={MODE_CONFIG.stocks.classes.primaryButton}>
               {MODE_CONFIG.stocks.homeButtonLabel}
             </MenuButton>
             <MenuButton onClick={() => setActiveMode('forex')} className={MODE_CONFIG.forex.classes.primaryButton}>
               {MODE_CONFIG.forex.homeButtonLabel}
+            </MenuButton>
+            <MenuButton onClick={() => setActiveMode('options')} className={MODE_CONFIG.options.classes.primaryButton}>
+              {MODE_CONFIG.options.homeButtonLabel}
             </MenuButton>
           </div>
         </div>
