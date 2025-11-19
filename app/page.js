@@ -1072,6 +1072,7 @@ const MODE_CONFIG = {
       expiry: 'expiry_date',
       contracts: 'contracts',
       premium: 'premium',
+      forecastUrl: 'forecast_url',
       entryUrl: 'entry_url',
       notes: 'notes',
       status: 'status',
@@ -1112,6 +1113,7 @@ const MODE_CONFIG = {
       tradingPlanButton: 'Options Playbook',
       stopSizeLabel: null,
       entryUrlLabel: 'Trade Notes URL (Optional)',
+      forecastUrlLabel: 'Forecast TradingView URL (Optional)',
       notesLabel: 'Notes (Optional)',
       pnlLabel: 'P&L ($)',
       planTitle: 'Options Playbook',
@@ -1148,6 +1150,7 @@ const MODE_CONFIG = {
       contracts: '',
       premium: '',
       entryUrl: '',
+      forecastUrl: '',
       notes: ''
     },
     riskFraction: 0.005,
@@ -1786,6 +1789,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const pnlColumn = tradeColumns.pnl
   const notesColumn = tradeColumns.notes
   const entryUrlColumn = tradeColumns.entryUrl
+  const forecastUrlColumn = tradeColumns.forecastUrl
   const accountField = tradeColumns.account
   const optionTypeColumn = tradeColumns.optionType
   const strikeColumn = tradeColumns.strike
@@ -1971,6 +1975,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                       {ruleColumn && <th className="p-3 text-left text-slate-300">Context</th>}
                       {zoneColumn && <th className="p-3 text-left text-slate-300">Zone</th>}
                       {patternColumn && <th className="p-3 text-left text-slate-300">{labels.pattern}</th>}
+                      {forecastUrlColumn && <th className="p-3 text-left text-slate-300">Forecast Link</th>}
                       {entryUrlColumn && <th className="p-3 text-left text-slate-300">Entry Link</th>}
                       {hasChecklistLogging && <th className="p-3 text-left text-slate-300">Checklist</th>}
                       <th className="p-3 text-left text-slate-300">Status</th>
@@ -1994,6 +1999,13 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         {ruleColumn && <td className="p-3 text-slate-300">{trade[ruleColumn] || '-'}</td>}
                         {zoneColumn && <td className="p-3 text-slate-300">{trade[zoneColumn] || '-'}</td>}
                         {patternColumn && <td className="p-3 text-slate-300">{trade[patternColumn] || '-'}</td>}
+                        {forecastUrlColumn && (
+                          <td className="p-3">
+                            {trade[forecastUrlColumn] ? (
+                              <a href={trade[forecastUrlColumn]} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs underline">Forecast</a>
+                            ) : <span className="text-slate-500 text-xs">-</span>}
+                          </td>
+                        )}
                         {entryUrlColumn && (
                           <td className="p-3">
                             {trade[entryUrlColumn] ? (
@@ -2463,6 +2475,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.contracts, formData.contracts === '' ? null : (formData.contracts ? parseFloat(formData.contracts) : null))
       assignValue(tradeColumns.premium, formData.premium === '' ? null : (formData.premium ? parseFloat(formData.premium) : null))
       assignValue(tradeColumns.riskAmount, formData.riskAmount === '' ? null : (formData.riskAmount ? parseFloat(formData.riskAmount) : null))
+      assignValue(tradeColumns.forecastUrl, formData.forecastUrl || null)
       assignValue(tradeColumns.entryUrl, formData.entryUrl || null)
       assignValue(tradeColumns.entryType, formData.entryType || null)
       assignValue(tradeColumns.rule, formData.rule || null)
@@ -2645,7 +2658,23 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           )}
 
           {tradeColumns.entryUrl && (
-            <InputField label={labels.entryUrlLabel || 'Chart / Notes URL'} type="url" value={formData.entryUrl} onChange={(e) => handleInputChange('entryUrl', e.target.value)} placeholder="https://tradingview.com/chart/..." />
+            <InputField
+              label={labels.entryUrlLabel || 'Chart / Notes URL'}
+              type="url"
+              value={formData.entryUrl}
+              onChange={(e) => handleInputChange('entryUrl', e.target.value)}
+              placeholder="https://tradingview.com/chart/..."
+            />
+          )}
+
+          {tradeColumns.forecastUrl && (
+            <InputField
+              label={labels.forecastUrlLabel || 'Forecast TradingView URL (Optional)'}
+              type="url"
+              value={formData.forecastUrl || ''}
+              onChange={(e) => handleInputChange('forecastUrl', e.target.value)}
+              placeholder="https://tradingview.com/chart/..."
+            />
           )}
 
           {tradeColumns.notes && (
