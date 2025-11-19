@@ -53,6 +53,629 @@ const LONG_SHORT_OPTIONS = [
   { value: 'short', label: 'Short (Sell)' }
 ]
 
+const CHECKLIST_INTRO = 'A decision gate. If you cannot answer YES to the majors, you do not take the trade.'
+
+const TRADE_CHECKLIST_SECTIONS = [
+  {
+    id: 'section1',
+    title: 'SECTION 1 — FORECASTING & CONTEXT',
+    items: [
+      {
+        id: 'forecastedToday',
+        question: 'Did I forecast this pair today using TLFS?',
+        type: 'boolean',
+        reminderTitle: 'TLFS Reminder (Traffic Light Forecasting System):',
+        reminderPoints: [
+          'Green: Ideal, highest-probability scenario.',
+          'Amber: Still good, alternate path.',
+          'Red: Worst-case or least-likely scenario.',
+          'Each scenario must include an override ("If price does X instead...").'
+        ],
+        note: "If you did not forecast it today, you are not allowed to trade it."
+      },
+      {
+        id: 'scenarioPlayingOut',
+        question: 'Is price currently playing out one of my forecasted scenarios?',
+        type: 'boolean',
+        note: 'Not "something vaguely close." It must be one of the exact Green or Amber scenarios.'
+      },
+      {
+        id: 'topSetup',
+        question: 'Is this one of my top 10 go-to setups?',
+        type: 'boolean',
+        note: "If not, you are improvising."
+      }
+    ]
+  },
+  {
+    id: 'section2',
+    title: 'SECTION 2 — LOCATION CHECK (RO3 + ZONES)',
+    items: [
+      {
+        id: 'ro3Match',
+        question: 'Does the approach match RO3?',
+        type: 'boolean',
+        reminderTitle: 'RO3 Reminder (Rule of Three — Nature of Approach):',
+        reminderPoints: [
+          'Impulsive approach: Strong, fast push into structure. Action: Avoid raw entries. Wait for impulse away + first correction.',
+          'Corrective approach: Slow grind into level. Action: Still avoid raw edges. Wait for impulse away + first correction.',
+          'Structural approach: Clean channel into level, sometimes piercing. Action: Most attractive for entries (risk entry OR retrace entry).'
+        ],
+        note: "If the approach does not match your plan, skip the trade."
+      },
+      {
+        id: 'zone',
+        question: 'What zone is price currently in (Green / Amber / Red)?',
+        type: 'zone',
+        note: 'Default rule: No new trades in Red Zone. If zone is not supportive and your ego still wants to enter, stop.'
+      }
+    ]
+  },
+  {
+    id: 'section3',
+    title: 'SECTION 3 — SETUP QUALITY (VALID / HP / INVALID)',
+    items: [
+      {
+        id: 'isHighQuality',
+        question: 'Is this trade at least a GOOD VALID, preferably HP?',
+        type: 'boolean',
+        reminderTitle: 'Validity Reminder:',
+        reminderPoints: [
+          'HP (High Probability): Many strong confluences, few negatives.',
+          'Valid: Positives roughly equal negatives but still meets criteria.',
+          'Invalid: Fails Falcon entry criteria and cannot be taken.'
+        ],
+        note: 'If it is barely Valid or you are trying to force it into HP, stop.'
+      },
+      {
+        id: 'structureAlignment',
+        question: 'Does the setup align with BOTH HTF and LTF structure?',
+        type: 'boolean',
+        note: 'No conflict. The story must be clean across timeframes.'
+      },
+      {
+        id: 'playbookPattern',
+        question: "Does the entry pattern fit Falcon's playbook?",
+        type: 'boolean',
+        note: 'Flags, channels, wedges, patterns-within-patterns. Not randomness, not vibes.'
+      }
+    ]
+  },
+  {
+    id: 'section4',
+    title: 'SECTION 4 — RISK, TARGETS & EXECUTION',
+    items: [
+      {
+        id: 'riskCalculated',
+        question: 'Have I calculated risk precisely at 1%?',
+        type: 'boolean',
+        note: "If you are fudging this, you are not a trader — you are a gambler."
+      },
+      {
+        id: 'riskReward',
+        question: 'Does this trade allow RR ≥ 3:1?',
+        type: 'boolean',
+        note: 'And does the market have room to actually travel that distance?'
+      },
+      {
+        id: 'stopLossLogic',
+        question: 'Is my stop loss placed logically (not tightened emotionally)?',
+        type: 'boolean',
+        note: 'Safe, justified, and placed relative to structure — not fear.'
+      },
+      {
+        id: 'breakevenPlan',
+        question: 'Can I reasonably move to breakeven before the next major inflection?',
+        type: 'boolean',
+        note: "If not, you are exposing yourself to stupid losses."
+      },
+      {
+        id: 'spreadsAcceptable',
+        question: 'Are spreads acceptable and not in a bad session (e.g. rollover)?',
+        type: 'boolean',
+        note: 'If not, you are feeding the broker.'
+      },
+      {
+        id: 'ownAnalysis',
+        question: 'Is this my own analysis?',
+        type: 'boolean',
+        note: "If it is influenced by someone else's idea, you have already broken the system."
+      },
+      {
+        id: 'acceptedLoss',
+        question: 'Have I fully accepted that this might be a loss, even if it is perfect?',
+        type: 'boolean',
+        note: 'If you emotionally need this trade to work, you are not ready to take it.'
+      }
+    ]
+  }
+]
+
+const ZONE_OPTIONS = ['Green', 'Amber', 'Red']
+const CHECKLIST_BOOLEAN_IDS = TRADE_CHECKLIST_SECTIONS.flatMap(section =>
+  section.items.filter(item => item.type === 'boolean').map(item => item.id)
+)
+
+const TRADER_DISCIPLINES = [
+  {
+    title: 'Daily discipline',
+    bullets: [
+      'Forecasts every single day without excuses.',
+      'Updates Green/Amber/Red scenarios before looking for trades.',
+      'Journals before execution, not after blowing a trade.'
+    ]
+  },
+  {
+    title: 'Structure mastery',
+    bullets: [
+      'Knows exactly where price sits on HTF structure at all times.',
+      'Never trades against their own forecast just because it "looks good."',
+      'Never confuses noise with structure on LTFs.'
+    ]
+  },
+  {
+    title: 'Entry discipline',
+    bullets: [
+      'Never trades what they did not forecast.',
+      'Respects RO3 religiously.',
+      'Refuses to enter in Red Zone, even if it flies without them.',
+      'Takes HP and Valid trades — never borderline ones.',
+      'Never forces a setup to fit a narrative.'
+    ]
+  },
+  {
+    title: 'Risk discipline',
+    bullets: [
+      'Uses 1% risk like a religion.',
+      'Places stop where it should be, not where emotions want it.',
+      'Never moves stops prematurely.',
+      'Accepts the loss on placement, not after price hits it.'
+    ]
+  },
+  {
+    title: 'Management discipline',
+    bullets: [
+      'Moves to breakeven only at logical structure, not emotionally.',
+      'Lets winners breathe.',
+      'Does not micromanage 15M noise.',
+      'Trades are either losers, breakevens, or 3R+ winners — never random outcomes.'
+    ]
+  },
+  {
+    title: 'Mindset discipline',
+    bullets: [
+      'Trades like someone managing a 7-figure account, even if tiny.',
+      'Sees losses as business costs, not personal attacks.',
+      'Never revenge trades after a loss.',
+      'Never FOMOs into Red Zone setups.',
+      'Never judges themselves based on individual trade outcomes.'
+    ]
+  },
+  {
+    title: 'Data discipline',
+    bullets: [
+      'Journals every trade with honesty, not cope.',
+      'Tracks how many HP vs Valid trades they take.',
+      'Refines their top 10 playbook over months, not days.',
+      'Uses journaling to remove weaknesses systematically.'
+    ]
+  },
+  {
+    title: 'Consistency discipline',
+    bullets: [
+      'Executes the plan even when bored, stressed, or unmotivated.',
+      'Understands that skipping one step is all it takes to start losing.',
+      'Does not look for shortcuts or magical certainty.'
+    ]
+  }
+]
+
+const DEFAULT_CHECKLIST_LOG_COLUMNS = {
+  id: 'id',
+  tradeId: 'trade_id',
+  answers: 'answers',
+  zone: 'zone',
+  status: 'status',
+  workspace: 'workspace',
+  createdAt: 'created_at'
+}
+
+const DEFAULT_CHECKLIST_ATTEMPT_COLUMNS = {
+  id: 'id',
+  answers: 'answers',
+  zone: 'zone',
+  status: 'status',
+  workspace: 'workspace',
+  failureReason: 'failure_reason',
+  createdAt: 'created_at'
+}
+
+const TradeChecklistGate = ({ onBack, onUnlock, onLogAttempt }) => {
+  const [answers, setAnswers] = useState({})
+  const [feedback, setFeedback] = useState('')
+  const [unlocking, setUnlocking] = useState(false)
+  const [logging, setLogging] = useState(false)
+
+  const hasAllYes = CHECKLIST_BOOLEAN_IDS.every(id => answers[id] === 'yes')
+  const zoneValue = answers.zone || ''
+  const zoneInvalid = zoneValue === 'Red'
+  const zoneMissing = !zoneValue
+  const canProceed = hasAllYes && !zoneMissing && !zoneInvalid
+  const hasAnyInput = Object.entries(answers).some(([key, value]) => key === 'zone' ? !!value : !!value)
+
+  const handleAnswer = (id, value) => {
+    setAnswers(prev => ({ ...prev, [id]: value }))
+  }
+
+  const createSnapshot = () => ({
+    responses: answers,
+    zone: zoneValue || null,
+    recordedAt: new Date().toISOString(),
+    allYes: hasAllYes
+  })
+
+  const handleProceed = async () => {
+    if (!canProceed || !onUnlock) return
+    setUnlocking(true)
+    setFeedback('')
+    try {
+      await onUnlock(createSnapshot())
+    } catch (err) {
+      setFeedback(err?.message ? `Error: ${err.message}` : 'Unable to unlock the checklist.')
+    }
+    setUnlocking(false)
+  }
+
+  const handleLogFailure = async () => {
+    if (!onLogAttempt || logging) return
+    setLogging(true)
+    setFeedback('')
+    const failureReason = zoneInvalid ? 'Red Zone' : zoneMissing ? 'Zone Missing' : 'Checklist answered NO'
+    try {
+      await onLogAttempt({
+        status: 'failed',
+        snapshot: createSnapshot(),
+        failureReason
+      })
+      setFeedback('Attempt logged. Returning to menu...')
+      setTimeout(() => onBack(), 1100)
+    } catch (err) {
+      setFeedback(err?.message ? `Error: ${err.message}` : 'Unable to log checklist attempt.')
+    }
+    setLogging(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-6 md:p-10">
+      <div className="max-w-5xl mx-auto space-y-6">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors"
+        >
+          ← Back to Menu
+        </button>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 md:p-8 space-y-4 shadow-xl shadow-emerald-500/5">
+          <h1 className="text-3xl font-bold text-emerald-300">Pre-Trade Decision Gate</h1>
+          <p className="text-slate-300">{CHECKLIST_INTRO}</p>
+          <p className="text-sm text-slate-500">
+            You must log a solid YES for every major checkpoint. If something is unclear, the objective answer is a NO.
+          </p>
+        </div>
+
+        {TRADE_CHECKLIST_SECTIONS.map(section => (
+          <div key={section.id} className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 space-y-6">
+            <h2 className="text-2xl font-semibold text-emerald-200">{section.title}</h2>
+            {section.items.map(item => (
+              <div key={item.id} className="border border-slate-700 rounded-lg p-4 space-y-4 bg-slate-950/40">
+                <div>
+                  <p className="text-xl font-semibold text-white">{item.question}</p>
+                  {item.note && <p className="text-sm text-slate-300 mt-2">{item.note}</p>}
+                </div>
+                {item.reminderTitle && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-emerald-200">{item.reminderTitle}</p>
+                    <ul className="list-disc list-inside text-sm text-slate-300 mt-2 space-y-1">
+                      {item.reminderPoints?.map((point, idx) => (
+                        <li key={idx}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {item.type === 'boolean' && (
+                  <div className="flex flex-wrap gap-3">
+                    {['yes', 'no'].map(option => {
+                      const isActive = answers[item.id] === option
+                      const baseClasses = 'px-6 py-3 rounded-lg font-semibold transition-all border'
+                      const yesClasses = isActive
+                        ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                      const noClasses = isActive
+                        ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-500/30'
+                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => handleAnswer(item.id, option)}
+                          className={`${baseClasses} ${option === 'yes' ? yesClasses : noClasses}`}
+                        >
+                          {option.toUpperCase()}
+                        </button>
+                      )
+                    })}
+                    {answers[item.id] === 'no' && (
+                      <p className="text-sm text-red-400 font-semibold">A NO here invalidates the trade. Reset your plan.</p>
+                    )}
+                  </div>
+                )}
+
+                {item.type === 'zone' && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-3">
+                      {ZONE_OPTIONS.map(option => {
+                        const isActive = zoneValue === option
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => handleAnswer('zone', option)}
+                            className={`px-6 py-3 rounded-lg font-semibold transition-all border ${
+                              isActive
+                                ? option === 'Green'
+                                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                                  : option === 'Amber'
+                                    ? 'bg-amber-500 border-amber-400 text-black shadow-lg shadow-amber-500/30'
+                                    : 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-500/30'
+                                : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {zoneValue && (
+                      <p className={`text-sm font-semibold ${zoneInvalid ? 'text-red-400' : 'text-emerald-300'}`}>
+                        {zoneInvalid ? 'Red Zone = NO TRADE. Respect the plan.' : `Zone locked: ${zoneValue}. Continue only if it fits your rules.`}
+                      </p>
+                    )}
+                    {!zoneValue && <p className="text-sm text-slate-400">Zone = ______</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-3">
+          <h3 className="text-2xl font-semibold text-amber-300">FINAL GATE</h3>
+          <p className="text-slate-200">If ANY major item above is NO, the trade is invalid for you. Not maybe. Not &quot;let me think.&quot; It is a NO TRADE.</p>
+          <p className="text-emerald-300 font-semibold">If all key items are YES, you are allowed to execute.</p>
+        </div>
+
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 space-y-4">
+          <h3 className="text-2xl font-bold text-white">THE TRADER WHO PERFECTLY FOLLOWS THE SYSTEM</h3>
+          <p className="text-slate-300">This is the uncomfortable truth. Here is what the trader who actually does Falcon properly does.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {TRADER_DISCIPLINES.map(section => (
+              <div key={section.title} className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+                <p className="font-semibold text-emerald-200 mb-2">{section.title}</p>
+                <ul className="list-disc list-inside text-sm text-slate-300 space-y-1">
+                  {section.bullets.map((bullet, idx) => (
+                    <li key={idx}>{bullet}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {feedback && (
+          <div className={`p-4 rounded-lg border ${feedback.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-200 border-emerald-700'}`}>
+            {feedback}
+          </div>
+        )}
+
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+          <div className="text-sm text-slate-400">
+            {canProceed
+              ? 'Checklist locked. You are cleared to log the trade details.'
+              : zoneInvalid
+                ? 'Red Zone means walk away. Revisit the forecast.'
+                : 'All questions must be YES, and the zone must support the idea.'}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-6 py-3 rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!hasAnyInput || logging}
+              onClick={handleLogFailure}
+              className={`px-6 py-3 rounded-lg font-semibold border ${
+                logging
+                  ? 'bg-slate-700 text-slate-400'
+                  : hasAnyInput
+                    ? 'bg-amber-500 border-amber-400 text-black hover:bg-amber-400'
+                    : 'bg-slate-700 border-slate-600 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              {logging ? 'Logging...' : 'Log Attempt & Exit'}
+            </button>
+            <button
+              type="button"
+              disabled={!canProceed || unlocking}
+              onClick={handleProceed}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                canProceed
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-black shadow-lg shadow-emerald-400/40'
+                  : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {unlocking ? 'Opening...' : canProceed ? 'YES — PROCEED TO TRADE ENTRY' : 'Checklist Incomplete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ChecklistAnswersList = ({ snapshot }) => {
+  if (!snapshot) return null
+  const responses = snapshot.responses || {}
+  return (
+    <div className="space-y-6">
+      {TRADE_CHECKLIST_SECTIONS.map(section => (
+        <div key={section.id} className="space-y-3">
+          <p className="text-sm font-semibold text-emerald-200 uppercase">{section.title}</p>
+          <div className="space-y-2">
+            {section.items.map(item => {
+              const value = item.type === 'zone' ? snapshot.zone : responses[item.id]
+              const display = value ? value.toString().toUpperCase() : '—'
+              const badgeClasses = item.type === 'zone'
+                ? value === 'Green'
+                  ? 'bg-emerald-600/30 text-emerald-200 border border-emerald-500/50'
+                  : value === 'Amber'
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-400/50'
+                    : value === 'Red'
+                      ? 'bg-red-600/30 text-red-200 border border-red-500/50'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                : value === 'yes'
+                  ? 'bg-emerald-600/20 text-emerald-200 border border-emerald-400/50'
+                  : value === 'no'
+                    ? 'bg-red-600/20 text-red-200 border border-red-400/50'
+                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+              return (
+                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
+                  <p className="text-slate-100 text-sm">{item.question}</p>
+                  <span className={`px-3 py-1 rounded text-xs font-semibold tracking-wide text-center ${badgeClasses}`}>
+                    {display}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="text-xs text-slate-500">
+        Snapshot recorded at {snapshot.recordedAt ? new Date(snapshot.recordedAt).toLocaleString() : 'N/A'}.
+      </p>
+    </div>
+  )
+}
+
+const ChecklistAnalyticsCard = ({ config }) => {
+  const checklistConfig = config.checklist || {}
+  const attemptsTable = checklistConfig.tables?.attempts
+  const attemptColumns = checklistConfig.attemptColumns || DEFAULT_CHECKLIST_ATTEMPT_COLUMNS
+  const workspaceValue = checklistConfig.workspaceValue || config.key
+
+  const [stats, setStats] = useState({ total: 0, passes: 0, fails: 0, failReasons: {} })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!attemptsTable || !attemptColumns) {
+      setStats({ total: 0, passes: 0, fails: 0, failReasons: {} })
+      setLoading(false)
+      return
+    }
+
+    const loadStats = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        let query = supabase
+          .from(attemptsTable)
+          .select('*')
+          .order(attemptColumns.createdAt, { ascending: false })
+          .limit(200)
+        if (attemptColumns.workspace && workspaceValue) {
+          query = query.eq(attemptColumns.workspace, workspaceValue)
+        }
+        const { data, error: queryError } = await query
+        if (queryError) throw queryError
+        const rows = data || []
+        const passCount = rows.filter(row => (row[attemptColumns.status] || '').toLowerCase() === 'passed').length
+        const failCount = rows.filter(row => (row[attemptColumns.status] || '').toLowerCase() === 'failed').length
+        const failReasons = rows.reduce((acc, row) => {
+          const status = (row[attemptColumns.status] || '').toLowerCase()
+          if (status !== 'failed') return acc
+          const reason = row[attemptColumns.failureReason] || 'Unspecified'
+          acc[reason] = (acc[reason] || 0) + 1
+          return acc
+        }, {})
+        setStats({ total: rows.length, passes: passCount, fails: failCount, failReasons })
+      } catch (err) {
+        setError(err?.message || 'Unable to load checklist analytics.')
+      }
+      setLoading(false)
+    }
+
+    loadStats()
+  }, [attemptsTable, attemptColumns, workspaceValue])
+
+  if (!attemptsTable) return null
+
+  const passRate = stats.total ? ((stats.passes / stats.total) * 100).toFixed(1) : '0.0'
+  const failRate = stats.total ? ((stats.fails / stats.total) * 100).toFixed(1) : '0.0'
+  const topFailure = Object.entries(stats.failReasons || {}).sort((a, b) => b[1] - a[1])[0]
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase text-slate-500 tracking-widest">Decision Gate Discipline</p>
+          <h2 className="text-2xl font-bold text-white">Checklist Analytics</h2>
+        </div>
+        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-600/10 text-emerald-200 border border-emerald-500/30">
+          Last {stats.total} attempts
+        </span>
+      </div>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      {loading ? (
+        <p className="text-slate-400 text-sm">Loading checklist stats...</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+            <p className="text-xs text-slate-500 tracking-wide uppercase">Pass Rate</p>
+            <p className="text-3xl font-bold text-emerald-300">{passRate}%</p>
+            <p className="text-xs text-slate-500 mt-1">{stats.passes} passes</p>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+            <p className="text-xs text-slate-500 tracking-wide uppercase">Failures Logged</p>
+            <p className="text-3xl font-bold text-red-300">{stats.fails}</p>
+            <p className="text-xs text-slate-500 mt-1">{failRate}% of attempts</p>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+            <p className="text-xs text-slate-500 tracking-wide uppercase">Consistency</p>
+            <p className="text-lg font-semibold text-slate-100">Forecast discipline trend</p>
+            <p className="text-xs text-slate-500 mt-1">Log every pass/fail to spot habits.</p>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+            <p className="text-xs text-slate-500 tracking-wide uppercase">Top Failure Reason</p>
+            {topFailure ? (
+              <>
+                <p className="text-lg font-semibold text-amber-300">{topFailure[0]}</p>
+                <p className="text-xs text-slate-500 mt-1">{topFailure[1]} occurrences</p>
+              </>
+            ) : (
+              <p className="text-slate-400 text-sm">No failures logged.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const MODE_CONFIG = {
   stocks: {
     key: 'stocks',
@@ -65,6 +688,13 @@ const MODE_CONFIG = {
       { value: 'CAD', label: 'CAD Account' },
       { value: 'USD', label: 'USD Account' }
     ],
+    checklist: {
+      tables: {
+        logs: 'stock_checklist_logs',
+        attempts: 'stock_checklist_attempts'
+      },
+      workspaceValue: 'stocks'
+    },
     features: {
       missedTrades: true,
       analytics: true,
@@ -239,6 +869,13 @@ const MODE_CONFIG = {
       tradingPlan: true
     },
     accounts: [],
+    checklist: {
+      tables: {
+        logs: 'forex_checklist_logs',
+        attempts: 'forex_checklist_attempts'
+      },
+      workspaceValue: 'forex'
+    },
     tables: {
       trades: 'trades',
       balance: 'balance_history',
@@ -415,6 +1052,13 @@ const MODE_CONFIG = {
       tradingPlan: true
     },
     accounts: [],
+    checklist: {
+      tables: {
+        logs: 'options_checklist_logs',
+        attempts: 'options_checklist_attempts'
+      },
+      workspaceValue: 'options'
+    },
     tables: {
       trades: 'options_trades',
       balance: 'options_balance_history',
@@ -1130,7 +1774,7 @@ const TradingAnalytics = ({ trades, config }) => {
 }
 
 const ViewHistoricalData = ({ setCurrentView, config }) => {
-  const { tables, tradeColumns, labels, riskFraction, accounts = [] } = config
+  const { tables, tradeColumns, labels, riskFraction, accounts = [], checklist = {} } = config
   const tradesTable = tables.trades
   const statusColumn = tradeColumns.status
   const entryDateColumn = tradeColumns.entryDate
@@ -1157,6 +1801,12 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const [filter, setFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('overview')
   const [currentBalance, setCurrentBalance] = useState(0)
+  const [checklistLogs, setChecklistLogs] = useState({})
+  const [selectedChecklist, setSelectedChecklist] = useState(null)
+  const checklistLogColumns = checklist.logColumns || DEFAULT_CHECKLIST_LOG_COLUMNS
+  const checklistTables = checklist.tables || {}
+  const checklistWorkspaceValue = checklist.workspaceValue || config.key
+  const hasChecklistLogging = Boolean(checklistTables.logs)
 
   useEffect(() => {
     const loadTrades = async () => {
@@ -1174,6 +1824,41 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
     }
     loadTrades()
   }, [filter, tradesTable, statusColumn, entryDateColumn])
+
+  useEffect(() => {
+    if (!hasChecklistLogging) {
+      setChecklistLogs({})
+      return
+    }
+    const tradeIds = trades.map(trade => trade[tradeColumns.id]).filter(Boolean)
+    if (!tradeIds.length) {
+      setChecklistLogs({})
+      return
+    }
+
+    const loadChecklistLogs = async () => {
+      try {
+        let query = supabase
+          .from(checklistTables.logs)
+          .select('*')
+          .in(checklistLogColumns.tradeId, tradeIds)
+        if (checklistLogColumns.workspace && checklistWorkspaceValue) {
+          query = query.eq(checklistLogColumns.workspace, checklistWorkspaceValue)
+        }
+        const { data, error } = await query
+        if (error) throw error
+        const map = (data || []).reduce((acc, row) => {
+          acc[row[checklistLogColumns.tradeId]] = row
+          return acc
+        }, {})
+        setChecklistLogs(map)
+      } catch (err) {
+        console.error('Error loading checklist logs:', err.message)
+      }
+    }
+
+    loadChecklistLogs()
+  }, [hasChecklistLogging, trades, checklistTables.logs, checklistLogColumns.tradeId, checklistLogColumns.workspace, checklistWorkspaceValue, tradeColumns.id])
 
   useEffect(() => {
     const loadCurrentBalance = async () => {
@@ -1287,6 +1972,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                       {zoneColumn && <th className="p-3 text-left text-slate-300">Zone</th>}
                       {patternColumn && <th className="p-3 text-left text-slate-300">{labels.pattern}</th>}
                       {entryUrlColumn && <th className="p-3 text-left text-slate-300">Entry Link</th>}
+                      {hasChecklistLogging && <th className="p-3 text-left text-slate-300">Checklist</th>}
                       <th className="p-3 text-left text-slate-300">Status</th>
                       <th className="p-3 text-left text-slate-300">{labels.pnlLabel}</th>
                       {notesColumn && <th className="p-3 text-left text-slate-300">{labels.notesLabel}</th>}
@@ -1315,6 +2001,21 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                             ) : <span className="text-slate-500 text-xs">-</span>}
                           </td>
                         )}
+                        {hasChecklistLogging && (
+                          <td className="p-3">
+                            {checklistLogs[trade[tradeColumns.id]] ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedChecklist({ trade, log: checklistLogs[trade[tradeColumns.id]] })}
+                                className="text-xs px-3 py-1 rounded border border-emerald-500 text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+                              >
+                                View
+                              </button>
+                            ) : (
+                              <span className="text-slate-600 text-xs">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className="p-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
                             trade[statusColumn] === 'closed'
@@ -1337,6 +2038,29 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
           </>
         )}
       </div>
+      {selectedChecklist && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-slate-500">Checklist Journal</p>
+                <h3 className="text-2xl font-bold text-white">{selectedChecklist.trade[instrumentColumn]}</h3>
+                <p className="text-sm text-slate-400">
+                  Logged {selectedChecklist.trade[entryDateColumn] ? new Date(selectedChecklist.trade[entryDateColumn]).toLocaleString() : 'N/A'} · Zone {selectedChecklist.log[checklistLogColumns.zone] || 'N/A'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedChecklist(null)}
+                className="text-slate-400 hover:text-white transition-colors text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <ChecklistAnswersList snapshot={selectedChecklist.log[checklistLogColumns.answers]} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1594,25 +2318,34 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     stopSizeStep,
     riskFraction,
     classes,
-    accounts = []
+    accounts = [],
+    checklist = {}
   } = config
   const tradesTable = tables.trades
   const balanceTable = tables.balance
   const balanceColumns = config.balanceColumns
   const accountField = tradeColumns.account
   const hasMultipleAccounts = accounts.length > 0 && balanceColumns.currency
+  const checklistTables = checklist.tables || {}
+  const checklistLogColumns = checklist.logColumns || DEFAULT_CHECKLIST_LOG_COLUMNS
+  const checklistAttemptColumns = checklist.attemptColumns || DEFAULT_CHECKLIST_ATTEMPT_COLUMNS
+  const workspaceValue = checklist.workspaceValue || config.key
 
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceLoading, setBalanceLoading] = useState(true)
   const [accountBalances, setAccountBalances] = useState({})
+  const [checklistComplete, setChecklistComplete] = useState(false)
+  const [checklistSnapshot, setChecklistSnapshot] = useState(null)
 
   useEffect(() => {
+    if (!checklistComplete) return
     if (hasMultipleAccounts && !formData.account && accounts[0]?.value) {
       setFormData(prev => ({ ...prev, account: accounts[0].value }))
     }
-  }, [accounts, formData.account, hasMultipleAccounts, setFormData])
+  }, [accounts, checklistComplete, formData.account, hasMultipleAccounts, setFormData])
 
   useEffect(() => {
+    if (!checklistComplete) return
     const loadBalances = async () => {
       setBalanceLoading(true)
       try {
@@ -1643,14 +2376,15 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       setBalanceLoading(false)
     }
     loadBalances()
-  }, [accounts, balanceColumns.balance, balanceColumns.createdAt, balanceColumns.currency, balanceTable, formData.account, hasMultipleAccounts])
+  }, [accounts, balanceColumns.balance, balanceColumns.createdAt, balanceColumns.currency, balanceTable, checklistComplete, formData.account, hasMultipleAccounts])
 
   useEffect(() => {
+    if (!checklistComplete) return
     if (!hasMultipleAccounts) return
     const selected = formData.account || accounts[0]?.value
     if (!selected) return
     setCurrentBalance(accountBalances[selected] || 0)
-  }, [accounts, accountBalances, formData.account, hasMultipleAccounts])
+  }, [accounts, accountBalances, checklistComplete, formData.account, hasMultipleAccounts])
 
   const maxRisk = currentBalance * (riskFraction || 0)
   const riskAmount = parseFloat(formData.riskAmount) || 0
@@ -1662,10 +2396,56 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const logChecklistAttempt = useCallback(async ({ status, snapshot, failureReason }) => {
+    if (!checklistTables.attempts) throw new Error('Checklist attempts table is not configured.')
+    const payload = {}
+    if (checklistAttemptColumns.workspace) payload[checklistAttemptColumns.workspace] = workspaceValue
+    if (checklistAttemptColumns.status) payload[checklistAttemptColumns.status] = status
+    if (checklistAttemptColumns.answers) payload[checklistAttemptColumns.answers] = snapshot || null
+    if (checklistAttemptColumns.zone) payload[checklistAttemptColumns.zone] = snapshot?.zone || null
+    if (checklistAttemptColumns.failureReason) payload[checklistAttemptColumns.failureReason] = failureReason || null
+    const { error } = await supabase.from(checklistTables.attempts).insert([payload])
+    if (error) throw new Error(error.message)
+  }, [checklistAttemptColumns.answers, checklistAttemptColumns.failureReason, checklistAttemptColumns.status, checklistAttemptColumns.workspace, checklistAttemptColumns.zone, checklistTables.attempts, workspaceValue])
+
+  const logChecklistForTrade = useCallback(async (tradeId, snapshot) => {
+    if (!tradeId || !snapshot || !checklistTables.logs) return
+    const payload = {}
+    if (checklistLogColumns.workspace) payload[checklistLogColumns.workspace] = workspaceValue
+    if (checklistLogColumns.tradeId) payload[checklistLogColumns.tradeId] = tradeId
+    if (checklistLogColumns.answers) payload[checklistLogColumns.answers] = snapshot
+    if (checklistLogColumns.zone) payload[checklistLogColumns.zone] = snapshot.zone || null
+    if (checklistLogColumns.status) payload[checklistLogColumns.status] = 'passed'
+    const { error } = await supabase.from(checklistTables.logs).insert([payload])
+    if (error) throw new Error(error.message)
+  }, [checklistLogColumns.answers, checklistLogColumns.status, checklistLogColumns.tradeId, checklistLogColumns.workspace, checklistLogColumns.zone, checklistTables.logs, workspaceValue])
+
+  const handleChecklistUnlock = useCallback(async (snapshot) => {
+    await logChecklistAttempt({ status: 'passed', snapshot })
+    setChecklistSnapshot(snapshot)
+    setChecklistComplete(true)
+  }, [logChecklistAttempt])
+
+  const handleChecklistAttemptRecord = useCallback(async ({ status, snapshot, failureReason }) => {
+    await logChecklistAttempt({ status, snapshot, failureReason })
+  }, [logChecklistAttempt])
+
+  const handleChecklistReset = () => {
+    setChecklistSnapshot(null)
+    setChecklistComplete(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
     setMessage('')
+
+    if (!checklistSnapshot) {
+      setMessage('Checklist snapshot missing. Please redo the decision gate.')
+      setChecklistComplete(false)
+      setIsSubmitting(false)
+      return
+    }
 
     try {
       const payload = {}
@@ -1692,21 +2472,41 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.status, 'open')
       assignValue(accountField, formData.account || accounts[0]?.value || null)
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from(tradesTable)
         .insert([payload])
+        .select()
+        .single()
 
-      if (error) {
-        setMessage(`Error: ${error.message}`)
-      } else {
-        setMessage('Trade added successfully!')
-        setFormData({ ...config.formDefaults })
+      if (error) throw error
+
+      if (data?.[tradeColumns.id]) {
+        try {
+          await logChecklistForTrade(data[tradeColumns.id], checklistSnapshot)
+        } catch (logError) {
+          console.error('Checklist log error:', logError.message)
+        }
       }
+
+      setMessage('Trade added successfully!')
+      setFormData({ ...config.formDefaults })
+      setChecklistSnapshot(null)
+      setChecklistComplete(false)
     } catch (err) {
       setMessage(`Error: ${err.message}`)
     }
 
     setIsSubmitting(false)
+  }
+
+  if (!checklistComplete) {
+    return (
+      <TradeChecklistGate
+        onBack={() => setCurrentView('menu')}
+        onUnlock={handleChecklistUnlock}
+        onLogAttempt={handleChecklistAttemptRecord}
+      />
+    )
   }
 
   return (
@@ -1742,6 +2542,26 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
         {message && (
           <div className={`p-4 rounded-lg mb-6 border ${message.includes('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>
             {message}
+          </div>
+        )}
+
+        {checklistSnapshot && (
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 mb-6 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-slate-500">Checklist Snapshot</p>
+                <h2 className="text-xl font-semibold text-white">Gate approved — zone {checklistSnapshot.zone || 'N/A'}</h2>
+                <p className="text-xs text-slate-500">Captured at {new Date(checklistSnapshot.recordedAt).toLocaleString()}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleChecklistReset}
+                className="px-4 py-2 rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors"
+              >
+                Redo Checklist
+              </button>
+            </div>
+            <ChecklistAnswersList snapshot={checklistSnapshot} />
           </div>
         )}
 
@@ -1997,6 +2817,11 @@ const TradingEnvironment = ({ config, onBack }) => {
               <p className="text-slate-400 text-sm md:text-base mt-2">{config.environmentDescription}</p>
             </div>
           </div>
+          {config.checklist?.tables?.attempts && (
+            <div className="mb-8">
+              <ChecklistAnalyticsCard config={config} />
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <MenuButton onClick={() => setCurrentView('new-trade')} className={config.classes.primaryButton}>{config.labels.newTradeButton}</MenuButton>
