@@ -1160,6 +1160,134 @@ const MODE_CONFIG = {
       primaryButton: 'bg-purple-600 hover:bg-purple-700 border-purple-500 text-white',
       primaryAction: 'bg-purple-600 hover:bg-purple-700 text-white'
     }
+  },
+  futures: {
+    key: 'futures',
+    journalTitle: "Nik's Futures Trading Journal",
+    environmentTitle: 'Futures Trading Workspace',
+    environmentDescription: 'Track futures contracts with position sizing, risk management, and pre-trade discipline.',
+    homeButtonLabel: 'Futures Trades',
+    menuTagline: 'Manage your futures positions with precise position sizing.',
+    features: {
+      missedTrades: false,
+      analytics: true,
+      tradingPlan: true,
+      positionSizer: true
+    },
+    accounts: [],
+    checklist: {
+      tables: {
+        logs: 'futures_checklist_logs',
+        attempts: 'futures_checklist_attempts'
+      },
+      workspaceValue: 'futures'
+    },
+    tables: {
+      trades: 'futures_trades',
+      balance: 'futures_balance_history',
+      plan: 'futures_trading_plan'
+    },
+    tradeColumns: {
+      instrument: 'ticker',
+      direction: 'direction',
+      contracts: 'contracts',
+      entryPrice: 'entry_price',
+      dollarPerTick: 'dollar_per_tick',
+      stopLossTicks: 'stop_loss_ticks',
+      targetTicks: 'target_ticks',
+      notes: 'notes',
+      forecastUrl: 'forecast_url',
+      entryUrl: 'entry_url',
+      status: 'status',
+      pnl: 'pnl',
+      entryDate: 'entry_date',
+      exitDate: 'exit_date',
+      exitUrl: 'exit_url',
+      id: 'id'
+    },
+    balanceColumns: {
+      id: 'id',
+      balance: 'balance',
+      changeAmount: 'change_amount',
+      reason: 'change_reason',
+      tradeId: 'trade_id',
+      createdAt: 'created_at',
+      currency: null
+    },
+    planColumns: {
+      id: 'id',
+      content: 'content',
+      updatedAt: 'updated_at'
+    },
+    labels: {
+      instrument: 'Ticker/Symbol',
+      instrumentPlaceholder: 'e.g., ES, NQ, CL, GC',
+      balanceTitle: 'Futures Account Balance',
+      balanceHeroLabel: 'Account Balance:',
+      addBalanceButton: 'Add Deposit/Withdrawal',
+      addBalanceModalTitle: 'Add Deposit or Withdrawal',
+      addBalancePlaceholder: 'e.g., Funding account, Margin adjustment',
+      addBalanceSubmit: 'Add Transaction',
+      newBalanceToggleCancel: 'Cancel',
+      historyTitle: 'Recent Balance Changes',
+      newTradeButton: 'Log Futures Trade',
+      updateTradeButton: 'Close Existing Futures Trade',
+      viewDataButton: 'View Futures History',
+      tradingPlanButton: 'Futures Playbook',
+      positionSizerButton: 'Position Sizing Calculator',
+      entryUrlLabel: 'Entry Chart URL (Optional)',
+      forecastUrlLabel: 'Forecast TradingView URL (Optional)',
+      notesLabel: 'Notes (Optional)',
+      pnlLabel: 'P&L ($)',
+      planTitle: 'Futures Playbook',
+      planSave: 'Save Playbook',
+      menuBack: '← All Workspaces',
+      riskSummaryLabel: 'Account Balance',
+      analyticsInstrumentTitle: 'Symbol Performance',
+      newTradeTitle: 'Log Futures Trade',
+      balanceToggleLabel: 'Add Deposit/Withdrawal',
+      directionLabel: 'Direction',
+      contractsLabel: 'Contracts',
+      entryPriceLabel: 'Entry Price',
+      dollarPerTickLabel: 'Dollar per Tick ($)',
+      stopLossTicksLabel: 'Stop Loss (Ticks)',
+      targetTicksLabel: 'Target (Ticks)'
+    },
+    analyticsLabels: {
+      day: 'Day of Week Performance',
+      instrument: 'Symbol Performance'
+    },
+    directionOptions: [
+      { value: 'long', label: 'Long (Buy)' },
+      { value: 'short', label: 'Short (Sell)' }
+    ],
+    formDefaults: {
+      instrument: '',
+      direction: 'long',
+      contracts: '',
+      entryPrice: '',
+      dollarPerTick: '',
+      stopLossTicks: '',
+      targetTicks: '',
+      forecastUrl: '',
+      entryUrl: '',
+      notes: ''
+    },
+    tickPresets: [
+      { symbol: 'ES', dollarPerTick: 12.50, description: 'E-mini S&P 500' },
+      { symbol: 'NQ', dollarPerTick: 5.00, description: 'E-mini Nasdaq 100' },
+      { symbol: 'CL', dollarPerTick: 10.00, description: 'Crude Oil' },
+      { symbol: 'GC', dollarPerTick: 10.00, description: 'Gold' },
+      { symbol: 'MES', dollarPerTick: 1.25, description: 'Micro E-mini S&P' },
+      { symbol: 'MNQ', dollarPerTick: 0.50, description: 'Micro E-mini Nasdaq' },
+      { symbol: 'RTY', dollarPerTick: 5.00, description: 'E-mini Russell 2000' }
+    ],
+    riskFraction: 0.01,
+    uppercaseInstrument: true,
+    classes: {
+      primaryButton: 'bg-amber-600 hover:bg-amber-700 border-amber-500 text-white',
+      primaryAction: 'bg-amber-600 hover:bg-amber-700 text-white'
+    }
   }
 }
 
@@ -1549,6 +1677,12 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                 if (tradeColumns.contracts) optionParts.push(`${labels.contractsLabel || 'Contracts'}: ${trade[tradeColumns.contracts] ?? '-'}`)
                 if (tradeColumns.premium) optionParts.push(`${labels.premiumLabel || 'Premium'}: ${trade[tradeColumns.premium] ?? '-'}`)
 
+                const futuresParts = []
+                if (tradeColumns.entryPrice) futuresParts.push(`${labels.entryPriceLabel || 'Entry'}: ${trade[tradeColumns.entryPrice] ?? '-'}`)
+                if (tradeColumns.dollarPerTick) futuresParts.push(`${labels.dollarPerTickLabel || '$/Tick'}: $${trade[tradeColumns.dollarPerTick] ?? '-'}`)
+                if (tradeColumns.stopLossTicks) futuresParts.push(`${labels.stopLossTicksLabel || 'SL'}: ${trade[tradeColumns.stopLossTicks] ?? '-'} ticks`)
+                if (tradeColumns.targetTicks) futuresParts.push(`${labels.targetTicksLabel || 'Target'}: ${trade[tradeColumns.targetTicks] ?? '-'} ticks`)
+
                 return (
                   <div
                     key={trade[tradeColumns.id]}
@@ -1564,6 +1698,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                         <p className="text-slate-400 text-sm">Entry: {trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '—'}</p>
                         {metaParts.length > 0 && <p className="text-slate-500 text-sm">{metaParts.join(' • ')}</p>}
                         {optionParts.length > 0 && <p className="text-slate-500 text-sm">{optionParts.join(' • ')}</p>}
+                        {futuresParts.length > 0 && <p className="text-slate-500 text-sm">{futuresParts.join(' • ')}</p>}
                         {accountField && trade[accountField] && (
                           <p className="text-slate-500 text-sm">Account: {trade[accountField]}</p>
                         )}
@@ -1797,6 +1932,10 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const contractsColumn = tradeColumns.contracts
   const premiumColumn = tradeColumns.premium
   const directionColumn = tradeColumns.direction
+  const entryPriceColumn = tradeColumns.entryPrice
+  const dollarPerTickColumn = tradeColumns.dollarPerTick
+  const stopLossTicksColumn = tradeColumns.stopLossTicks
+  const targetTicksColumn = tradeColumns.targetTicks
   const hasMultipleAccounts = accounts.length > 0 && config.balanceColumns.currency
   const showAnalytics = config.features?.analytics !== false
 
@@ -1971,6 +2110,10 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                       {expiryColumn && <th className="p-3 text-left text-slate-300">{labels.expiryLabel || 'Expiry'}</th>}
                       {contractsColumn && <th className="p-3 text-left text-slate-300">{labels.contractsLabel || 'Contracts'}</th>}
                       {premiumColumn && <th className="p-3 text-left text-slate-300">{labels.premiumLabel || 'Premium'}</th>}
+                      {entryPriceColumn && <th className="p-3 text-left text-slate-300">{labels.entryPriceLabel || 'Entry Price'}</th>}
+                      {dollarPerTickColumn && <th className="p-3 text-left text-slate-300">{labels.dollarPerTickLabel || '$/Tick'}</th>}
+                      {stopLossTicksColumn && <th className="p-3 text-left text-slate-300">{labels.stopLossTicksLabel || 'SL Ticks'}</th>}
+                      {targetTicksColumn && <th className="p-3 text-left text-slate-300">{labels.targetTicksLabel || 'Target Ticks'}</th>}
                       {entryTypeColumn && <th className="p-3 text-left text-slate-300">Entry Type</th>}
                       {ruleColumn && <th className="p-3 text-left text-slate-300">Context</th>}
                       {zoneColumn && <th className="p-3 text-left text-slate-300">Zone</th>}
@@ -1995,6 +2138,10 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         {expiryColumn && <td className="p-3 text-slate-300">{trade[expiryColumn] ? new Date(trade[expiryColumn]).toLocaleDateString() : '-'}</td>}
                         {contractsColumn && <td className="p-3 text-slate-300">{trade[contractsColumn] ?? '-'}</td>}
                         {premiumColumn && <td className="p-3 text-slate-300">{trade[premiumColumn] ?? '-'}</td>}
+                        {entryPriceColumn && <td className="p-3 text-slate-300">{trade[entryPriceColumn] ?? '-'}</td>}
+                        {dollarPerTickColumn && <td className="p-3 text-slate-300">{trade[dollarPerTickColumn] ? `$${trade[dollarPerTickColumn]}` : '-'}</td>}
+                        {stopLossTicksColumn && <td className="p-3 text-slate-300">{trade[stopLossTicksColumn] ?? '-'}</td>}
+                        {targetTicksColumn && <td className="p-3 text-slate-300">{trade[targetTicksColumn] ?? '-'}</td>}
                         {entryTypeColumn && <td className="p-3 text-slate-300">{trade[entryTypeColumn] || '-'}</td>}
                         {ruleColumn && <td className="p-3 text-slate-300">{trade[ruleColumn] || '-'}</td>}
                         {zoneColumn && <td className="p-3 text-slate-300">{trade[zoneColumn] || '-'}</td>}
@@ -2331,7 +2478,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     riskFraction,
     classes,
     accounts = [],
-    checklist = {}
+    checklist = {},
+    tickPresets = []
   } = config
   const tradesTable = tables.trades
   const balanceTable = tables.balance
@@ -2474,6 +2622,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.expiry, formData.expiry || null)
       assignValue(tradeColumns.contracts, formData.contracts === '' ? null : (formData.contracts ? parseFloat(formData.contracts) : null))
       assignValue(tradeColumns.premium, formData.premium === '' ? null : (formData.premium ? parseFloat(formData.premium) : null))
+      assignValue(tradeColumns.entryPrice, formData.entryPrice === '' ? null : (formData.entryPrice ? parseFloat(formData.entryPrice) : null))
+      assignValue(tradeColumns.dollarPerTick, formData.dollarPerTick === '' ? null : (formData.dollarPerTick ? parseFloat(formData.dollarPerTick) : null))
+      assignValue(tradeColumns.stopLossTicks, formData.stopLossTicks === '' ? null : (formData.stopLossTicks ? parseInt(formData.stopLossTicks) : null))
+      assignValue(tradeColumns.targetTicks, formData.targetTicks === '' ? null : (formData.targetTicks ? parseInt(formData.targetTicks) : null))
       assignValue(tradeColumns.riskAmount, formData.riskAmount === '' ? null : (formData.riskAmount ? parseFloat(formData.riskAmount) : null))
       assignValue(tradeColumns.forecastUrl, formData.forecastUrl || null)
       assignValue(tradeColumns.entryUrl, formData.entryUrl || null)
@@ -2628,6 +2780,50 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
           {tradeColumns.premium && (
             <InputField label={labels.premiumLabel || 'Premium ($)'} type="number" step="0.01" value={formData.premium} onChange={(e) => handleInputChange('premium', e.target.value)} placeholder="e.g., 2.45" />
+          )}
+
+          {tradeColumns.entryPrice && (
+            <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={formData.entryPrice} onChange={(e) => handleInputChange('entryPrice', e.target.value)} placeholder="e.g., 4500.25" />
+          )}
+
+          {tradeColumns.dollarPerTick && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2 text-slate-300">{labels.dollarPerTickLabel || 'Dollar per Tick ($)'}</label>
+              {tickPresets && tickPresets.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {tickPresets.map(preset => (
+                    <button
+                      key={preset.symbol}
+                      type="button"
+                      onClick={() => handleInputChange('dollarPerTick', preset.dollarPerTick.toString())}
+                      className={`px-2 py-1 rounded text-xs border transition-colors ${
+                        formData.dollarPerTick === preset.dollarPerTick.toString()
+                          ? 'bg-amber-600 text-white border-amber-500'
+                          : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'
+                      }`}
+                    >
+                      {preset.symbol} (${preset.dollarPerTick})
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                type="number"
+                step="0.01"
+                value={formData.dollarPerTick}
+                onChange={(e) => handleInputChange('dollarPerTick', e.target.value)}
+                placeholder="e.g., 12.50"
+                className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
+              />
+            </div>
+          )}
+
+          {tradeColumns.stopLossTicks && (
+            <InputField label={labels.stopLossTicksLabel || 'Stop Loss (Ticks)'} type="number" step="1" value={formData.stopLossTicks} onChange={(e) => handleInputChange('stopLossTicks', e.target.value)} placeholder="e.g., 8" />
+          )}
+
+          {tradeColumns.targetTicks && (
+            <InputField label={labels.targetTicksLabel || 'Target (Ticks)'} type="number" step="1" value={formData.targetTicks} onChange={(e) => handleInputChange('targetTicks', e.target.value)} placeholder="e.g., 24" />
           )}
 
           {tradeColumns.riskAmount && (
@@ -2814,6 +3010,275 @@ const TradingPlanView = ({ setCurrentView, config }) => {
   )
 }
 
+const FuturesPositionSizer = ({ config, onBack }) => {
+  const [mode, setMode] = useState('stopFromContracts')
+  const [currentBalance, setCurrentBalance] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [contracts, setContracts] = useState('')
+  const [riskPercent, setRiskPercent] = useState('1')
+  const [dollarPerTick, setDollarPerTick] = useState('')
+  const [stopLossTicks, setStopLossTicks] = useState('')
+  const [selectedPreset, setSelectedPreset] = useState('')
+  const [result, setResult] = useState(null)
+
+  const { tables, balanceColumns, labels, tickPresets = [] } = config
+
+  useEffect(() => {
+    const loadBalance = async () => {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from(tables.balance)
+          .select('*')
+          .order(balanceColumns.createdAt, { ascending: false })
+          .limit(1)
+        if (error) throw error
+        const latest = data?.[0]
+        setCurrentBalance(latest ? parseFloat(latest[balanceColumns.balance]) || 0 : 0)
+      } catch (err) {
+        console.error('Error loading balance:', err.message)
+      }
+      setLoading(false)
+    }
+    loadBalance()
+  }, [tables.balance, balanceColumns.createdAt, balanceColumns.balance])
+
+  const handlePresetChange = (presetSymbol) => {
+    setSelectedPreset(presetSymbol)
+    const preset = tickPresets.find(p => p.symbol === presetSymbol)
+    if (preset) {
+      setDollarPerTick(preset.dollarPerTick.toString())
+    }
+  }
+
+  useEffect(() => {
+    const balance = currentBalance
+    const risk = parseFloat(riskPercent) / 100
+    const tickValue = parseFloat(dollarPerTick)
+
+    if (mode === 'stopFromContracts') {
+      const numContracts = parseInt(contracts)
+      if (!balance || !risk || !tickValue || !numContracts || numContracts <= 0) {
+        setResult(null)
+        return
+      }
+      const riskDollars = balance * risk
+      const maxStopTicks = Math.floor(riskDollars / (tickValue * numContracts))
+      const actualRiskDollars = maxStopTicks * tickValue * numContracts
+      setResult({
+        type: 'stopFromContracts',
+        maxStopTicks,
+        riskDollars: actualRiskDollars,
+        riskPercent: (actualRiskDollars / balance) * 100,
+        contracts: numContracts
+      })
+    } else {
+      const stopTicks = parseInt(stopLossTicks)
+      if (!balance || !risk || !tickValue || !stopTicks || stopTicks <= 0) {
+        setResult(null)
+        return
+      }
+      const riskDollars = balance * risk
+      const maxContracts = Math.floor(riskDollars / (tickValue * stopTicks))
+      const actualRiskDollars = maxContracts * tickValue * stopTicks
+      setResult({
+        type: 'contractsFromStop',
+        maxContracts,
+        riskDollars: actualRiskDollars,
+        riskPercent: (actualRiskDollars / balance) * 100,
+        stopTicks
+      })
+    }
+  }, [contracts, riskPercent, dollarPerTick, stopLossTicks, mode, currentBalance])
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+      <button
+        onClick={onBack}
+        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+      >
+        ← Back to Menu
+      </button>
+
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2">{labels.positionSizerButton || 'Position Sizing Calculator'}</h1>
+        <p className="text-slate-400 mb-8">Calculate optimal position size or maximum stop loss based on your risk parameters.</p>
+
+        <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg mb-6">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400">{labels.balanceHeroLabel || 'Account Balance:'}</span>
+            {loading ? (
+              <span className="text-slate-400">Loading...</span>
+            ) : (
+              <span className="text-2xl font-bold text-emerald-400">${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setMode('stopFromContracts')}
+            className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
+              mode === 'stopFromContracts'
+                ? 'bg-amber-600 text-white border-amber-500'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+            }`}
+          >
+            <div className="font-semibold">Calculate Max Stop</div>
+            <div className="text-xs opacity-80">Given # of contracts</div>
+          </button>
+          <button
+            onClick={() => setMode('contractsFromStop')}
+            className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
+              mode === 'contractsFromStop'
+                ? 'bg-amber-600 text-white border-amber-500'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+            }`}
+          >
+            <div className="font-semibold">Calculate Max Contracts</div>
+            <div className="text-xs opacity-80">Given stop loss ticks</div>
+          </button>
+        </div>
+
+        <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg space-y-4">
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2 text-slate-300">Risk Percentage (%)</label>
+            <div className="flex gap-2 mb-2">
+              {['0.25', '0.5', '1', '2'].map(pct => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => setRiskPercent(pct)}
+                  className={`px-3 py-1 rounded text-sm border transition-colors ${
+                    riskPercent === pct
+                      ? 'bg-amber-600 text-white border-amber-500'
+                      : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              step="0.01"
+              value={riskPercent}
+              onChange={(e) => setRiskPercent(e.target.value)}
+              className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+              placeholder="Enter custom %"
+            />
+          </div>
+
+          {tickPresets.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2 text-slate-300">Quick Select Instrument</label>
+              <div className="flex flex-wrap gap-2">
+                {tickPresets.map(preset => (
+                  <button
+                    key={preset.symbol}
+                    type="button"
+                    onClick={() => handlePresetChange(preset.symbol)}
+                    className={`px-3 py-2 rounded text-sm border transition-colors ${
+                      selectedPreset === preset.symbol
+                        ? 'bg-amber-600 text-white border-amber-500'
+                        : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="font-semibold">{preset.symbol}</div>
+                    <div className="text-xs opacity-80">${preset.dollarPerTick}/tick</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2 text-slate-300">{labels.dollarPerTickLabel || 'Dollar per Tick ($)'}</label>
+            <input
+              type="number"
+              step="0.01"
+              value={dollarPerTick}
+              onChange={(e) => { setDollarPerTick(e.target.value); setSelectedPreset(''); }}
+              className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+              placeholder="e.g., 12.50 for ES"
+            />
+          </div>
+
+          {mode === 'stopFromContracts' ? (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2 text-slate-300">{labels.contractsLabel || 'Number of Contracts'}</label>
+              <input
+                type="number"
+                step="1"
+                value={contracts}
+                onChange={(e) => setContracts(e.target.value)}
+                className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+                placeholder="e.g., 2"
+              />
+            </div>
+          ) : (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2 text-slate-300">{labels.stopLossTicksLabel || 'Stop Loss (Ticks)'}</label>
+              <input
+                type="number"
+                step="1"
+                value={stopLossTicks}
+                onChange={(e) => setStopLossTicks(e.target.value)}
+                className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+                placeholder="e.g., 10"
+              />
+            </div>
+          )}
+        </div>
+
+        {result && (
+          <div className="mt-6 bg-slate-900 border border-amber-500/30 p-6 rounded-lg">
+            <h3 className="text-xl font-bold text-amber-300 mb-4">Calculation Result</h3>
+
+            {result.type === 'stopFromContracts' ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                  <span className="text-slate-300">Maximum Stop Loss:</span>
+                  <span className="text-3xl font-bold text-emerald-400">{result.maxStopTicks} ticks</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                  <span className="text-slate-400">Risk Amount:</span>
+                  <span className="text-lg font-semibold text-slate-100">${result.riskDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                  <span className="text-slate-400">Actual Risk %:</span>
+                  <span className="text-lg font-semibold text-slate-100">{result.riskPercent.toFixed(3)}%</span>
+                </div>
+                <p className="text-sm text-slate-500 mt-4">
+                  With {result.contracts} contract(s), you can risk up to {result.maxStopTicks} ticks before exceeding your risk limit.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                  <span className="text-slate-300">Maximum Contracts:</span>
+                  <span className="text-3xl font-bold text-emerald-400">{result.maxContracts}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                  <span className="text-slate-400">Risk Amount:</span>
+                  <span className="text-lg font-semibold text-slate-100">${result.riskDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                  <span className="text-slate-400">Actual Risk %:</span>
+                  <span className="text-lg font-semibold text-slate-100">{result.riskPercent.toFixed(3)}%</span>
+                </div>
+                <p className="text-sm text-slate-500 mt-4">
+                  With a {result.stopTicks}-tick stop, you can trade up to {result.maxContracts} contract(s) within your risk limit.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const TradingEnvironment = ({ config, onBack }) => {
   const [currentView, setCurrentView] = useState('menu')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -2822,6 +3287,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   const features = config.features || {}
   const supportsMissedTrades = features.missedTrades && config.tables?.missed
   const supportsTradingPlan = features.tradingPlan !== false && config.tables?.plan
+  const supportsPositionSizer = features.positionSizer && config.tables?.balance
 
   useEffect(() => {
     setCurrentView('menu')
@@ -2857,8 +3323,11 @@ const TradingEnvironment = ({ config, onBack }) => {
               <MenuButton onClick={() => setCurrentView('update-trade')} className={config.classes.primaryButton}>{config.labels.updateTradeButton}</MenuButton>
               <MenuButton onClick={() => setCurrentView('view-data')} className={config.classes.primaryButton}>{config.labels.viewDataButton}</MenuButton>
             </div>
-            {(supportsMissedTrades || supportsTradingPlan) && (
+            {(supportsMissedTrades || supportsTradingPlan || supportsPositionSizer) && (
               <div className="space-y-4">
+                {supportsPositionSizer && config.labels.positionSizerButton && (
+                  <MenuButton onClick={() => setCurrentView('position-sizer')} className={config.classes.primaryButton}>{config.labels.positionSizerButton}</MenuButton>
+                )}
                 {supportsMissedTrades && config.labels.missedTradeButton && (
                   <MenuButton onClick={() => setCurrentView('missed-trade')} className={config.classes.primaryButton}>{config.labels.missedTradeButton}</MenuButton>
                 )}
@@ -2908,6 +3377,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'missed-trade' && supportsMissedTrades) return <MissedTradeView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'missed-data' && supportsMissedTrades) return <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
   if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
   return null
 }
 
@@ -2929,6 +3399,9 @@ export default function Home() {
             </MenuButton>
             <MenuButton onClick={() => setActiveMode('options')} className={MODE_CONFIG.options.classes.primaryButton}>
               {MODE_CONFIG.options.homeButtonLabel}
+            </MenuButton>
+            <MenuButton onClick={() => setActiveMode('futures')} className={MODE_CONFIG.futures.classes.primaryButton}>
+              {MODE_CONFIG.futures.homeButtonLabel}
             </MenuButton>
           </div>
         </div>
