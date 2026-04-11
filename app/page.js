@@ -53,8 +53,6 @@ const LONG_SHORT_OPTIONS = [
   { value: 'short', label: 'Short (Sell)' }
 ]
 
-const CHECKLIST_INTRO = 'A decision gate. If you cannot answer YES to the majors, you do not take the trade.'
-
 const TRADE_CHECKLIST_SECTIONS = [
   {
     id: 'section1',
@@ -191,85 +189,6 @@ const TRADE_CHECKLIST_SECTIONS = [
   }
 ]
 
-const ZONE_OPTIONS = ['Green', 'Amber', 'Red']
-const CHECKLIST_BOOLEAN_IDS = TRADE_CHECKLIST_SECTIONS.flatMap(section =>
-  section.items.filter(item => item.type === 'boolean').map(item => item.id)
-)
-
-const TRADER_DISCIPLINES = [
-  {
-    title: 'Daily discipline',
-    bullets: [
-      'Forecasts every single day without excuses.',
-      'Updates Green/Amber/Red scenarios before looking for trades.',
-      'Journals before execution, not after blowing a trade.'
-    ]
-  },
-  {
-    title: 'Structure mastery',
-    bullets: [
-      'Knows exactly where price sits on HTF structure at all times.',
-      'Never trades against their own forecast just because it "looks good."',
-      'Never confuses noise with structure on LTFs.'
-    ]
-  },
-  {
-    title: 'Entry discipline',
-    bullets: [
-      'Never trades what they did not forecast.',
-      'Respects RO3 religiously.',
-      'Refuses to enter in Red Zone, even if it flies without them.',
-      'Takes HP and Valid trades — never borderline ones.',
-      'Never forces a setup to fit a narrative.'
-    ]
-  },
-  {
-    title: 'Risk discipline',
-    bullets: [
-      'Uses 1% risk like a religion.',
-      'Places stop where it should be, not where emotions want it.',
-      'Never moves stops prematurely.',
-      'Accepts the loss on placement, not after price hits it.'
-    ]
-  },
-  {
-    title: 'Management discipline',
-    bullets: [
-      'Moves to breakeven only at logical structure, not emotionally.',
-      'Lets winners breathe.',
-      'Does not micromanage 15M noise.',
-      'Trades are either losers, breakevens, or 3R+ winners — never random outcomes.'
-    ]
-  },
-  {
-    title: 'Mindset discipline',
-    bullets: [
-      'Trades like someone managing a 7-figure account, even if tiny.',
-      'Sees losses as business costs, not personal attacks.',
-      'Never revenge trades after a loss.',
-      'Never FOMOs into Red Zone setups.',
-      'Never judges themselves based on individual trade outcomes.'
-    ]
-  },
-  {
-    title: 'Data discipline',
-    bullets: [
-      'Journals every trade with honesty, not cope.',
-      'Tracks how many HP vs Valid trades they take.',
-      'Refines their top 10 playbook over months, not days.',
-      'Uses journaling to remove weaknesses systematically.'
-    ]
-  },
-  {
-    title: 'Consistency discipline',
-    bullets: [
-      'Executes the plan even when bored, stressed, or unmotivated.',
-      'Understands that skipping one step is all it takes to start losing.',
-      'Does not look for shortcuts or magical certainty.'
-    ]
-  }
-]
-
 const DEFAULT_CHECKLIST_LOG_COLUMNS = {
   id: 'id',
   tradeId: 'trade_id',
@@ -289,471 +208,217 @@ const DEFAULT_CHECKLIST_ATTEMPT_COLUMNS = {
 }
 
 const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
-  const [currentStep, setCurrentStep] = useState(1)
-  const [answers, setAnswers] = useState({})
-  const [blockingMessages, setBlockingMessages] = useState({})
-  const [activeTab, setActiveTab] = useState('flowchart')
+  const [checked, setChecked] = useState({})
+  const [ruleOfThree, setRuleOfThree] = useState('')
+  const [zone, setZone] = useState('')
+  const [activeTab, setActiveTab] = useState('checklist')
   const [unlocking, setUnlocking] = useState(false)
-  const [logging, setLogging] = useState(false)
   const [feedback, setFeedback] = useState('')
 
-  const totalSteps = 10
-  const progress = ((currentStep - 1) / totalSteps) * 100
-
-  // Define the 10 steps from the HTML
   const steps = [
-    {
-      num: 1,
-      section: 'Foundation',
-      question: 'Have I forecasted this trade?',
-      hint: 'Did you complete top-down (HTF → LTF) analysis on this pair before this setup appeared? No last-minute chart-jumping.',
-      yesText: 'Forecasting was done before I found this setup.',
-      noText: 'I saw a setup and jumped straight to it.',
-      blockMsg: 'You cannot trade a setup you haven\'t forecasted. Stop now. Open your charts, do your full top-down analysis starting at the Monthly/Weekly, work down to the 4H and 1H. Then come back.'
-    },
-    {
-      num: 2,
-      section: 'Foundation',
-      question: 'Is this setup in my Trading Plan?',
-      hint: 'Does this match one of your pre-defined go-to setups? Not someone else\'s trade. Not a setup type you\'ve never traded before.',
-      yesText: 'It matches a setup I know and own.',
-      noText: 'This setup isn\'t in my plan.',
-      blockMsg: 'A trade outside your plan is a gamble, not a trade. Your trading plan exists precisely to stop this moment. Ask yourself: why am I considering a setup I haven\'t pre-approved? FOMO? Urgency? Both are dangerous. Step away.'
-    },
-    {
-      num: 3,
-      section: 'Multi-Timeframe Analysis',
-      question: 'Have I checked the full HTF structure?',
-      hint: 'Monthly → Weekly → Daily → 4H → 1H → 15M. Know where price sits in the bigger picture before zooming in.',
-      yesText: 'I\'ve seen the full picture top-down.',
-      noText: 'I\'ve only looked at lower timeframes.',
-      blockMsg: 'Zoom out immediately. A setup that looks perfect on the 1H might be trading directly into a Daily resistance level. Spending all your time on lower timeframes only tells half the story. You need the full context.'
-    },
-    {
-      num: 4,
-      section: 'Rule of Three',
-      question: 'How is price approaching structure?',
-      hint: 'Identify the approach type. This determines your entry method.',
-      isRuleOfThree: true,
+    { num: 1, section: 'Foundation', question: 'Have I forecasted this trade?', hint: 'Did you complete top-down (HTF → LTF) analysis on this pair before this setup appeared? No last-minute chart-jumping.' },
+    { num: 2, section: 'Foundation', question: 'Is this setup in my Trading Plan?', hint: "Does this match one of your pre-defined go-to setups? Not someone else's trade. Not a setup type you've never traded before." },
+    { num: 3, section: 'Multi-Timeframe Analysis', question: 'Have I checked the full HTF structure?', hint: 'Monthly → Weekly → Daily → 4H → 1H → 15M. Know where price sits in the bigger picture before zooming in.' },
+    { num: 4, section: 'Rule of Three', question: 'How is price approaching structure?', hint: 'Identify the approach type. This determines your entry method.', isRuleOfThree: true,
       options: [
-        { value: 'Impulsive', title: 'Impulsive Approach', desc: 'Strong, fast push into structure', action: 'Avoid raw entries. Wait for impulse away + first correction.' },
-        { value: 'Corrective', title: 'Corrective Approach', desc: 'Slow grind into level', action: 'Still avoid raw edges. Wait for impulse away + first correction.' },
-        { value: 'Structural', title: 'Structural Approach', desc: 'Clean channel into level, sometimes piercing', action: 'Most attractive for entries (risk entry OR retrace entry).' }
+        { value: 'Impulsive', title: 'Impulsive', desc: 'Strong, fast push into structure' },
+        { value: 'Corrective', title: 'Corrective', desc: 'Slow grind into level' },
+        { value: 'Structural', title: 'Structural', desc: 'Clean channel into level' }
       ]
     },
-    {
-      num: 5,
-      section: 'Zone Check',
-      question: 'Which zone is price in?',
-      hint: 'Select the zone based on your analysis. Red zones block the trade.',
-      isZone: true,
+    { num: 5, section: 'Zone Check', question: 'Which zone is price in?', hint: 'Red zone = no trade.', isZone: true,
       zones: [
-        { value: 'Green', name: 'Green Zone', desc: 'High-probability area. Price is where you want it.' },
-        { value: 'Amber', name: 'Amber Zone', desc: 'Acceptable but not ideal. Proceed with caution.' },
-        { value: 'Red', name: 'Red Zone', desc: 'No trades allowed here. Walk away.' }
-      ],
-      blockMsg: 'Red Zone = NO TRADE. Step away. You are not missing out — you are preserving capital. Revisit your forecast and wait for price to reach Green or Amber.'
+        { value: 'Green', label: 'Green Zone' },
+        { value: 'Amber', label: 'Amber Zone' },
+        { value: 'Red', label: 'Red Zone — No Trade' }
+      ]
     },
-    {
-      num: 6,
-      section: 'Price Action',
-      question: 'Is the price action confirming?',
-      hint: 'Are you seeing actual confirmation via candles, structure, or patterns? Or are you forcing it?',
-      yesText: 'Clear price action confirmation present.',
-      noText: 'I\'m trying to predict before confirmation.',
-      blockMsg: 'Entering without confirmation is gambling. Wait for the market to show its hand. You need actual evidence, not hope.'
-    },
-    {
-      num: 7,
-      section: 'Risk Management',
-      question: 'Have I sized position correctly at 1% risk?',
-      hint: 'Your position size should risk exactly 1% of your account balance based on your stop loss distance.',
-      yesText: 'Position sized correctly at 1% risk.',
-      noText: 'I haven\'t calculated or I\'m breaking the rule.',
-      blockMsg: 'If you are not risking exactly 1%, you are trading emotionally, not systematically. Go back and calculate your lot size properly.'
-    },
-    {
-      num: 8,
-      section: 'Risk Management',
-      question: 'Do I know my invalidation point?',
-      hint: 'Where is your stop loss? Is it logical or emotional? Can you accept the loss if hit?',
-      yesText: 'Stop loss is set logically and I accept it.',
-      noText: 'My stop is arbitrary or I hope it won\'t hit.',
-      blockMsg: 'You must know where you are wrong BEFORE you enter. If you can\'t accept the stop loss, you can\'t take the trade.'
-    },
-    {
-      num: 9,
-      section: 'Risk/Reward',
-      question: 'Is my R:R minimum 1.5:1?',
-      hint: 'Does this trade offer at least 1.5R reward for the 1R risk? And does the market have room to travel that distance?',
-      yesText: 'R:R is at least 1.5:1 with room to run.',
-      noText: 'R:R is poor or market has no room.',
-      blockMsg: 'Taking a trade with poor R:R is how you lose money long-term. Even if you win, you\'re playing a losing game. Wait for a better setup.'
-    },
-    {
-      num: 10,
-      section: 'Final Check',
-      question: 'Have I documented everything?',
-      hint: 'Screenshots, forecast, entry logic, stop, target. Is everything ready to journal post-trade?',
-      yesText: 'Everything is documented and ready.',
-      noText: 'I\'m rushing without proper documentation.',
-      blockMsg: 'If you\'re too lazy to document it properly, you\'re too lazy to trade it properly. Slow down.'
-    }
+    { num: 6, section: 'Price Action', question: 'Is the price action confirming?', hint: 'Are you seeing actual confirmation via candles, structure, or patterns? Or are you forcing it?' },
+    { num: 7, section: 'Risk Management', question: 'Have I sized position correctly at 1% risk?', hint: 'Your position size should risk exactly 1% of your account balance based on your stop loss distance.' },
+    { num: 8, section: 'Risk Management', question: 'Do I know my invalidation point?', hint: 'Where is your stop loss? Is it logical or emotional? Can you accept the loss if hit?' },
+    { num: 9, section: 'Risk/Reward', question: 'Is my R:R minimum 1.5:1?', hint: 'Does this trade offer at least 1.5R reward for the 1R risk? And does the market have room to travel that distance?' },
+    { num: 10, section: 'Final Check', question: 'Have I documented everything?', hint: 'Screenshots, forecast, entry logic, stop, target. Is everything ready to journal post-trade?' }
   ]
 
-  const currentStepData = steps[currentStep - 1]
-  const hasAnyInput = Object.keys(answers).length > 0
-  const allStepsComplete = currentStep > totalSteps
+  const booleanSteps = steps.filter(s => !s.isRuleOfThree && !s.isZone).map(s => s.num)
+  const allBooleanChecked = booleanSteps.every(n => checked[n])
+  const canProceed = allBooleanChecked && ruleOfThree !== '' && zone !== '' && zone !== 'Red'
 
-  const advance = (stepNum) => {
-    setAnswers(prev => ({ ...prev, [`step${stepNum}`]: 'yes' }))
-    if (blockingMessages[`step${stepNum}`]) {
-      setBlockingMessages(prev => {
-        const newBlocking = { ...prev }
-        delete newBlocking[`step${stepNum}`]
-        return newBlocking
-      })
-    }
-    if (stepNum < totalSteps) {
-      setTimeout(() => setCurrentStep(stepNum + 1), 200)
-    }
-  }
-
-  const block = (stepNum, message) => {
-    setAnswers(prev => ({ ...prev, [`step${stepNum}`]: 'no' }))
-    setBlockingMessages(prev => ({ ...prev, [`step${stepNum}`]: message }))
-  }
-
-  const retry = (stepNum) => {
-    setBlockingMessages(prev => {
-      const newBlocking = { ...prev }
-      delete newBlocking[`step${stepNum}`]
-      return newBlocking
-    })
-    setAnswers(prev => {
-      const newAnswers = { ...prev }
-      delete newAnswers[`step${stepNum}`]
-      return newAnswers
-    })
-  }
-
-  const selectRuleOfThree = (value) => {
-    setAnswers(prev => ({ ...prev, rule_of_three: value }))
-    if (currentStep === 4) {
-      setTimeout(() => setCurrentStep(5), 200)
-    }
-  }
-
-  const selectZone = (value) => {
-    if (value === 'Red') {
-      setAnswers(prev => ({ ...prev, zone: value, step5: 'no' }))
-      setBlockingMessages(prev => ({ ...prev, step5: currentStepData.blockMsg }))
-    } else {
-      setAnswers(prev => ({ ...prev, zone: value, step5: 'yes' }))
-      if (blockingMessages.step5) {
-        setBlockingMessages(prev => {
-          const newBlocking = { ...prev }
-          delete newBlocking.step5
-          return newBlocking
-        })
-      }
-      if (currentStep === 5) {
-        setTimeout(() => setCurrentStep(6), 200)
-      }
-    }
-  }
-
-  const createSnapshot = () => {
-    const snapshot = {
-      recordedAt: new Date().toISOString(),
-      step1_forecasted: answers.step1 === 'yes',
-      step2_in_plan: answers.step2 === 'yes',
-      step3_htf_checked: answers.step3 === 'yes',
-      step4_rule_of_three: answers.rule_of_three || null,
-      step5_zone: answers.zone || null,
-      step6_confirmation: answers.step6 === 'yes',
-      step7_position_sized: answers.step7 === 'yes',
-      step8_invalidation_known: answers.step8 === 'yes',
-      step9_rr_checked: answers.step9 === 'yes',
-      step10_documented: answers.step10 === 'yes',
-      blocking_messages: Object.entries(blockingMessages).map(([step, msg]) => ({ step, message: msg })),
-      completed: allStepsComplete
-    }
-    return snapshot
-  }
+  const createSnapshot = () => ({
+    recordedAt: new Date().toISOString(),
+    step1_forecasted: !!checked[1],
+    step2_in_plan: !!checked[2],
+    step3_htf_checked: !!checked[3],
+    step4_rule_of_three: ruleOfThree || null,
+    step5_zone: zone || null,
+    step6_confirmation: !!checked[6],
+    step7_position_sized: !!checked[7],
+    step8_invalidation_known: !!checked[8],
+    step9_rr_checked: !!checked[9],
+    step10_documented: !!checked[10],
+    blocking_messages: [],
+    completed: canProceed
+  })
 
   const handleProceed = async () => {
-    if (!allStepsComplete || !onUnlock) return
+    if (!canProceed || !onUnlock) return
     setUnlocking(true)
     setFeedback('')
     try {
       await onUnlock(createSnapshot())
     } catch (err) {
-      setFeedback(err?.message ? `Error: ${err.message}` : 'Unable to unlock the checklist.')
+      setFeedback(err?.message ? `Error: ${err.message}` : 'Unable to proceed.')
+      setUnlocking(false)
     }
-    setUnlocking(false)
-  }
-
-  const handleLogFailure = async () => {
-    if (!onLogAttempt || logging) return
-    setLogging(true)
-    setFeedback('')
-    const failedSteps = Object.entries(answers).filter(([k, v]) => v === 'no').map(([k]) => k)
-    const failureReason = failedSteps.length > 0 ? `Failed steps: ${failedSteps.join(', ')}` : 'Incomplete checklist'
-    try {
-      await onLogAttempt({
-        status: 'failed',
-        snapshot: createSnapshot(),
-        failureReason
-      })
-      setFeedback('Attempt logged. Returning to menu...')
-      setTimeout(() => onBack(), 1100)
-    } catch (err) {
-      setFeedback(err?.message ? `Error: ${err.message}` : 'Unable to log checklist attempt.')
-    }
-    setLogging(false)
   }
 
   const handleReset = () => {
-    setCurrentStep(1)
-    setAnswers({})
-    setBlockingMessages({})
+    setChecked({})
+    setRuleOfThree('')
+    setZone('')
     setFeedback('')
   }
+
+  const completedCount = booleanSteps.filter(n => checked[n]).length + (ruleOfThree ? 1 : 0) + (zone && zone !== 'Red' ? 1 : 0)
+  const totalCount = steps.length
+  const progress = Math.round((completedCount / totalCount) * 100)
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100">
       {/* Navigation */}
       <nav className="bg-slate-900/95 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-blue-400">Falcon FX</h1>
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Pre-Trade System</p>
+            <p className="text-xs text-slate-400 uppercase tracking-wider">Pre-Trade Checklist</p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('flowchart')}
-              className={`px-3 py-2 text-sm font-medium rounded transition-colors ${
-                activeTab === 'flowchart'
-                  ? 'text-blue-400 bg-blue-500/10'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Flowchart
-            </button>
-            <button
-              onClick={() => setActiveTab('reference')}
-              className={`px-3 py-2 text-sm font-medium rounded transition-colors ${
-                activeTab === 'reference'
-                  ? 'text-blue-400 bg-blue-500/10'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Reference
-            </button>
+            <button onClick={() => setActiveTab('checklist')} className={`px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'checklist' ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-slate-200'}`}>Checklist</button>
+            <button onClick={() => setActiveTab('reference')} className={`px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'reference' ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-slate-200'}`}>Reference</button>
           </div>
         </div>
       </nav>
 
-      {/* Flowchart Tab */}
-      {activeTab === 'flowchart' && (
-        <div className="max-w-2xl mx-auto px-4 py-8 pb-24">
-          <button
-            onClick={onBack}
-            className="mb-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors"
-          >
+      {/* Checklist Tab */}
+      {activeTab === 'checklist' && (
+        <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
+          <button onClick={onBack} className="mb-5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors text-sm">
             ← Back to Menu
           </button>
 
-          {/* Hero Section */}
-          <div className="bg-gradient-to-b from-slate-900 to-gray-950 border border-slate-800 rounded-xl p-6 mb-8 text-center">
-            <div className="inline-flex items-center bg-blue-900/30 border border-blue-700/50 text-blue-300 text-xs font-bold uppercase tracking-wide px-3 py-1 rounded-full mb-3">
-              Interactive Protocol
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">
-              Before You <span className="text-blue-400">Take the Trade</span>
-            </h1>
-            <p className="text-sm text-slate-400 max-w-md mx-auto">
-              Click the green button to advance each step. Click red when conditions aren't met — you'll see why you can't proceed.
-            </p>
-          </div>
-
-          {/* Progress Bar */}
+          {/* Progress */}
           <div className="mb-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-full h-2 overflow-hidden mb-2">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
+            <div className="flex justify-between text-xs text-slate-400 mb-1">
+              <span>Progress</span>
+              <span>{completedCount}/{totalCount} complete</span>
             </div>
-            <p className="text-xs text-center text-slate-400">
-              Step {Math.min(currentStep, totalSteps)} of {totalSteps} complete
-            </p>
+            <div className="bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+            </div>
           </div>
 
-          {/* Start Node */}
-          {currentStep === 1 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-full py-3 px-5 text-center text-sm font-medium text-slate-400 mb-2">
-              You think you see a trade setup
-            </div>
-          )}
+          {/* Steps */}
+          <div className="space-y-3">
+            {steps.map(step => {
+              const isComplete = step.isRuleOfThree ? !!ruleOfThree : step.isZone ? (!!zone && zone !== 'Red') : !!checked[step.num]
+              return (
+                <div key={step.num} className={`bg-slate-900 border rounded-lg p-4 transition-colors ${isComplete ? 'border-emerald-700/50' : 'border-slate-800'}`}>
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox / completion indicator */}
+                    {!step.isRuleOfThree && !step.isZone && (
+                      <button
+                        onClick={() => setChecked(prev => ({ ...prev, [step.num]: !prev[step.num] }))}
+                        className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          checked[step.num] ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600 hover:border-slate-400'
+                        }`}
+                      >
+                        {checked[step.num] && <span className="text-white text-xs font-bold">✓</span>}
+                      </button>
+                    )}
+                    {(step.isRuleOfThree || step.isZone) && (
+                      <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${isComplete ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'}`}>
+                        {isComplete && <span className="text-white text-xs font-bold">✓</span>}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-blue-400 w-5">{step.num}.</span>
+                        <span className="text-xs uppercase tracking-wide text-slate-500">{step.section}</span>
+                      </div>
+                      <p className={`text-sm font-medium mb-1 ${isComplete ? 'text-slate-300' : 'text-white'}`}>{step.question}</p>
+                      <p className="text-xs text-slate-500 leading-relaxed">{step.hint}</p>
 
-          {/* Connector */}
-          {currentStep <= totalSteps && (
-            <div className="flex justify-center text-slate-600 text-lg mb-2">↓</div>
-          )}
+                      {/* Rule of Three radio buttons */}
+                      {step.isRuleOfThree && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {step.options.map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setRuleOfThree(opt.value)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                ruleOfThree === opt.value
+                                  ? 'bg-blue-600 border-blue-500 text-white'
+                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                              }`}
+                            >
+                              {opt.title}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-          {/* Current Step */}
-          {!allStepsComplete && currentStepData && (
-            <div className={`transition-all duration-300 ${
-              answers[`step${currentStep}`] ? 'opacity-50' : 'opacity-100'
-            }`}>
-              <div className="bg-slate-800 border border-slate-700 border-l-4 border-l-blue-500 rounded-lg p-4 mb-2">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex items-center justify-center w-6 h-6 bg-blue-900/50 border border-blue-700 text-blue-300 text-xs font-bold rounded-full">
-                    {currentStepData.num}
+                      {/* Zone radio buttons */}
+                      {step.isZone && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {step.zones.map(z => (
+                            <button
+                              key={z.value}
+                              onClick={() => setZone(z.value)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                zone === z.value
+                                  ? z.value === 'Green' ? 'bg-emerald-600 border-emerald-500 text-white'
+                                    : z.value === 'Amber' ? 'bg-amber-600 border-amber-500 text-white'
+                                    : 'bg-red-700 border-red-600 text-white'
+                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                              }`}
+                            >
+                              {z.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {step.isZone && zone === 'Red' && (
+                        <p className="text-xs text-red-400 mt-2 font-medium">Red Zone = NO TRADE. Wait for price to reach Green or Amber.</p>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">{currentStepData.section}</span>
                 </div>
-                <h3 className="text-base font-semibold text-white mb-2">{currentStepData.question}</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">{currentStepData.hint}</p>
-              </div>
-
-              {/* Rule of Three Options */}
-              {currentStepData.isRuleOfThree && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                  {currentStepData.options.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => selectRuleOfThree(opt.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-left hover:border-blue-500 transition-colors"
-                    >
-                      <p className="text-sm font-bold text-blue-400 mb-1">{opt.title}</p>
-                      <p className="text-xs text-slate-400 mb-2">{opt.desc}</p>
-                      <p className="text-xs text-emerald-400 font-semibold">{opt.action}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Zone Options */}
-              {currentStepData.isZone && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-                  {currentStepData.zones.map(zone => (
-                    <button
-                      key={zone.value}
-                      onClick={() => selectZone(zone.value)}
-                      className={`border rounded-lg p-3 text-left transition-colors ${
-                        zone.value === 'Green'
-                          ? 'bg-emerald-900/20 border-emerald-700 hover:bg-emerald-900/30'
-                          : zone.value === 'Amber'
-                          ? 'bg-amber-900/20 border-amber-700 hover:bg-amber-900/30'
-                          : 'bg-red-900/20 border-red-700 hover:bg-red-900/30'
-                      }`}
-                    >
-                      <p className={`text-sm font-bold mb-1 ${
-                        zone.value === 'Green' ? 'text-emerald-400' : zone.value === 'Amber' ? 'text-amber-400' : 'text-red-400'
-                      }`}>
-                        {zone.name}
-                      </p>
-                      <p className="text-xs text-slate-400">{zone.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Yes/No Buttons */}
-              {!currentStepData.isRuleOfThree && !currentStepData.isZone && (
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <button
-                    onClick={() => advance(currentStepData.num)}
-                    className="bg-emerald-900/30 border border-emerald-700 rounded-lg p-3 text-left hover:bg-emerald-900/40 transition-all"
-                  >
-                    <div className="text-xs font-bold uppercase tracking-wide text-emerald-400 mb-1">✓ Yes</div>
-                    <div className="text-xs text-slate-300">{currentStepData.yesText}</div>
-                  </button>
-                  <button
-                    onClick={() => block(currentStepData.num, currentStepData.blockMsg)}
-                    className="bg-red-900/30 border border-red-700 rounded-lg p-3 text-left hover:bg-red-900/40 transition-all"
-                  >
-                    <div className="text-xs font-bold uppercase tracking-wide text-red-400 mb-1">✗ No</div>
-                    <div className="text-xs text-slate-300">{currentStepData.noText}</div>
-                  </button>
-                </div>
-              )}
-
-              {/* Blocking Message */}
-              {blockingMessages[`step${currentStep}`] && (
-                <div className="bg-red-900/20 border border-red-700 border-l-4 border-l-red-500 rounded-lg p-4 mt-2">
-                  <p className="text-red-400 text-sm font-semibold mb-2">Stop — no trade</p>
-                  <p className="text-slate-300 text-xs leading-relaxed mb-3">{blockingMessages[`step${currentStep}`]}</p>
-                  <button
-                    onClick={() => retry(currentStep)}
-                    className="bg-transparent border border-red-700 text-red-400 text-xs font-semibold px-4 py-2 rounded hover:bg-red-900/30 transition-colors"
-                  >
-                    I've fixed it — retry
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Success Node */}
-          {allStepsComplete && (
-            <div className="bg-emerald-900/30 border border-emerald-700 border-l-4 border-l-emerald-500 rounded-lg p-5 mt-2">
-              <p className="text-emerald-400 text-lg font-bold mb-2">Trade Approved — Execute</p>
-              <p className="text-emerald-300/70 text-sm leading-relaxed">
-                You've passed all checkpoints. Your discipline is intact. Now execute with confidence and manage according to your plan.
-              </p>
-            </div>
-          )}
+              )
+            })}
+          </div>
 
           {/* Feedback */}
           {feedback && (
-            <div className={`p-4 rounded-lg border mt-6 ${
-              feedback.startsWith('Error')
-                ? 'bg-red-900/20 text-red-300 border-red-800'
-                : 'bg-emerald-900/20 text-emerald-200 border-emerald-700'
-            }`}>
-              {feedback}
-            </div>
+            <div className="mt-4 p-3 rounded-lg border bg-red-900/20 text-red-300 border-red-800 text-sm">{feedback}</div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex flex-col gap-3 mt-8">
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex-1 px-6 py-3 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors font-medium"
-              >
-                Reset Flowchart
-              </button>
-              {hasAnyInput && !allStepsComplete && (
-                <button
-                  type="button"
-                  disabled={logging}
-                  onClick={handleLogFailure}
-                  className={`flex-1 px-6 py-3 rounded-lg font-semibold border ${
-                    logging
-                      ? 'bg-slate-700 text-slate-400 border-slate-600'
-                      : 'bg-amber-500 border-amber-400 text-black hover:bg-amber-400'
-                  }`}
-                >
-                  {logging ? 'Logging...' : 'Log Attempt & Exit'}
-                </button>
-              )}
-            </div>
-            {allStepsComplete && (
-              <button
-                type="button"
-                disabled={unlocking}
-                onClick={handleProceed}
-                className="w-full px-6 py-4 rounded-lg font-bold text-black bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/30 transition-all"
-              >
-                {unlocking ? 'Opening...' : 'YES — PROCEED TO TRADE ENTRY'}
-              </button>
-            )}
+          <div className="flex gap-3 mt-6">
+            <button type="button" onClick={handleReset} className="px-4 py-3 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-sm font-medium">
+              Reset
+            </button>
+            <button
+              type="button"
+              disabled={!canProceed || unlocking}
+              onClick={handleProceed}
+              className={`flex-1 px-6 py-3 rounded-lg font-bold transition-all text-sm ${
+                canProceed && !unlocking
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-black shadow-lg shadow-emerald-500/20'
+                  : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {unlocking ? 'Opening...' : canProceed ? 'Confirm & Log Trade →' : `Complete all steps to proceed`}
+            </button>
           </div>
         </div>
       )}
