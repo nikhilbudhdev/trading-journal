@@ -201,7 +201,6 @@ const DEFAULT_CHECKLIST_LOG_COLUMNS = {
 const DEFAULT_CHECKLIST_ATTEMPT_COLUMNS = {
   id: 'id',
   answers: 'snapshot',
-  zone: 'zone',
   status: 'status',
   failureReason: 'failure_reason',
   createdAt: 'created_at'
