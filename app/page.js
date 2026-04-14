@@ -1220,7 +1220,8 @@ const MODE_CONFIG = {
       strikeLabel: 'Strike Price ($)',
       expiryLabel: 'Expiration Date',
       contractsLabel: 'Contracts',
-      premiumLabel: 'Premium ($ per contract)'
+      premiumLabel: 'Premium ($ per contract)',
+      greeksCalculatorButton: 'Greeks Calculator'
     },
     optionTypeOptions: [
       { value: 'call', label: 'Call' },
@@ -3099,6 +3100,107 @@ const TradingPlanView = ({ setCurrentView, config }) => {
   )
 }
 
+const OptionsGreeksCalculator = ({ onBack }) => {
+  const [stockPrice, setStockPrice] = useState('')
+  const [premium, setPremium] = useState('')
+  const [delta, setDelta] = useState('')
+  const [gamma, setGamma] = useState('')
+  const [stopPrice, setStopPrice] = useState('')
+  const [contracts, setContracts] = useState('')
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    const S  = parseFloat(stockPrice)
+    const P  = parseFloat(premium)
+    const d  = parseFloat(delta)
+    const g  = parseFloat(gamma)
+    const sl = parseFloat(stopPrice)
+    const n  = parseInt(contracts)
+    if ([S, P, d, g, sl, n].some(isNaN) || n <= 0) { setResult(null); return }
+    const dStock = sl - S
+    const dOption = d * dStock + 0.5 * g * dStock * dStock
+    const estPriceAtStop = P + dOption
+    const pctChange = P !== 0 ? (dOption / P) * 100 : null
+    const totalDollar = dOption * n * 100
+    setResult({ dStock, dOption, estPriceAtStop, pctChange, totalDollar, n })
+  }, [stockPrice, premium, delta, gamma, stopPrice, contracts])
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-6">
+      <div className="max-w-2xl mx-auto">
+        <button onClick={onBack} className="mb-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors text-sm">
+          ← Back to Menu
+        </button>
+        <h1 className="text-2xl font-bold mb-1">Greeks Calculator</h1>
+        <p className="text-slate-400 text-sm mb-6">Set your stop loss on the stock price — see the impact on your option premium.</p>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-4 mb-6">
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Current Stock Price ($)" type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)} placeholder="e.g. 150.00" />
+            <InputField label="Current Option Premium ($)" type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 3.50" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Delta" type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)} placeholder="e.g. 0.45 or -0.45 for puts" />
+            <InputField label="Gamma" type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)} placeholder="e.g. 0.03" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Stop Loss Stock Price ($)" type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" />
+            <InputField label="Number of Contracts" type="number" step="1" value={contracts} onChange={e => setContracts(e.target.value)} placeholder="e.g. 2" />
+          </div>
+        </div>
+
+        {result && (
+          <div className="bg-slate-900 border border-purple-500/30 rounded-lg p-5">
+            <h2 className="text-base font-bold text-purple-300 mb-4 uppercase tracking-wide">Results at Stop Loss</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <span className="text-sm text-slate-400">Stock Move (ΔStock)</span>
+                <span className={`font-semibold ${result.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {result.dStock >= 0 ? '+' : ''}{result.dStock.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                <span className="text-sm text-slate-300">Est. Option Price at Stop</span>
+                <span className={`text-xl font-bold ${result.estPriceAtStop > 0 ? 'text-white' : 'text-red-400'}`}>
+                  ${Math.max(result.estPriceAtStop, 0).toFixed(2)}
+                  {result.estPriceAtStop < 0 && <span className="text-xs font-normal text-red-400 ml-2">(floored at $0)</span>}
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <span className="text-sm text-slate-400">$ Change per Contract (pre-100×)</span>
+                <span className={`font-semibold ${result.dOption >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {result.dOption >= 0 ? '+' : ''}${result.dOption.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <span className="text-sm text-slate-400">% Change in Option Price</span>
+                <span className={`font-semibold ${result.pctChange !== null && result.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {result.pctChange !== null ? `${result.pctChange >= 0 ? '+' : ''}${result.pctChange.toFixed(1)}%` : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                <span className="text-sm text-slate-300">Total $ Impact ({result.n} contract{result.n !== 1 ? 's' : ''} × 100)</span>
+                <span className={`text-2xl font-bold ${result.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {result.totalDollar >= 0 ? '+' : ''}${result.totalDollar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mt-4">
+              Formula: ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock². Approximation only — actual P&L varies with theta decay and IV changes.
+            </p>
+          </div>
+        )}
+
+        {!result && (
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">
+            Fill in all fields above to see your option stop loss estimate.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const FuturesPositionSizer = ({ config, onBack }) => {
   const [mode, setMode] = useState('stopFromContracts')
   const [currentBalance, setCurrentBalance] = useState(0)
@@ -3377,6 +3479,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   const supportsMissedTrades = features.missedTrades && config.tables?.missed
   const supportsTradingPlan = features.tradingPlan !== false && config.tables?.plan
   const supportsPositionSizer = features.positionSizer && config.tables?.balance
+  const supportsGreeksCalculator = config.key === 'options'
 
   useEffect(() => {
     setCurrentView('menu')
@@ -3412,10 +3515,13 @@ const TradingEnvironment = ({ config, onBack }) => {
               <MenuButton onClick={() => setCurrentView('update-trade')} className={config.classes.primaryButton}>{config.labels.updateTradeButton}</MenuButton>
               <MenuButton onClick={() => setCurrentView('view-data')} className={config.classes.primaryButton}>{config.labels.viewDataButton}</MenuButton>
             </div>
-            {(supportsMissedTrades || supportsTradingPlan || supportsPositionSizer) && (
+            {(supportsMissedTrades || supportsTradingPlan || supportsPositionSizer || supportsGreeksCalculator) && (
               <div className="space-y-4">
                 {supportsPositionSizer && config.labels.positionSizerButton && (
                   <MenuButton onClick={() => setCurrentView('position-sizer')} className={config.classes.primaryButton}>{config.labels.positionSizerButton}</MenuButton>
+                )}
+                {supportsGreeksCalculator && (
+                  <MenuButton onClick={() => setCurrentView('greeks-calculator')} className={config.classes.primaryButton}>{config.labels.greeksCalculatorButton}</MenuButton>
                 )}
                 {supportsMissedTrades && config.labels.missedTradeButton && (
                   <MenuButton onClick={() => setCurrentView('missed-trade')} className={config.classes.primaryButton}>{config.labels.missedTradeButton}</MenuButton>
@@ -3467,6 +3573,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'missed-data' && supportsMissedTrades) return <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
   if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'greeks-calculator' && supportsGreeksCalculator) return <OptionsGreeksCalculator onBack={() => setCurrentView('menu')} />
   return null
 }
 
