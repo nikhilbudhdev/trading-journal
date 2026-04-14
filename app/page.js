@@ -3106,24 +3106,49 @@ const OptionsGreeksCalculator = ({ onBack }) => {
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
   const [stopPrice, setStopPrice] = useState('')
+  const [tpPrice, setTpPrice] = useState('')
   const [contracts, setContracts] = useState('')
   const [result, setResult] = useState(null)
 
-  useEffect(() => {
-    const S  = parseFloat(stockPrice)
-    const P  = parseFloat(premium)
-    const d  = parseFloat(delta)
-    const g  = parseFloat(gamma)
-    const sl = parseFloat(stopPrice)
-    const n  = parseInt(contracts)
-    if ([S, P, d, g, sl, n].some(isNaN) || n <= 0) { setResult(null); return }
-    const dStock = sl - S
+  const calcLeg = (P, d, g, targetStock, S, n) => {
+    const dStock = targetStock - S
     const dOption = d * dStock + 0.5 * g * dStock * dStock
-    const estPriceAtStop = P + dOption
+    const estPrice = P + dOption
     const pctChange = P !== 0 ? (dOption / P) * 100 : null
     const totalDollar = dOption * n * 100
-    setResult({ dStock, dOption, estPriceAtStop, pctChange, totalDollar, n })
-  }, [stockPrice, premium, delta, gamma, stopPrice, contracts])
+    return { dStock, dOption, estPrice, pctChange, totalDollar }
+  }
+
+  useEffect(() => {
+    const S = parseFloat(stockPrice)
+    const P = parseFloat(premium)
+    const d = parseFloat(delta)
+    const g = parseFloat(gamma)
+    const n = parseInt(contracts)
+    const sl = parseFloat(stopPrice)
+    const tp = parseFloat(tpPrice)
+
+    if ([S, P, d, g, n].some(isNaN) || n <= 0) { setResult(null); return }
+    if (isNaN(sl) && isNaN(tp)) { setResult(null); return }
+
+    const stop = !isNaN(sl) ? calcLeg(P, d, g, sl, S, n) : null
+    const takeProfit = !isNaN(tp) ? calcLeg(P, d, g, tp, S, n) : null
+    const rr = stop && takeProfit && stop.totalDollar !== 0
+      ? Math.abs(takeProfit.totalDollar / stop.totalDollar)
+      : null
+
+    setResult({ stop, takeProfit, rr, n })
+  }, [stockPrice, premium, delta, gamma, stopPrice, tpPrice, contracts])
+
+  const ResultRow = ({ label, value, large, color }) => (
+    <div className={`flex justify-between items-center p-3 rounded-lg ${large ? 'bg-slate-800' : 'bg-slate-800/50'}`}>
+      <span className={`text-sm ${large ? 'text-slate-300' : 'text-slate-400'}`}>{label}</span>
+      <span className={`font-bold ${large ? 'text-xl' : ''} ${color}`}>{value}</span>
+    </div>
+  )
+
+  const formatDollar = v => `${v >= 0 ? '+' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${v < 0 ? ' loss' : ' gain'}`
+  const formatPct = v => v !== null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : 'N/A'
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-6">
@@ -3132,7 +3157,7 @@ const OptionsGreeksCalculator = ({ onBack }) => {
           ← Back to Menu
         </button>
         <h1 className="text-2xl font-bold mb-1">Greeks Calculator</h1>
-        <p className="text-slate-400 text-sm mb-6">Set your stop loss on the stock price — see the impact on your option premium.</p>
+        <p className="text-slate-400 text-sm mb-6">Set your stop and take profit on the stock price — see the impact on your option premium.</p>
 
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-4 mb-6">
           <div className="grid grid-cols-2 gap-4">
@@ -3145,47 +3170,68 @@ const OptionsGreeksCalculator = ({ onBack }) => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <InputField label="Stop Loss Stock Price ($)" type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" />
+            <InputField label="Take Profit Stock Price ($)" type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)} placeholder="e.g. 158.00" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <InputField label="Number of Contracts" type="number" step="1" value={contracts} onChange={e => setContracts(e.target.value)} placeholder="e.g. 2" />
           </div>
         </div>
 
         {result && (
-          <div className="bg-slate-900 border border-purple-500/30 rounded-lg p-5">
-            <h2 className="text-base font-bold text-purple-300 mb-4 uppercase tracking-wide">Results at Stop Loss</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
-                <span className="text-sm text-slate-400">Stock Move (ΔStock)</span>
-                <span className={`font-semibold ${result.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {result.dStock >= 0 ? '+' : ''}{result.dStock.toFixed(2)}
-                </span>
+          <div className="space-y-4">
+            {/* Stop Loss Results */}
+            {result.stop && (
+              <div className="bg-slate-900 border border-red-500/30 rounded-lg p-5">
+                <h2 className="text-base font-bold text-red-400 mb-4 uppercase tracking-wide">Stop Loss</h2>
+                <div className="space-y-2">
+                  <ResultRow label="Stock Move (ΔStock)" value={`${result.stop.dStock >= 0 ? '+' : ''}${result.stop.dStock.toFixed(2)}`} color={result.stop.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                  <ResultRow label="Est. Option Price at Stop" large
+                    value={<>{`$${Math.max(result.stop.estPrice, 0).toFixed(2)}`}{result.stop.estPrice < 0 && <span className="text-xs font-normal text-red-400 ml-2">(floored at $0)</span>}</>}
+                    color={result.stop.estPrice > 0 ? 'text-white' : 'text-red-400'} />
+                  <ResultRow label="$ Change per Contract (pre-100×)" value={`${result.stop.dOption >= 0 ? '+' : ''}$${result.stop.dOption.toFixed(2)}`} color={result.stop.dOption >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                  <ResultRow label="% Change in Option Price" value={formatPct(result.stop.pctChange)} color={result.stop.pctChange !== null && result.stop.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                  <ResultRow label={`Total $ Impact (${result.n} contract${result.n !== 1 ? 's' : ''} × 100)`} large
+                    value={formatDollar(result.stop.totalDollar)}
+                    color={result.stop.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
-                <span className="text-sm text-slate-300">Est. Option Price at Stop</span>
-                <span className={`text-xl font-bold ${result.estPriceAtStop > 0 ? 'text-white' : 'text-red-400'}`}>
-                  ${Math.max(result.estPriceAtStop, 0).toFixed(2)}
-                  {result.estPriceAtStop < 0 && <span className="text-xs font-normal text-red-400 ml-2">(floored at $0)</span>}
-                </span>
+            )}
+
+            {/* Take Profit Results */}
+            {result.takeProfit && (
+              <div className="bg-slate-900 border border-emerald-500/30 rounded-lg p-5">
+                <h2 className="text-base font-bold text-emerald-400 mb-4 uppercase tracking-wide">Take Profit</h2>
+                <div className="space-y-2">
+                  <ResultRow label="Stock Move (ΔStock)" value={`${result.takeProfit.dStock >= 0 ? '+' : ''}${result.takeProfit.dStock.toFixed(2)}`} color={result.takeProfit.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                  <ResultRow label="Est. Option Price at Target" large
+                    value={`$${Math.max(result.takeProfit.estPrice, 0).toFixed(2)}`}
+                    color="text-white" />
+                  <ResultRow label="$ Change per Contract (pre-100×)" value={`${result.takeProfit.dOption >= 0 ? '+' : ''}$${result.takeProfit.dOption.toFixed(2)}`} color={result.takeProfit.dOption >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                  <ResultRow label="% Change in Option Price" value={formatPct(result.takeProfit.pctChange)} color={result.takeProfit.pctChange !== null && result.takeProfit.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                  <ResultRow label={`Total $ Gain (${result.n} contract${result.n !== 1 ? 's' : ''} × 100)`} large
+                    value={formatDollar(result.takeProfit.totalDollar)}
+                    color={result.takeProfit.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
-                <span className="text-sm text-slate-400">$ Change per Contract (pre-100×)</span>
-                <span className={`font-semibold ${result.dOption >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {result.dOption >= 0 ? '+' : ''}${result.dOption.toFixed(2)}
-                </span>
+            )}
+
+            {/* R:R Summary */}
+            {result.rr !== null && (
+              <div className="bg-slate-900 border border-purple-500/30 rounded-lg p-5">
+                <h2 className="text-base font-bold text-purple-300 mb-3 uppercase tracking-wide">Risk / Reward</h2>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 text-sm">Estimated R:R Ratio</span>
+                  <span className={`text-3xl font-bold ${result.rr >= 1.5 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    1 : {result.rr.toFixed(2)}
+                  </span>
+                </div>
+                {result.rr < 1.5 && (
+                  <p className="text-xs text-amber-400 mt-2">Below minimum 1.5:1 threshold — consider adjusting your targets.</p>
+                )}
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
-                <span className="text-sm text-slate-400">% Change in Option Price</span>
-                <span className={`font-semibold ${result.pctChange !== null && result.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {result.pctChange !== null ? `${result.pctChange >= 0 ? '+' : ''}${result.pctChange.toFixed(1)}%` : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
-                <span className="text-sm text-slate-300">Total $ Impact ({result.n} contract{result.n !== 1 ? 's' : ''} × 100)</span>
-                <span className={`text-2xl font-bold ${result.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {result.totalDollar >= 0 ? '+' : ''}${result.totalDollar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-            <p className="text-xs text-slate-500 mt-4">
+            )}
+
+            <p className="text-xs text-slate-500">
               Formula: ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock². Approximation only — actual P&L varies with theta decay and IV changes.
             </p>
           </div>
@@ -3193,7 +3239,7 @@ const OptionsGreeksCalculator = ({ onBack }) => {
 
         {!result && (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">
-            Fill in all fields above to see your option stop loss estimate.
+            Fill in the fields above. You can calculate stop loss, take profit, or both together.
           </div>
         )}
       </div>
