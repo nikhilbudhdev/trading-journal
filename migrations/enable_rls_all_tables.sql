@@ -80,3 +80,4 @@ CREATE POLICY "anon_all_futures_balance_history" ON futures_balance_history
 
 CREATE POLICY "anon_all_futures_trading_plan" ON futures_trading_plan
   FOR ALL TO anon USING (true) WITH CHECK (true);
+ 
