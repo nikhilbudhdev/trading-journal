@@ -3506,6 +3506,10 @@ const TradingPlanView = ({ setCurrentView, config }) => {
   )
 }
 
+const PRESET_SL = [-1, -2, -3, -5]
+const PRESET_TP = [2, 3, 5, 10]
+const SCENARIO_PCTS = [-10, -7, -5, -3, -2, -1, 0, 1, 2, 3, 5, 7, 10]
+
 const OptionsGreeksCalculator = ({ onBack }) => {
   const [stockPrice, setStockPrice] = useState('')
   const [premium, setPremium] = useState('')
@@ -3546,6 +3550,28 @@ const OptionsGreeksCalculator = ({ onBack }) => {
     setResult({ stop, takeProfit, rr, n })
   }, [stockPrice, premium, delta, gamma, stopPrice, tpPrice, contracts])
 
+  const S = parseFloat(stockPrice)
+  const P = parseFloat(premium)
+  const d = parseFloat(delta)
+  const g = parseFloat(gamma)
+  const n = parseInt(contracts)
+  const scenarioRows = (!isNaN(S) && !isNaN(P) && !isNaN(d) && !isNaN(g) && !isNaN(n) && n > 0)
+    ? SCENARIO_PCTS.map(pct => {
+        const targetStock = S * (1 + pct / 100)
+        const { estPrice, totalDollar } = calcLeg(P, d, g, targetStock, S, n)
+        return { pct, targetStock, estPrice: Math.max(0, estPrice), totalDollar }
+      })
+    : null
+
+  const slVal = parseFloat(stopPrice)
+  const tpVal = parseFloat(tpPrice)
+  const closestSlIdx = scenarioRows && !isNaN(slVal)
+    ? scenarioRows.reduce((best, row, i) => Math.abs(row.targetStock - slVal) < Math.abs(scenarioRows[best].targetStock - slVal) ? i : best, 0)
+    : null
+  const closestTpIdx = scenarioRows && !isNaN(tpVal)
+    ? scenarioRows.reduce((best, row, i) => Math.abs(row.targetStock - tpVal) < Math.abs(scenarioRows[best].targetStock - tpVal) ? i : best, 0)
+    : null
+
   const ResultRow = ({ label, value, large, color }) => (
     <div className={`flex justify-between items-center p-3 rounded-lg ${large ? 'bg-slate-800' : 'bg-slate-800/50'}`}>
       <span className={`text-sm ${large ? 'text-slate-300' : 'text-slate-400'}`}>{label}</span>
@@ -3555,6 +3581,21 @@ const OptionsGreeksCalculator = ({ onBack }) => {
 
   const formatDollar = v => `${v >= 0 ? '+' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${v < 0 ? ' loss' : ' gain'}`
   const formatPct = v => v !== null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : 'N/A'
+
+  const presetBtn = (pct, setter, currentVal) => {
+    const computed = !isNaN(S) ? parseFloat((S * (1 + pct / 100)).toFixed(2)) : null
+    const isActive = computed !== null && currentVal === String(computed)
+    return (
+      <button
+        key={pct}
+        disabled={isNaN(S)}
+        onClick={() => computed !== null && setter(String(computed))}
+        className={`px-2 py-0.5 text-xs rounded border transition-colors ${isNaN(S) ? 'opacity-30 cursor-not-allowed border-slate-700 text-slate-500' : isActive ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
+      >
+        {pct > 0 ? `+${pct}%` : `${pct}%`}
+      </button>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-slate-100 p-6">
@@ -3574,11 +3615,80 @@ const OptionsGreeksCalculator = ({ onBack }) => {
             <InputField label="Option Premium ($)" type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 3.50" />
             <InputField label="Delta" type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)} placeholder="-0.45 for puts" />
             <InputField label="Gamma" type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)} placeholder="e.g. 0.03" />
-            <InputField label="Stop Loss Price ($)" type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" />
-            <InputField label="Take Profit Price ($)" type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)} placeholder="e.g. 158.00" />
+            <div>
+              <InputField label="Stop Loss Price ($)" type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" />
+              <div className="flex gap-1 mt-1.5 flex-wrap">
+                {PRESET_SL.map(pct => presetBtn(pct, setStopPrice, stopPrice))}
+              </div>
+            </div>
+            <div>
+              <InputField label="Take Profit Price ($)" type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)} placeholder="e.g. 158.00" />
+              <div className="flex gap-1 mt-1.5 flex-wrap">
+                {PRESET_TP.map(pct => presetBtn(pct, setTpPrice, tpPrice))}
+              </div>
+            </div>
             <InputField label="Contracts" type="number" step="1" value={contracts} onChange={e => setContracts(e.target.value)} placeholder="e.g. 2" />
           </div>
         </div>
+
+        {scenarioRows && (
+          <div className="bg-slate-900 border border-slate-800 rounded-lg mb-6 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-800">
+              <p className="text-sm font-semibold text-slate-300">Scenario Table</p>
+              <p className="text-xs text-slate-500 mt-0.5">Click → SL or → TP to set a price level from any row.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800">
+                    <th className="text-left px-4 py-2 text-xs text-slate-500 font-medium">Move</th>
+                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Stock Price</th>
+                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Option Price</th>
+                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">P&amp;L</th>
+                    <th className="px-4 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scenarioRows.map((row, i) => {
+                    const isZero = row.pct === 0
+                    const isSl = i === closestSlIdx
+                    const isTp = i === closestTpIdx
+                    const borderClass = isSl ? 'border-l-2 border-l-red-500' : isTp ? 'border-l-2 border-l-emerald-500' : 'border-l-2 border-l-transparent'
+                    const bgClass = isZero ? 'bg-slate-800/60' : 'hover:bg-slate-800/30'
+                    return (
+                      <tr key={row.pct} className={`${bgClass} ${borderClass} transition-colors`}>
+                        <td className="px-4 py-2">
+                          <span className={`font-mono text-xs font-semibold ${row.pct < 0 ? 'text-red-400' : row.pct > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {row.pct > 0 ? `+${row.pct}%` : row.pct === 0 ? '0% (now)' : `${row.pct}%`}
+                          </span>
+                          {isSl && <span className="ml-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded px-1">SL</span>}
+                          {isTp && <span className="ml-2 text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded px-1">TP</span>}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono text-slate-300">${row.targetStock.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-slate-300">${row.estPrice.toFixed(2)}</td>
+                        <td className={`px-4 py-2 text-right font-mono font-semibold ${row.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {row.totalDollar >= 0 ? '+' : ''}${Math.abs(row.totalDollar).toFixed(0)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {!isZero && (
+                            <div className="flex gap-1 justify-end">
+                              {row.pct < 0 && (
+                                <button onClick={() => setStopPrice(row.targetStock.toFixed(2))} className="text-xs px-1.5 py-0.5 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap">→ SL</button>
+                              )}
+                              {row.pct > 0 && (
+                                <button onClick={() => setTpPrice(row.targetStock.toFixed(2))} className="text-xs px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 transition-colors whitespace-nowrap">→ TP</button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {result && result.rr !== null && (
           <div className={`rounded-lg p-4 mb-4 flex items-center justify-between border ${result.rr >= 1.5 ? 'bg-emerald-900/20 border-emerald-600' : 'bg-amber-900/20 border-amber-600'}`}>
@@ -3621,10 +3731,210 @@ const OptionsGreeksCalculator = ({ onBack }) => {
           <p className="text-xs text-slate-500">ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock². Approximation only — theta decay and IV changes not included.</p>
         )}
 
-        {!result && (
+        {!result && !scenarioRows && (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">
             Fill in the fields above. Enter a stop, take profit, or both.
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const TrailingStopView = ({ onBack }) => {
+  const [stops, setStops] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('trailing_stops') || '[]') } catch { return [] }
+  })
+  const [form, setForm] = useState({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
+  const [updateInputs, setUpdateInputs] = useState({})
+  const [showForm, setShowForm] = useState(true)
+  const [formError, setFormError] = useState('')
+
+  const persistStops = newStops => {
+    setStops(newStops)
+    localStorage.setItem('trailing_stops', JSON.stringify(newStops))
+  }
+
+  const calcLeg = (P, d, g, targetStock, S, n) => {
+    const dStock = targetStock - S
+    const dOption = d * dStock + 0.5 * g * dStock * dStock
+    return { estPrice: Math.max(0, P + dOption), totalDollar: dOption * n * 100 }
+  }
+
+  const computeStop = stop => {
+    const { entryPrice, currentPrice, highPrice, trailingType, trailingDistance, premium, delta, gamma, contracts } = stop
+    const high = Math.max(highPrice, currentPrice)
+    const dist = trailingType === 'percent' ? high * (trailingDistance / 100) : trailingDistance
+    const stopLevel = high - dist
+    const isTriggered = currentPrice <= stopLevel
+    const distToStop = currentPrice - stopLevel
+    const { estPrice, totalDollar } = calcLeg(premium, delta, gamma, stopLevel, entryPrice, contracts)
+    return { high, stopLevel, isTriggered, distToStop, estPrice, totalDollar }
+  }
+
+  const handleAdd = () => {
+    const S = parseFloat(form.entryPrice), cur = parseFloat(form.currentPrice)
+    const P = parseFloat(form.premium), d = parseFloat(form.delta)
+    const g = parseFloat(form.gamma), n = parseInt(form.contracts)
+    const dist = parseFloat(form.trailingDistance)
+    if ([S, cur, P, d, g, n, dist].some(isNaN) || n <= 0 || dist <= 0) {
+      setFormError('Please fill in all fields with valid numbers.')
+      return
+    }
+    setFormError('')
+    persistStops([...stops, {
+      id: Date.now().toString(),
+      ticker: form.ticker.toUpperCase() || '—',
+      entryPrice: S, currentPrice: cur, highPrice: Math.max(S, cur),
+      premium: P, delta: d, gamma: g, contracts: n,
+      trailingType: form.trailingType, trailingDistance: dist,
+      createdAt: Date.now()
+    }])
+    setForm({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
+    setShowForm(false)
+  }
+
+  const handleUpdatePrice = id => {
+    const raw = updateInputs[id]
+    const price = parseFloat(raw)
+    if (isNaN(price) || price <= 0) return
+    persistStops(stops.map(s => s.id !== id ? s : { ...s, currentPrice: price, highPrice: Math.max(s.highPrice, price) }))
+    setUpdateInputs(prev => ({ ...prev, [id]: '' }))
+  }
+
+  const ff = v => `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-slate-100 p-6">
+      <div className="max-w-2xl mx-auto">
+        <button onClick={onBack} className="mb-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors text-sm">← Back to Menu</button>
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-2xl font-bold">Trailing Stop Tracker</h1>
+          <button onClick={() => setShowForm(f => !f)} className="text-sm text-slate-400 hover:text-slate-200 transition-colors">{showForm ? 'Hide form' : '+ Add stop'}</button>
+        </div>
+        <p className="text-slate-400 text-sm mb-6">Track trailing stops on the underlying stock. Update the price manually each time you check in — the high watermark and stop level update automatically.</p>
+
+        {showForm && (
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+            <p className="text-sm font-semibold text-slate-300 mb-4">New Trailing Stop</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-xs text-slate-400 mb-1">Ticker (optional)</label>
+                <input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="e.g. AAPL" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Entry Stock Price ($)</label>
+                <input type="number" step="0.01" value={form.entryPrice} onChange={e => setForm(f => ({ ...f, entryPrice: e.target.value }))} placeholder="e.g. 150.00" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
+                <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm(f => ({ ...f, currentPrice: e.target.value }))} placeholder="e.g. 153.00" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Option Premium ($)</label>
+                <input type="number" step="0.01" value={form.premium} onChange={e => setForm(f => ({ ...f, premium: e.target.value }))} placeholder="e.g. 3.50" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Contracts</label>
+                <input type="number" step="1" value={form.contracts} onChange={e => setForm(f => ({ ...f, contracts: e.target.value }))} placeholder="e.g. 2" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Delta</label>
+                <input type="number" step="0.001" value={form.delta} onChange={e => setForm(f => ({ ...f, delta: e.target.value }))} placeholder="-0.45 for puts" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Gamma</label>
+                <input type="number" step="0.001" value={form.gamma} onChange={e => setForm(f => ({ ...f, gamma: e.target.value }))} placeholder="e.g. 0.03" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Trailing Type</label>
+                <select value={form.trailingType} onChange={e => setForm(f => ({ ...f, trailingType: e.target.value }))} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-purple-500">
+                  <option value="percent">Percentage (%)</option>
+                  <option value="dollar">Dollar ($)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Trailing Distance {form.trailingType === 'percent' ? '(%)' : '($)'}</label>
+                <input type="number" step="0.1" value={form.trailingDistance} onChange={e => setForm(f => ({ ...f, trailingDistance: e.target.value }))} placeholder={form.trailingType === 'percent' ? 'e.g. 3' : 'e.g. 5.00'} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+              </div>
+            </div>
+            {formError && <p className="text-red-400 text-xs mt-3">{formError}</p>}
+            <button onClick={handleAdd} className="mt-4 w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded font-semibold text-sm transition-colors">Add Trailing Stop</button>
+          </div>
+        )}
+
+        {stops.length === 0 && !showForm && (
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">No trailing stops yet. Click "+ Add stop" to create one.</div>
+        )}
+
+        <div className="space-y-4">
+          {stops.map(stop => {
+            const { high, stopLevel, isTriggered, distToStop, estPrice, totalDollar } = computeStop(stop)
+            const pctTrail = stop.trailingType === 'percent' ? `${stop.trailingDistance}%` : ff(stop.trailingDistance)
+            return (
+              <div key={stop.id} className={`bg-slate-900 rounded-lg border ${isTriggered ? 'border-red-500' : 'border-slate-800'} overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 ${isTriggered ? 'bg-red-500/10' : 'bg-slate-800/40'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-100">{stop.ticker}</span>
+                    <span className="text-xs text-slate-500">trailing {pctTrail} · {stop.contracts} contract{stop.contracts !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isTriggered
+                      ? <span className="text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded animate-pulse">STOP HIT</span>
+                      : <span className="text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded">Active</span>
+                    }
+                    <button onClick={() => persistStops(stops.filter(s => s.id !== stop.id))} className="text-slate-500 hover:text-red-400 transition-colors text-xs ml-2">✕</button>
+                  </div>
+                </div>
+
+                <div className="px-4 py-4 grid grid-cols-3 gap-4 border-b border-slate-800">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-0.5">High Watermark</p>
+                    <p className="text-lg font-bold text-slate-100">{ff(high)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-0.5">Stop Level</p>
+                    <p className={`text-lg font-bold ${isTriggered ? 'text-red-400' : 'text-amber-400'}`}>{ff(stopLevel)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-0.5">Current Price</p>
+                    <p className="text-lg font-bold text-slate-100">{ff(stop.currentPrice)}</p>
+                  </div>
+                </div>
+
+                <div className="px-4 py-3 grid grid-cols-2 gap-4 border-b border-slate-800 bg-slate-800/20">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-0.5">Distance to Stop</p>
+                    <p className={`font-semibold text-sm ${distToStop <= 0 ? 'text-red-400' : distToStop < 2 ? 'text-amber-400' : 'text-slate-300'}`}>
+                      {distToStop >= 0 ? `${ff(distToStop)} above` : `${ff(Math.abs(distToStop))} below`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-0.5">Est. Option P&L at Stop</p>
+                    <p className={`font-semibold text-sm ${totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalDollar >= 0 ? '+' : ''}{ff(totalDollar)} ({ff(estPrice)} / contract)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="px-4 py-3 flex items-center gap-2">
+                  <input
+                    type="number" step="0.01"
+                    value={updateInputs[stop.id] || ''}
+                    onChange={e => setUpdateInputs(prev => ({ ...prev, [stop.id]: e.target.value }))}
+                    placeholder="New stock price..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                    onKeyDown={e => e.key === 'Enter' && handleUpdatePrice(stop.id)}
+                  />
+                  <button onClick={() => handleUpdatePrice(stop.id)} className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors whitespace-nowrap">Update Price</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {stops.length > 0 && (
+          <p className="text-xs text-slate-600 mt-6">Option P&L estimated using delta-gamma approximation. Theta decay and IV changes not included.</p>
         )}
       </div>
     </div>
@@ -4112,7 +4422,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               { label: config.labels.editTradeButton || 'Edit Trade', view: 'edit-trade' },
               { label: config.labels.viewDataButton, view: 'view-data' },
               ...(supportsPartialExits ? [{ label: config.labels.partialExitButton || 'Partial Exit', view: 'partial-exit' }] : []),
-              ...(supportsGreeksCalculator ? [{ label: config.labels.greeksCalculatorButton, view: 'greeks-calculator' }] : []),
+              ...(supportsGreeksCalculator ? [{ label: config.labels.greeksCalculatorButton, view: 'greeks-calculator' }, { label: 'Trailing Stop Tracker', view: 'trailing-stop' }] : []),
               ...(supportsPositionSizer ? [{ label: config.labels.positionSizerButton, view: 'position-sizer' }] : []),
               ...(supportsMissedTrades ? [{ label: config.labels.missedTradeButton, view: 'missed-trade' }, { label: config.labels.missedDataButton, view: 'missed-data' }] : []),
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
@@ -4168,6 +4478,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'greeks-calculator' && supportsGreeksCalculator) return <OptionsGreeksCalculator onBack={() => setCurrentView('menu')} />
+  if (currentView === 'trailing-stop' && supportsGreeksCalculator) return <TrailingStopView onBack={() => setCurrentView('menu')} />
   return null
 }
 
