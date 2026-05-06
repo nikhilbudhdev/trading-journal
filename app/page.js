@@ -284,7 +284,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
   const progress = Math.round((completedCount / totalCount) * 100)
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* Navigation */}
       <nav className="bg-slate-900/95 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 backdrop-blur-sm">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -1443,7 +1443,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button
         onClick={() => setCurrentView('menu')}
         className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
@@ -1667,7 +1667,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
   })
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">{labels.editTradeButton || 'Edit Trade'}</h1>
@@ -1847,7 +1847,7 @@ const ManageTagsView = ({ setCurrentView }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Manage Tags</h1>
@@ -2036,7 +2036,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Log Partial Exit</h1>
@@ -2460,7 +2460,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const winRate = trades.length > 0 ? ((winningTrades / (winningTrades + losingTrades)) * 100).toFixed(1) : 0
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">{labels.viewDataButton}</h1>
@@ -2842,7 +2842,7 @@ const MissedTradeView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">{labels.missedTradeButton}</h1>
@@ -2891,7 +2891,7 @@ const ViewMissedTrades = ({ setCurrentView, config }) => {
   const avgPct = missed.length ? (totalPct / missed.length) : 0
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">{labels.missedDataButton}</h1>
@@ -3171,7 +3171,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-8 gap-4">
@@ -3459,7 +3459,7 @@ const TradingPlanView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-baseline justify-between mb-4">
@@ -3510,7 +3510,16 @@ const PRESET_SL = [-1, -2, -3, -5]
 const PRESET_TP = [2, 3, 5, 10]
 const SCENARIO_PCTS = [-10, -7, -5, -3, -2, -1, 0, 1, 2, 3, 5, 7, 10]
 
-const OptionsGreeksCalculator = ({ onBack }) => {
+const calcOptionLeg = (P, d, g, targetStock, S, n) => {
+  const dStock = targetStock - S
+  const dOption = d * dStock + 0.5 * g * dStock * dStock
+  const estPrice = P + dOption
+  const pctChange = P !== 0 ? (dOption / P) * 100 : null
+  const totalDollar = dOption * n * 100
+  return { dStock, dOption, estPrice, pctChange, totalDollar }
+}
+
+const GreeksCalcTab = () => {
   const [stockPrice, setStockPrice] = useState('')
   const [premium, setPremium] = useState('')
   const [delta, setDelta] = useState('')
@@ -3519,15 +3528,46 @@ const OptionsGreeksCalculator = ({ onBack }) => {
   const [tpPrice, setTpPrice] = useState('')
   const [contracts, setContracts] = useState('')
   const [result, setResult] = useState(null)
+  const [pasteState, setPasteState] = useState('idle')
 
-  const calcLeg = (P, d, g, targetStock, S, n) => {
-    const dStock = targetStock - S
-    const dOption = d * dStock + 0.5 * g * dStock * dStock
-    const estPrice = P + dOption
-    const pctChange = P !== 0 ? (dOption / P) * 100 : null
-    const totalDollar = dOption * n * 100
-    return { dStock, dOption, estPrice, pctChange, totalDollar }
-  }
+  useEffect(() => {
+    const handlePaste = async e => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      const imageItem = Array.from(items).find(i => i.type.startsWith('image/'))
+      if (!imageItem) return
+      const file = imageItem.getAsFile()
+      if (!file) return
+      setPasteState('loading')
+      const reader = new FileReader()
+      reader.onload = async ev => {
+        const dataUrl = ev.target.result
+        const [header, base64] = dataUrl.split(',')
+        const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+        try {
+          const res = await fetch('/api/extract-greeks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64, mediaType })
+          })
+          const data = await res.json()
+          if (data.error) throw new Error(data.error)
+          if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
+          if (data.premium != null) setPremium(String(data.premium))
+          if (data.delta != null) setDelta(String(data.delta))
+          if (data.gamma != null) setGamma(String(data.gamma))
+          setPasteState('success')
+          setTimeout(() => setPasteState('idle'), 4000)
+        } catch {
+          setPasteState('error')
+          setTimeout(() => setPasteState('idle'), 4000)
+        }
+      }
+      reader.readAsDataURL(file)
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
 
   useEffect(() => {
     const S = parseFloat(stockPrice)
@@ -3541,8 +3581,8 @@ const OptionsGreeksCalculator = ({ onBack }) => {
     if ([S, P, d, g, n].some(isNaN) || n <= 0) { setResult(null); return }
     if (isNaN(sl) && isNaN(tp)) { setResult(null); return }
 
-    const stop = !isNaN(sl) ? calcLeg(P, d, g, sl, S, n) : null
-    const takeProfit = !isNaN(tp) ? calcLeg(P, d, g, tp, S, n) : null
+    const stop = !isNaN(sl) ? calcOptionLeg(P, d, g, sl, S, n) : null
+    const takeProfit = !isNaN(tp) ? calcOptionLeg(P, d, g, tp, S, n) : null
     const rr = stop && takeProfit && stop.totalDollar !== 0
       ? Math.abs(takeProfit.totalDollar / stop.totalDollar)
       : null
@@ -3558,7 +3598,7 @@ const OptionsGreeksCalculator = ({ onBack }) => {
   const scenarioRows = (!isNaN(S) && !isNaN(P) && !isNaN(d) && !isNaN(g) && !isNaN(n) && n > 0)
     ? SCENARIO_PCTS.map(pct => {
         const targetStock = S * (1 + pct / 100)
-        const { estPrice, totalDollar } = calcLeg(P, d, g, targetStock, S, n)
+        const { estPrice, totalDollar } = calcOptionLeg(P, d, g, targetStock, S, n)
         return { pct, targetStock, estPrice: Math.max(0, estPrice), totalDollar }
       })
     : null
@@ -3597,19 +3637,62 @@ const OptionsGreeksCalculator = ({ onBack }) => {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-6">
-      <div className="max-w-2xl mx-auto">
-        <button onClick={onBack} className="mb-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors text-sm">
-          ← Back to Menu
-        </button>
-        <div className="flex items-start justify-between mb-1">
-          <h1 className="text-2xl font-bold">Greeks Calculator</h1>
-          <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null) }} className="text-sm text-slate-400 hover:text-slate-200 transition-colors">Reset</button>
-        </div>
-        <p className="text-slate-400 text-sm mb-6">Enter your option details once — see stop loss and take profit impact side by side.</p>
+  const handleDrop = async e => {
+    e.preventDefault()
+    const file = e.dataTransfer?.files?.[0]
+    if (!file || !file.type.startsWith('image/')) return
+    setPasteState('loading')
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      const dataUrl = ev.target.result
+      const [header, base64] = dataUrl.split(',')
+      const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+      try {
+        const res = await fetch('/api/extract-greeks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64, mediaType })
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
+        if (data.premium != null) setPremium(String(data.premium))
+        if (data.delta != null) setDelta(String(data.delta))
+        if (data.gamma != null) setGamma(String(data.gamma))
+        setPasteState('success')
+        setTimeout(() => setPasteState('idle'), 4000)
+      } catch {
+        setPasteState('error')
+        setTimeout(() => setPasteState('idle'), 4000)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-slate-500 text-sm">Enter details or paste a broker screenshot to auto-fill.</p>
+        <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null); setPasteState('idle') }} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
+      </div>
+
+      <div
+        onDrop={handleDrop}
+        onDragOver={e => e.preventDefault()}
+        className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
+          pasteState === 'loading' ? 'border-slate-600 bg-slate-800/30 text-slate-400' :
+          pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
+          pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
+          'border-slate-800 text-slate-600 hover:border-slate-700 hover:text-slate-500'
+        }`}
+      >
+        {pasteState === 'loading' && 'Extracting Greeks from screenshot...'}
+        {pasteState === 'success' && '✓ Auto-filled — review values and adjust if needed'}
+        {pasteState === 'error' && 'Could not extract — please fill in fields manually'}
+        {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
           <div className="grid grid-cols-2 gap-3">
             <InputField label="Stock Price ($)" type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)} placeholder="e.g. 150.00" />
             <InputField label="Option Premium ($)" type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 3.50" />
@@ -3736,12 +3819,11 @@ const OptionsGreeksCalculator = ({ onBack }) => {
             Fill in the fields above. Enter a stop, take profit, or both.
           </div>
         )}
-      </div>
     </div>
   )
 }
 
-const TrailingStopView = ({ onBack }) => {
+const TrailingStopsTab = () => {
   const [stops, setStops] = useState(() => {
     try { return JSON.parse(localStorage.getItem('trailing_stops') || '[]') } catch { return [] }
   })
@@ -3755,12 +3837,6 @@ const TrailingStopView = ({ onBack }) => {
     localStorage.setItem('trailing_stops', JSON.stringify(newStops))
   }
 
-  const calcLeg = (P, d, g, targetStock, S, n) => {
-    const dStock = targetStock - S
-    const dOption = d * dStock + 0.5 * g * dStock * dStock
-    return { estPrice: Math.max(0, P + dOption), totalDollar: dOption * n * 100 }
-  }
-
   const computeStop = stop => {
     const { entryPrice, currentPrice, highPrice, trailingType, trailingDistance, premium, delta, gamma, contracts } = stop
     const high = Math.max(highPrice, currentPrice)
@@ -3768,8 +3844,8 @@ const TrailingStopView = ({ onBack }) => {
     const stopLevel = high - dist
     const isTriggered = currentPrice <= stopLevel
     const distToStop = currentPrice - stopLevel
-    const { estPrice, totalDollar } = calcLeg(premium, delta, gamma, stopLevel, entryPrice, contracts)
-    return { high, stopLevel, isTriggered, distToStop, estPrice, totalDollar }
+    const { estPrice, totalDollar } = calcOptionLeg(premium, delta, gamma, stopLevel, entryPrice, contracts)
+    return { high, stopLevel, isTriggered, distToStop, estPrice: Math.max(0, estPrice), totalDollar }
   }
 
   const handleAdd = () => {
@@ -3805,14 +3881,11 @@ const TrailingStopView = ({ onBack }) => {
   const ff = v => `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-6">
-      <div className="max-w-2xl mx-auto">
-        <button onClick={onBack} className="mb-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors text-sm">← Back to Menu</button>
-        <div className="flex items-center justify-between mb-1">
-          <h1 className="text-2xl font-bold">Trailing Stop Tracker</h1>
-          <button onClick={() => setShowForm(f => !f)} className="text-sm text-slate-400 hover:text-slate-200 transition-colors">{showForm ? 'Hide form' : '+ Add stop'}</button>
-        </div>
-        <p className="text-slate-400 text-sm mb-6">Track trailing stops on the underlying stock. Update the price manually each time you check in — the high watermark and stop level update automatically.</p>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-slate-500 text-sm">Track trailing stops on the underlying. High watermark updates automatically.</p>
+        <button onClick={() => setShowForm(f => !f)} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">{showForm ? 'Hide form' : '+ Add stop'}</button>
+      </div>
 
         {showForm && (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
@@ -3933,9 +4006,30 @@ const TrailingStopView = ({ onBack }) => {
           })}
         </div>
 
-        {stops.length > 0 && (
-          <p className="text-xs text-slate-600 mt-6">Option P&L estimated using delta-gamma approximation. Theta decay and IV changes not included.</p>
-        )}
+      {stops.length > 0 && (
+        <p className="text-xs text-slate-600 mt-6">Option P&L estimated using delta-gamma approximation. Theta decay and IV changes not included.</p>
+      )}
+    </div>
+  )
+}
+
+const OptionsToolsView = ({ onBack }) => {
+  const [activeTab, setActiveTab] = useState('calculator')
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="border-b border-slate-800 px-6 py-4 flex items-center gap-6">
+        <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
+        <div className="flex gap-1">
+          {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
+            <button key={key} onClick={() => setActiveTab(key)}
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="max-w-2xl mx-auto px-6 py-6">
+        {activeTab === 'calculator' ? <GreeksCalcTab /> : <TrailingStopsTab />}
       </div>
     </div>
   )
@@ -3995,7 +4089,7 @@ const EquityCurveView = ({ config, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button onClick={onBack} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
       <div className="max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Equity Curve</h1>
@@ -4127,7 +4221,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
   }, [contracts, riskPercent, dollarPerTick, stopLossTicks, mode, currentBalance])
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <button
         onClick={onBack}
         className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
@@ -4353,7 +4447,7 @@ const TradingEnvironment = ({ config, onBack }) => {
       const totalPnL = closed.reduce((s, t) => s + (parseFloat(t[tradeColumns.pnl] ?? 0)), 0)
       const winRate = closed.length > 0 ? ((wins.length / closed.length) * 100).toFixed(1) : null
       const avgPnL = closed.length > 0 ? (totalPnL / closed.length).toFixed(2) : null
-      setDashStats({ balance, openCount: open.length, winRate, avgPnL, totalPnL, recentTrades: trades.slice(0, 5) })
+      setDashStats({ balance, openCount: open.length, winRate, avgPnL, totalPnL })
     }
     load()
   }, [currentView, config])
@@ -4361,14 +4455,14 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'menu') {
     const { tradeColumns } = config
     const statCards = dashStats ? [
-      { label: 'Account Balance', value: `$${dashStats.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-slate-100' },
-      { label: 'Open Trades', value: dashStats.openCount, color: 'text-blue-400' },
-      { label: 'Win Rate', value: dashStats.winRate !== null ? `${dashStats.winRate}%` : '—', color: parseFloat(dashStats.winRate) >= 50 ? 'text-emerald-400' : 'text-amber-400' },
-      { label: 'Avg P&L', value: dashStats.avgPnL !== null ? `$${parseFloat(dashStats.avgPnL) >= 0 ? '+' : ''}${dashStats.avgPnL}` : '—', color: parseFloat(dashStats.avgPnL) >= 0 ? 'text-emerald-400' : 'text-red-400' },
+      { label: 'Account Balance', value: `$${dashStats.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-white' },
+      { label: 'Open Trades', value: dashStats.openCount, color: 'text-white' },
+      { label: 'Win Rate', value: dashStats.winRate !== null ? `${dashStats.winRate}%` : '—', color: dashStats.winRate !== null ? (parseFloat(dashStats.winRate) >= 50 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-400' },
+      { label: 'Avg P&L', value: dashStats.avgPnL !== null ? `${parseFloat(dashStats.avgPnL) >= 0 ? '+' : ''}$${Math.abs(parseFloat(dashStats.avgPnL)).toFixed(2)}` : '—', color: dashStats.avgPnL !== null ? (parseFloat(dashStats.avgPnL) >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-400' },
     ] : []
 
     return (
-      <div className="min-h-screen bg-gray-950 text-slate-100">
+      <div className="min-h-screen bg-slate-950 text-slate-100">
         <div className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
           <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">{config.labels.menuBack}</button>
           <h1 className="text-xl font-bold text-slate-100">{config.environmentTitle}</h1>
@@ -4379,37 +4473,11 @@ const TradingEnvironment = ({ config, onBack }) => {
           {dashStats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {statCards.map(({ label, value, color }) => (
-                <div key={label} className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-                  <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">{label}</p>
+                <div key={label} className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                  <p className="text-xs text-slate-500 mb-2 uppercase tracking-wide">{label}</p>
                   <p className={`text-2xl font-bold ${color}`}>{value}</p>
                 </div>
               ))}
-            </div>
-          )}
-
-          {dashStats?.recentTrades?.length > 0 && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Recent Trades</h2>
-              <div className="space-y-2">
-                {dashStats.recentTrades.map(trade => {
-                  const pnl = parseFloat(trade[tradeColumns.pnl] ?? 0)
-                  const isClosed = trade[tradeColumns.status] === 'closed'
-                  return (
-                    <div key={trade[tradeColumns.id]} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-slate-100">{trade[tradeColumns.instrument]}</span>
-                        {tradeColumns.direction && <span className="text-xs text-slate-500 uppercase">{trade[tradeColumns.direction]}</span>}
-                        {tradeColumns.optionType && <span className="text-xs text-slate-500 uppercase">{trade[tradeColumns.optionType]}</span>}
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${isClosed ? 'bg-slate-700 text-slate-400' : 'bg-blue-900/40 text-blue-400'}`}>{trade[tradeColumns.status]}</span>
-                      </div>
-                      <div className="text-right">
-                        {isClosed && <span className={`font-semibold text-sm ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</span>}
-                        <p className="text-xs text-slate-500">{trade[tradeColumns.entryDate] ? new Date(trade[tradeColumns.entryDate]).toLocaleDateString() : '—'}</p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
             </div>
           )}
 
@@ -4422,7 +4490,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               { label: config.labels.editTradeButton || 'Edit Trade', view: 'edit-trade' },
               { label: config.labels.viewDataButton, view: 'view-data' },
               ...(supportsPartialExits ? [{ label: config.labels.partialExitButton || 'Partial Exit', view: 'partial-exit' }] : []),
-              ...(supportsGreeksCalculator ? [{ label: config.labels.greeksCalculatorButton, view: 'greeks-calculator' }, { label: 'Trailing Stop Tracker', view: 'trailing-stop' }] : []),
+              ...(supportsGreeksCalculator ? [{ label: 'Options Tools', view: 'options-tools' }] : []),
               ...(supportsPositionSizer ? [{ label: config.labels.positionSizerButton, view: 'position-sizer' }] : []),
               ...(supportsMissedTrades ? [{ label: config.labels.missedTradeButton, view: 'missed-trade' }, { label: config.labels.missedDataButton, view: 'missed-data' }] : []),
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
@@ -4430,7 +4498,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               ...(supportsTagLinks ? [{ label: config.labels.manageTagsButton || 'Manage Tags', view: 'manage-tags' }] : []),
             ].map(({ label, view, primary }) => (
               <button key={view} onClick={() => setCurrentView(view)}
-                className={`p-4 rounded-xl border text-sm font-medium text-left transition-all hover:border-slate-500 ${primary ? config.classes.primaryButton + ' border-transparent' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-750'}`}>
+                className={`p-4 rounded-xl border text-sm font-medium text-left transition-all ${primary ? config.classes.primaryButton + ' border-transparent' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'}`}>
                 {label}
               </button>
             ))}
@@ -4477,8 +4545,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'missed-data' && supportsMissedTrades) return <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
   if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
-  if (currentView === 'greeks-calculator' && supportsGreeksCalculator) return <OptionsGreeksCalculator onBack={() => setCurrentView('menu')} />
-  if (currentView === 'trailing-stop' && supportsGreeksCalculator) return <TrailingStopView onBack={() => setCurrentView('menu')} />
+  if (currentView === 'options-tools' && supportsGreeksCalculator) return <OptionsToolsView onBack={() => setCurrentView('menu')} />
   return null
 }
 
@@ -4487,7 +4554,7 @@ export default function Home() {
 
   if (!activeMode) {
     return (
-      <div className="min-h-screen bg-gray-950 text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
         <div className="w-full max-w-2xl px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-slate-100 mb-4">Trading Journal</h1>
           <p className="text-slate-400 mb-10 text-lg">Select your workspace to manage trades, review performance, and sharpen your edge.</p>
