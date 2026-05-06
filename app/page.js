@@ -3293,6 +3293,49 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           </div>
         )}
 
+        {tradeColumns.premium && (
+          <div
+            onDrop={async e => {
+              e.preventDefault()
+              const file = e.dataTransfer?.files?.[0]
+              if (!file || !file.type.startsWith('image/')) return
+              setPasteFormState('loading')
+              const reader = new FileReader()
+              reader.onload = async ev => {
+                const [header, base64] = ev.target.result.split(',')
+                const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+                try {
+                  const res = await fetch('/api/extract-greeks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: base64, mediaType }) })
+                  const data = await res.json()
+                  if (data.error) throw new Error(data.error)
+                  setFormData(prev => ({
+                    ...prev,
+                    ...(data.stockPrice != null ? { strike: String(data.stockPrice) } : {}),
+                    ...(data.premium != null ? { premium: String(data.premium) } : {}),
+                    ...(data.delta != null ? { delta: String(data.delta) } : {}),
+                    ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
+                  }))
+                  setPasteFormState('success')
+                  setTimeout(() => setPasteFormState('idle'), 4000)
+                } catch { setPasteFormState('error'); setTimeout(() => setPasteFormState('idle'), 4000) }
+              }
+              reader.readAsDataURL(file)
+            }}
+            onDragOver={e => e.preventDefault()}
+            className={`mb-6 rounded-lg border-2 border-dashed px-4 py-4 text-center text-sm transition-colors cursor-default ${
+              pasteFormState === 'loading' ? 'border-slate-600 bg-slate-800/50 text-slate-400' :
+              pasteFormState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
+              pasteFormState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
+              'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {pasteFormState === 'loading' && 'Extracting from screenshot...'}
+            {pasteFormState === 'success' && '✓ Auto-filled strike, premium, delta & gamma — review and adjust'}
+            {pasteFormState === 'error' && 'Could not extract — fill in fields manually'}
+            {pasteFormState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
           {accountField && accounts.length > 0 && (
             <SelectField
@@ -3323,49 +3366,6 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
               options={config.directionOptions || LONG_SHORT_OPTIONS}
               required
             />
-          )}
-
-          {tradeColumns.premium && (
-            <div
-              onDrop={async e => {
-                e.preventDefault()
-                const file = e.dataTransfer?.files?.[0]
-                if (!file || !file.type.startsWith('image/')) return
-                setPasteFormState('loading')
-                const reader = new FileReader()
-                reader.onload = async ev => {
-                  const [header, base64] = ev.target.result.split(',')
-                  const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
-                  try {
-                    const res = await fetch('/api/extract-greeks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: base64, mediaType }) })
-                    const data = await res.json()
-                    if (data.error) throw new Error(data.error)
-                    setFormData(prev => ({
-                      ...prev,
-                      ...(data.stockPrice != null ? { strike: String(data.stockPrice) } : {}),
-                      ...(data.premium != null ? { premium: String(data.premium) } : {}),
-                      ...(data.delta != null ? { delta: String(data.delta) } : {}),
-                      ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
-                    }))
-                    setPasteFormState('success')
-                    setTimeout(() => setPasteFormState('idle'), 4000)
-                  } catch { setPasteFormState('error'); setTimeout(() => setPasteFormState('idle'), 4000) }
-                }
-                reader.readAsDataURL(file)
-              }}
-              onDragOver={e => e.preventDefault()}
-              className={`rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
-                pasteFormState === 'loading' ? 'border-slate-600 bg-slate-700/30 text-slate-400' :
-                pasteFormState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
-                pasteFormState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
-                'border-slate-600 text-slate-500 hover:border-slate-500 hover:text-slate-400'
-              }`}
-            >
-              {pasteFormState === 'loading' && 'Extracting from screenshot...'}
-              {pasteFormState === 'success' && '✓ Auto-filled strike, premium, delta & gamma — review and adjust'}
-              {pasteFormState === 'error' && 'Could not extract — fill in fields manually'}
-              {pasteFormState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
-            </div>
           )}
 
           {tradeColumns.stopSize && labels.stopSizeLabel && (
