@@ -495,7 +495,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
               <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
                 <h4 className="font-bold text-red-400 mb-2">Red Zone</h4>
                 <p className="text-xs text-slate-300">
-                  NO TRADES ALLOWED. Price is in a bad location. Walk away. You're not missing out — you're preserving capital.
+                  NO TRADES ALLOWED. Price is in a bad location. Walk away. You&apos;re not missing out — you&apos;re preserving capital.
                 </p>
               </div>
             </div>
@@ -2697,7 +2697,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
               </div>
               <button onClick={() => setJournalTrade(null)} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
             </div>
-            <p className="text-sm text-slate-400">What worked? What didn't? What would you do differently?</p>
+            <p className="text-sm text-slate-400">What worked? What didn&apos;t? What would you do differently?</p>
             <textarea
               value={journalText}
               onChange={(e) => setJournalText(e.target.value)}
@@ -4104,7 +4104,7 @@ const TrailingStopsTab = () => {
         )}
 
         {stops.length === 0 && !showForm && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">No trailing stops yet. Click "+ Add stop" to create one.</div>
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">No trailing stops yet. Click &quot;+ Add stop&quot; to create one.</div>
         )}
 
         <div className="space-y-4">
