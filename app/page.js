@@ -805,6 +805,7 @@ const MODE_CONFIG = {
       premium: 'premium',
       delta: 'delta',
       gamma: 'gamma',
+      theta: 'theta',
       entryStockPrice: 'entry_stock_price',
       forecastUrl: 'forecast_url',
       entryUrl: 'entry_url',
@@ -892,6 +893,7 @@ const MODE_CONFIG = {
       entryStockPriceLabel: 'Entry Stock Price ($)',
       deltaLabel: 'Delta',
       gammaLabel: 'Gamma',
+      thetaLabel: 'Theta (Θ)',
       greeksCalculatorButton: 'Greeks Calculator',
       editTradeButton: 'Edit Trade Details',
       missedTradeButton: 'Log Missed Option Trade',
@@ -919,6 +921,7 @@ const MODE_CONFIG = {
       entryStockPrice: '',
       delta: '',
       gamma: '',
+      theta: '',
       entryUrl: '',
       forecastUrl: '',
       notes: ''
@@ -1624,6 +1627,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
     if (tradeColumns.entryStockPrice) data.entryStockPrice = trade[tradeColumns.entryStockPrice] ?? ''
     if (tradeColumns.delta) data.delta = trade[tradeColumns.delta] ?? ''
     if (tradeColumns.gamma) data.gamma = trade[tradeColumns.gamma] ?? ''
+    if (tradeColumns.theta) data.theta = trade[tradeColumns.theta] ?? ''
     if (tradeColumns.entryPrice) data.entryPrice = trade[tradeColumns.entryPrice] ?? ''
     if (tradeColumns.dollarPerTick) data.dollarPerTick = trade[tradeColumns.dollarPerTick] ?? ''
     if (tradeColumns.stopLossTicks) data.stopLossTicks = trade[tradeColumns.stopLossTicks] ?? ''
@@ -1653,6 +1657,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
       set(tradeColumns.entryStockPrice, editData.entryStockPrice === '' ? null : (editData.entryStockPrice != null ? parseFloat(editData.entryStockPrice) : null))
       set(tradeColumns.delta, editData.delta === '' ? null : (editData.delta != null ? parseFloat(editData.delta) : null))
       set(tradeColumns.gamma, editData.gamma === '' ? null : (editData.gamma != null ? parseFloat(editData.gamma) : null))
+      set(tradeColumns.theta, editData.theta === '' ? null : (editData.theta != null ? parseFloat(editData.theta) : null))
       set(tradeColumns.entryPrice, editData.entryPrice === '' ? null : (editData.entryPrice != null ? parseFloat(editData.entryPrice) : null))
       set(tradeColumns.dollarPerTick, editData.dollarPerTick === '' ? null : (editData.dollarPerTick != null ? parseFloat(editData.dollarPerTick) : null))
       set(tradeColumns.stopLossTicks, editData.stopLossTicks === '' ? null : (editData.stopLossTicks != null ? parseInt(editData.stopLossTicks) : null))
@@ -1782,6 +1787,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
                   )}
                   {tradeColumns.gamma && (
                     <InputField label={labels.gammaLabel || 'Gamma'} type="number" step="0.001" value={editData.gamma ?? ''} onChange={(e) => setEditData(p => ({ ...p, gamma: e.target.value }))} />
+                  )}
+                  {tradeColumns.theta && (
+                    <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={editData.theta ?? ''} onChange={(e) => setEditData(p => ({ ...p, theta: e.target.value }))} />
                   )}
                   {tradeColumns.entryPrice && (
                     <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={editData.entryPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, entryPrice: e.target.value }))} />
@@ -3046,6 +3054,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             ...(data.premium != null ? { premium: String(data.premium) } : {}),
             ...(data.delta != null ? { delta: String(data.delta) } : {}),
             ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
+            ...(data.theta != null ? { theta: String(data.theta) } : {}),
           }))
           setPasteFormState('success')
           setTimeout(() => setPasteFormState('idle'), 4000)
@@ -3188,6 +3197,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.entryStockPrice, formData.entryStockPrice === '' ? null : (formData.entryStockPrice ? parseFloat(formData.entryStockPrice) : null))
       assignValue(tradeColumns.delta, formData.delta === '' ? null : (formData.delta ? parseFloat(formData.delta) : null))
       assignValue(tradeColumns.gamma, formData.gamma === '' ? null : (formData.gamma ? parseFloat(formData.gamma) : null))
+      assignValue(tradeColumns.theta, formData.theta === '' ? null : (formData.theta ? parseFloat(formData.theta) : null))
       assignValue(tradeColumns.entryPrice, formData.entryPrice === '' ? null : (formData.entryPrice ? parseFloat(formData.entryPrice) : null))
       assignValue(tradeColumns.dollarPerTick, formData.dollarPerTick === '' ? null : (formData.dollarPerTick ? parseFloat(formData.dollarPerTick) : null))
       assignValue(tradeColumns.stopLossTicks, formData.stopLossTicks === '' ? null : (formData.stopLossTicks ? parseInt(formData.stopLossTicks) : null))
@@ -3317,6 +3327,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                     ...(data.premium != null ? { premium: String(data.premium) } : {}),
                     ...(data.delta != null ? { delta: String(data.delta) } : {}),
                     ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
+                    ...(data.theta != null ? { theta: String(data.theta) } : {}),
                   }))
                   setPasteFormState('success')
                   setTimeout(() => setPasteFormState('idle'), 4000)
@@ -3333,7 +3344,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             }`}
           >
             {pasteFormState === 'loading' && 'Extracting from screenshot...'}
-            {pasteFormState === 'success' && '✓ Auto-filled strike, premium, delta & gamma — review and adjust'}
+            {pasteFormState === 'success' && '✓ Auto-filled strike, premium, delta, gamma & theta — review and adjust'}
             {pasteFormState === 'error' && 'Could not extract — fill in fields manually'}
             {pasteFormState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
           </div>
@@ -3401,6 +3412,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
           {tradeColumns.gamma && (
             <InputField label={labels.gammaLabel || 'Gamma'} type="number" step="0.001" value={formData.gamma} onChange={(e) => handleInputChange('gamma', e.target.value)} placeholder="e.g. 0.03" />
+          )}
+
+          {tradeColumns.theta && (
+            <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={formData.theta} onChange={(e) => handleInputChange('theta', e.target.value)} placeholder="-0.05 (daily decay)" />
           )}
 
           {tradeColumns.entryPrice && (
@@ -3649,6 +3664,9 @@ const GreeksCalcTab = () => {
   const [premium, setPremium] = useState('')
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
+  const [theta, setTheta] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [daysHeld, setDaysHeld] = useState('')
   const [stopPrice, setStopPrice] = useState('')
   const [tpPrice, setTpPrice] = useState('')
   const [contracts, setContracts] = useState('')
@@ -3681,6 +3699,7 @@ const GreeksCalcTab = () => {
           if (data.premium != null) setPremium(String(data.premium))
           if (data.delta != null) setDelta(String(data.delta))
           if (data.gamma != null) setGamma(String(data.gamma))
+          if (data.theta != null) setTheta(String(data.theta))
           setPasteState('success')
           setTimeout(() => setPasteState('idle'), 4000)
         } catch {
@@ -3719,12 +3738,17 @@ const GreeksCalcTab = () => {
   const P = parseFloat(premium)
   const d = parseFloat(delta)
   const g = parseFloat(gamma)
+  const th = parseFloat(theta)
   const n = parseInt(contracts)
+  const daysToExpiry = expiry ? Math.ceil((new Date(expiry) - new Date()) / 86400000) : null
+  const days = parseFloat(daysHeld) || daysToExpiry || 0
+  const thetaActive = !isNaN(th) && days > 0
   const scenarioRows = (!isNaN(S) && !isNaN(P) && !isNaN(d) && !isNaN(g) && !isNaN(n) && n > 0)
     ? SCENARIO_PCTS.map(pct => {
         const targetStock = S * (1 + pct / 100)
         const { estPrice, totalDollar } = calcOptionLeg(P, d, g, targetStock, S, n)
-        return { pct, targetStock, estPrice: Math.max(0, estPrice), totalDollar }
+        const thetaImpact = thetaActive ? th * days * n * 100 : 0
+        return { pct, targetStock, estPrice: Math.max(0, estPrice), totalDollar, totalDollarWithTheta: totalDollar + thetaImpact }
       })
     : null
 
@@ -3784,6 +3808,7 @@ const GreeksCalcTab = () => {
         if (data.premium != null) setPremium(String(data.premium))
         if (data.delta != null) setDelta(String(data.delta))
         if (data.gamma != null) setGamma(String(data.gamma))
+        if (data.theta != null) setTheta(String(data.theta))
         setPasteState('success')
         setTimeout(() => setPasteState('idle'), 4000)
       } catch {
@@ -3798,7 +3823,7 @@ const GreeksCalcTab = () => {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-slate-500 text-sm">Enter details or paste a broker screenshot to auto-fill.</p>
-        <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null); setPasteState('idle') }} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
+        <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setTheta(''); setExpiry(''); setDaysHeld(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null); setPasteState('idle') }} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
       </div>
 
       <div
@@ -3823,6 +3848,9 @@ const GreeksCalcTab = () => {
             <InputField label="Option Premium ($)" type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 3.50" />
             <InputField label="Delta" type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)} placeholder="-0.45 for puts" />
             <InputField label="Gamma" type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)} placeholder="e.g. 0.03" />
+            <InputField label="Theta (Θ)" type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)} placeholder="-0.05 (daily decay)" />
+            <InputField label="Expiry Date" type="date" value={expiry} onChange={e => setExpiry(e.target.value)} placeholder="" />
+            <InputField label="Days Held (override)" type="number" step="1" value={daysHeld} onChange={e => setDaysHeld(e.target.value)} placeholder="leave blank to use expiry" />
             <div>
               <InputField label="Stop Loss Price ($)" type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" />
               <div className="flex gap-1 mt-1.5 flex-wrap">
@@ -3852,7 +3880,7 @@ const GreeksCalcTab = () => {
                     <th className="text-left px-4 py-2 text-xs text-slate-500 font-medium">Move</th>
                     <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Stock Price</th>
                     <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Option Price</th>
-                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">P&amp;L</th>
+                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">{thetaActive ? `P&L (Δ+Θ×${days}d)` : 'P&L'}</th>
                     <th className="px-4 py-2"></th>
                   </tr>
                 </thead>
@@ -3874,8 +3902,8 @@ const GreeksCalcTab = () => {
                         </td>
                         <td className="px-4 py-2 text-right font-mono text-slate-300">${row.targetStock.toFixed(2)}</td>
                         <td className="px-4 py-2 text-right font-mono text-slate-300">${row.estPrice.toFixed(2)}</td>
-                        <td className={`px-4 py-2 text-right font-mono font-semibold ${row.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {row.totalDollar >= 0 ? '+' : ''}${Math.abs(row.totalDollar).toFixed(0)}
+                        <td className={`px-4 py-2 text-right font-mono font-semibold ${(thetaActive ? row.totalDollarWithTheta : row.totalDollar) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {(thetaActive ? row.totalDollarWithTheta : row.totalDollar) >= 0 ? '+' : ''}${Math.abs(thetaActive ? row.totalDollarWithTheta : row.totalDollar).toFixed(0)}
                         </td>
                         <td className="px-3 py-2">
                           {!isZero && (
@@ -3935,8 +3963,28 @@ const GreeksCalcTab = () => {
           </div>
         )}
 
+        {thetaActive && (
+          <div className="bg-zinc-950 border border-amber-500/30 rounded-lg p-4 mb-4">
+            <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wide mb-3">Theta Decay</h2>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
+                <span className="text-xs text-slate-400 mb-1">Daily (Θ × N × 100)</span>
+                <span className="font-bold text-amber-400">{(th * n * 100) >= 0 ? '+' : ''}${(th * n * 100).toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
+                <span className="text-xs text-slate-400 mb-1">{daysToExpiry !== null && !parseFloat(daysHeld) ? 'Days to Expiry' : 'Days Held'}</span>
+                <span className="font-bold text-white">{days}</span>
+              </div>
+              <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
+                <span className="text-xs text-slate-400 mb-1">Total Decay</span>
+                <span className="font-bold text-red-400">{(th * days * n * 100) >= 0 ? '+' : ''}${(th * days * n * 100).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {result && (
-          <p className="text-xs text-slate-500">ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock². Approximation only — theta decay and IV changes not included.</p>
+          <p className="text-xs text-slate-500">{thetaActive ? `ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock² + Θ × ${days}d. Approximation only — IV changes not included.` : 'ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock². Approximation only — theta decay and IV changes not included.'}</p>
         )}
 
         {!result && !scenarioRows && (
@@ -3952,7 +4000,7 @@ const TrailingStopsTab = () => {
   const [stops, setStops] = useState(() => {
     try { return JSON.parse(localStorage.getItem('trailing_stops') || '[]') } catch { return [] }
   })
-  const [form, setForm] = useState({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
+  const [form, setForm] = useState({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', theta: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
   const [updateInputs, setUpdateInputs] = useState({})
   const [showForm, setShowForm] = useState(true)
   const [formError, setFormError] = useState('')
@@ -3962,7 +4010,7 @@ const TrailingStopsTab = () => {
   useEffect(() => {
     supabase
       .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, entry_stock_price')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
@@ -3981,6 +4029,7 @@ const TrailingStopsTab = () => {
       contracts: t.contracts != null ? String(t.contracts) : '',
       delta: t.delta != null ? String(t.delta) : '',
       gamma: t.gamma != null ? String(t.gamma) : '',
+      theta: t.theta != null ? String(t.theta) : '',
     }))
   }
 
@@ -4088,6 +4137,10 @@ const TrailingStopsTab = () => {
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Gamma</label>
                 <input type="number" step="0.001" value={form.gamma} onChange={e => setForm(f => ({ ...f, gamma: e.target.value }))} placeholder="e.g. 0.03" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Theta (optional)</label>
+                <input type="number" step="0.001" value={form.theta} onChange={e => setForm(f => ({ ...f, theta: e.target.value }))} placeholder="-0.05 (daily decay)" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Trailing Type</label>

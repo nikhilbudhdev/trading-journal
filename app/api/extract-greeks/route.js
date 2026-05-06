@@ -23,7 +23,7 @@ export async function POST(req) {
             },
             {
               type: 'text',
-              text: 'Extract option Greeks from this broker screenshot. Return ONLY a valid JSON object with exactly these keys (numeric values only, null if the field is not clearly visible): {"stockPrice": null, "premium": null, "delta": null, "gamma": null}. For premium, use the mid price if bid/ask is shown. Delta for puts is typically negative (e.g. -0.45). Do not include any explanation or extra text — just the JSON.',
+              text: 'Extract option Greeks from this broker screenshot. Return ONLY a valid JSON object with exactly these keys (numeric values only, null if the field is not clearly visible): {"stockPrice": null, "premium": null, "delta": null, "gamma": null, "theta": null}. For premium, use the mid price if bid/ask is shown. Delta for puts is typically negative (e.g. -0.45). Theta is typically negative (e.g. -0.05). Do not include any explanation or extra text — just the JSON.',
             },
           ],
         },
