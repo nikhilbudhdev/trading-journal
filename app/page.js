@@ -803,6 +803,9 @@ const MODE_CONFIG = {
       expiry: 'expiry_date',
       contracts: 'contracts',
       premium: 'premium',
+      delta: 'delta',
+      gamma: 'gamma',
+      entryStockPrice: 'entry_stock_price',
       forecastUrl: 'forecast_url',
       entryUrl: 'entry_url',
       notes: 'notes',
@@ -886,6 +889,9 @@ const MODE_CONFIG = {
       expiryLabel: 'Expiration Date',
       contractsLabel: 'Contracts',
       premiumLabel: 'Premium ($ per contract)',
+      entryStockPriceLabel: 'Entry Stock Price ($)',
+      deltaLabel: 'Delta',
+      gammaLabel: 'Gamma',
       greeksCalculatorButton: 'Greeks Calculator',
       editTradeButton: 'Edit Trade Details',
       missedTradeButton: 'Log Missed Option Trade',
@@ -910,6 +916,9 @@ const MODE_CONFIG = {
       expiry: '',
       contracts: '',
       premium: '',
+      entryStockPrice: '',
+      delta: '',
+      gamma: '',
       entryUrl: '',
       forecastUrl: '',
       notes: ''
@@ -1612,6 +1621,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
     if (tradeColumns.expiry) data.expiry = trade[tradeColumns.expiry] ? trade[tradeColumns.expiry].split('T')[0] : ''
     if (tradeColumns.contracts) data.contracts = trade[tradeColumns.contracts] ?? ''
     if (tradeColumns.premium) data.premium = trade[tradeColumns.premium] ?? ''
+    if (tradeColumns.entryStockPrice) data.entryStockPrice = trade[tradeColumns.entryStockPrice] ?? ''
+    if (tradeColumns.delta) data.delta = trade[tradeColumns.delta] ?? ''
+    if (tradeColumns.gamma) data.gamma = trade[tradeColumns.gamma] ?? ''
     if (tradeColumns.entryPrice) data.entryPrice = trade[tradeColumns.entryPrice] ?? ''
     if (tradeColumns.dollarPerTick) data.dollarPerTick = trade[tradeColumns.dollarPerTick] ?? ''
     if (tradeColumns.stopLossTicks) data.stopLossTicks = trade[tradeColumns.stopLossTicks] ?? ''
@@ -1638,6 +1650,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
       set(tradeColumns.expiry, editData.expiry || null)
       set(tradeColumns.contracts, editData.contracts === '' ? null : (editData.contracts != null ? parseFloat(editData.contracts) : null))
       set(tradeColumns.premium, editData.premium === '' ? null : (editData.premium != null ? parseFloat(editData.premium) : null))
+      set(tradeColumns.entryStockPrice, editData.entryStockPrice === '' ? null : (editData.entryStockPrice != null ? parseFloat(editData.entryStockPrice) : null))
+      set(tradeColumns.delta, editData.delta === '' ? null : (editData.delta != null ? parseFloat(editData.delta) : null))
+      set(tradeColumns.gamma, editData.gamma === '' ? null : (editData.gamma != null ? parseFloat(editData.gamma) : null))
       set(tradeColumns.entryPrice, editData.entryPrice === '' ? null : (editData.entryPrice != null ? parseFloat(editData.entryPrice) : null))
       set(tradeColumns.dollarPerTick, editData.dollarPerTick === '' ? null : (editData.dollarPerTick != null ? parseFloat(editData.dollarPerTick) : null))
       set(tradeColumns.stopLossTicks, editData.stopLossTicks === '' ? null : (editData.stopLossTicks != null ? parseInt(editData.stopLossTicks) : null))
@@ -1758,6 +1773,15 @@ const EditTradeView = ({ setCurrentView, config }) => {
                   )}
                   {tradeColumns.premium && (
                     <InputField label={labels.premiumLabel || 'Premium ($ per contract)'} type="number" step="0.01" value={editData.premium ?? ''} onChange={(e) => setEditData(p => ({ ...p, premium: e.target.value }))} />
+                  )}
+                  {tradeColumns.entryStockPrice && (
+                    <InputField label={labels.entryStockPriceLabel || 'Entry Stock Price ($)'} type="number" step="0.01" value={editData.entryStockPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, entryStockPrice: e.target.value }))} />
+                  )}
+                  {tradeColumns.delta && (
+                    <InputField label={labels.deltaLabel || 'Delta'} type="number" step="0.001" value={editData.delta ?? ''} onChange={(e) => setEditData(p => ({ ...p, delta: e.target.value }))} />
+                  )}
+                  {tradeColumns.gamma && (
+                    <InputField label={labels.gammaLabel || 'Gamma'} type="number" step="0.001" value={editData.gamma ?? ''} onChange={(e) => setEditData(p => ({ ...p, gamma: e.target.value }))} />
                   )}
                   {tradeColumns.entryPrice && (
                     <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={editData.entryPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, entryPrice: e.target.value }))} />
@@ -2992,6 +3016,49 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const [accountBalances, setAccountBalances] = useState({})
   const [checklistComplete, setChecklistComplete] = useState(false)
   const [checklistSnapshot, setChecklistSnapshot] = useState(null)
+  const [pasteFormState, setPasteFormState] = useState('idle')
+
+  useEffect(() => {
+    if (!tradeColumns.premium) return
+    const handlePaste = async e => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      const imageItem = Array.from(items).find(i => i.type.startsWith('image/'))
+      if (!imageItem) return
+      const file = imageItem.getAsFile()
+      if (!file) return
+      setPasteFormState('loading')
+      const reader = new FileReader()
+      reader.onload = async ev => {
+        const [header, base64] = ev.target.result.split(',')
+        const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+        try {
+          const res = await fetch('/api/extract-greeks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64, mediaType })
+          })
+          const data = await res.json()
+          if (data.error) throw new Error(data.error)
+          setFormData(prev => ({
+            ...prev,
+            ...(data.stockPrice != null ? { strike: String(data.stockPrice) } : {}),
+            ...(data.premium != null ? { premium: String(data.premium) } : {}),
+            ...(data.delta != null ? { delta: String(data.delta) } : {}),
+            ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
+          }))
+          setPasteFormState('success')
+          setTimeout(() => setPasteFormState('idle'), 4000)
+        } catch {
+          setPasteFormState('error')
+          setTimeout(() => setPasteFormState('idle'), 4000)
+        }
+      }
+      reader.readAsDataURL(file)
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [tradeColumns.premium, setFormData])
 
   useEffect(() => {
     if (!checklistComplete) return
@@ -3258,6 +3325,49 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             />
           )}
 
+          {tradeColumns.premium && (
+            <div
+              onDrop={async e => {
+                e.preventDefault()
+                const file = e.dataTransfer?.files?.[0]
+                if (!file || !file.type.startsWith('image/')) return
+                setPasteFormState('loading')
+                const reader = new FileReader()
+                reader.onload = async ev => {
+                  const [header, base64] = ev.target.result.split(',')
+                  const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+                  try {
+                    const res = await fetch('/api/extract-greeks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: base64, mediaType }) })
+                    const data = await res.json()
+                    if (data.error) throw new Error(data.error)
+                    setFormData(prev => ({
+                      ...prev,
+                      ...(data.stockPrice != null ? { strike: String(data.stockPrice) } : {}),
+                      ...(data.premium != null ? { premium: String(data.premium) } : {}),
+                      ...(data.delta != null ? { delta: String(data.delta) } : {}),
+                      ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
+                    }))
+                    setPasteFormState('success')
+                    setTimeout(() => setPasteFormState('idle'), 4000)
+                  } catch { setPasteFormState('error'); setTimeout(() => setPasteFormState('idle'), 4000) }
+                }
+                reader.readAsDataURL(file)
+              }}
+              onDragOver={e => e.preventDefault()}
+              className={`rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
+                pasteFormState === 'loading' ? 'border-slate-600 bg-slate-700/30 text-slate-400' :
+                pasteFormState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
+                pasteFormState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
+                'border-slate-600 text-slate-500 hover:border-slate-500 hover:text-slate-400'
+              }`}
+            >
+              {pasteFormState === 'loading' && 'Extracting from screenshot...'}
+              {pasteFormState === 'success' && '✓ Auto-filled strike, premium, delta & gamma — review and adjust'}
+              {pasteFormState === 'error' && 'Could not extract — fill in fields manually'}
+              {pasteFormState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
+            </div>
+          )}
+
           {tradeColumns.stopSize && labels.stopSizeLabel && (
             <InputField label={labels.stopSizeLabel} type="number" step={stopSizeStep || '0.01'} value={formData.stopSize} onChange={(e) => handleInputChange('stopSize', e.target.value)} placeholder="e.g., 0.50" />
           )}
@@ -3276,6 +3386,18 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
           {tradeColumns.premium && (
             <InputField label={labels.premiumLabel || 'Premium ($)'} type="number" step="0.01" value={formData.premium} onChange={(e) => handleInputChange('premium', e.target.value)} placeholder="e.g., 2.45" />
+          )}
+
+          {tradeColumns.entryStockPrice && (
+            <InputField label={labels.entryStockPriceLabel || 'Entry Stock Price ($)'} type="number" step="0.01" value={formData.entryStockPrice} onChange={(e) => handleInputChange('entryStockPrice', e.target.value)} placeholder="e.g. 150.00" />
+          )}
+
+          {tradeColumns.delta && (
+            <InputField label={labels.deltaLabel || 'Delta'} type="number" step="0.001" value={formData.delta} onChange={(e) => handleInputChange('delta', e.target.value)} placeholder="-0.45 for puts" />
+          )}
+
+          {tradeColumns.gamma && (
+            <InputField label={labels.gammaLabel || 'Gamma'} type="number" step="0.001" value={formData.gamma} onChange={(e) => handleInputChange('gamma', e.target.value)} placeholder="e.g. 0.03" />
           )}
 
           {tradeColumns.entryPrice && (
@@ -3831,6 +3953,33 @@ const TrailingStopsTab = () => {
   const [updateInputs, setUpdateInputs] = useState({})
   const [showForm, setShowForm] = useState(true)
   const [formError, setFormError] = useState('')
+  const [openTrades, setOpenTrades] = useState([])
+  const [selectedImport, setSelectedImport] = useState('')
+
+  useEffect(() => {
+    supabase
+      .from('options_trades')
+      .select('id, ticker, premium, contracts, delta, gamma, entry_stock_price')
+      .eq('status', 'open')
+      .order('entry_date', { ascending: false })
+      .then(({ data }) => { if (data) setOpenTrades(data) })
+  }, [])
+
+  const handleImportTrade = (id) => {
+    setSelectedImport(id)
+    const t = openTrades.find(o => String(o.id) === id)
+    if (!t) return
+    setForm(f => ({
+      ...f,
+      ticker: t.ticker || '',
+      entryPrice: t.entry_stock_price != null ? String(t.entry_stock_price) : '',
+      currentPrice: t.entry_stock_price != null ? String(t.entry_stock_price) : '',
+      premium: t.premium != null ? String(t.premium) : '',
+      contracts: t.contracts != null ? String(t.contracts) : '',
+      delta: t.delta != null ? String(t.delta) : '',
+      gamma: t.gamma != null ? String(t.gamma) : '',
+    }))
+  }
 
   const persistStops = newStops => {
     setStops(newStops)
@@ -3867,6 +4016,7 @@ const TrailingStopsTab = () => {
       createdAt: Date.now()
     }])
     setForm({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
+    setSelectedImport('')
     setShowForm(false)
   }
 
@@ -3890,6 +4040,23 @@ const TrailingStopsTab = () => {
         {showForm && (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
             <p className="text-sm font-semibold text-slate-300 mb-4">New Trailing Stop</p>
+            {openTrades.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
+                <select value={selectedImport} onChange={e => handleImportTrade(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-purple-500">
+                  <option value="">— select a trade —</option>
+                  {openTrades.map(t => (
+                    <option key={t.id} value={String(t.id)}>
+                      {t.ticker} — {t.contracts} contract{t.contracts !== 1 ? 's' : ''} @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ' (no Greeks saved)'}
+                    </option>
+                  ))}
+                </select>
+                {selectedImport && (
+                  <p className="text-xs text-slate-500 mt-1">Current Stock Price pre-filled with your entry price — update it to today&apos;s price</p>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">Ticker (optional)</label>
