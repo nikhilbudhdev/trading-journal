@@ -15,8 +15,8 @@ const MenuButton = ({ onClick, children, className = '' }) => (
 
 const InputField = ({ label, type = 'text', value, onChange, placeholder, required = false, step }) => (
   <div className="mb-4">
-    <label className="block text-sm font-medium mb-2 text-slate-300">
-      {label} {required && <span className="text-emerald-400">*</span>}
+    <label className="block text-sm font-medium mb-2 text-zinc-400">
+      {label} {required && <span className="text-white">*</span>}
     </label>
     <input
       type={type}
@@ -25,23 +25,23 @@ const InputField = ({ label, type = 'text', value, onChange, placeholder, requir
       placeholder={placeholder}
       step={step}
       autoComplete="off"
-      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
+      className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-white focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500/30 placeholder-zinc-600"
     />
   </div>
 )
 
 const SelectField = ({ label, value, onChange, options, required = false }) => (
   <div className="mb-4">
-    <label className="block text-sm font-medium mb-2 text-slate-300">
-      {label} {required && <span className="text-emerald-400">*</span>}
+    <label className="block text-sm font-medium mb-2 text-zinc-400">
+      {label} {required && <span className="text-white">*</span>}
     </label>
     <select
       value={value}
       onChange={onChange}
-      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+      className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-white focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500/30"
     >
       {options.map(option => (
-        <option key={option.value} value={option.value} className="bg-slate-800 text-slate-100">
+        <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
           {option.label}
         </option>
       ))}
@@ -284,9 +284,9 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
   const progress = Math.round((completedCount / totalCount) * 100)
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-black text-slate-100">
       {/* Navigation */}
-      <nav className="bg-slate-900/95 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 backdrop-blur-sm">
+      <nav className="bg-zinc-950/95 border-b border-zinc-900 px-4 py-3 sticky top-0 z-50 backdrop-blur-sm">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-blue-400">Falcon FX</h1>
@@ -302,7 +302,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
       {/* Checklist Tab */}
       {activeTab === 'checklist' && (
         <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-          <button onClick={onBack} className="mb-5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 transition-colors text-sm">
+          <button onClick={onBack} className="mb-5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded border border-zinc-800 transition-colors text-sm">
             ← Back to Menu
           </button>
 
@@ -312,7 +312,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
               <span>Progress</span>
               <span>{completedCount}/{totalCount} complete</span>
             </div>
-            <div className="bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div className="bg-zinc-900 rounded-full h-2 overflow-hidden">
               <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
           </div>
@@ -322,21 +322,21 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
             {steps.map(step => {
               const isComplete = step.isRuleOfThree ? !!ruleOfThree : step.isZone ? (!!zone && zone !== 'Red') : !!checked[step.num]
               return (
-                <div key={step.num} className={`bg-slate-900 border rounded-lg p-4 transition-colors ${isComplete ? 'border-emerald-700/50' : 'border-slate-800'}`}>
+                <div key={step.num} className={`bg-zinc-950 border rounded-lg p-4 transition-colors ${isComplete ? 'border-emerald-700/50' : 'border-zinc-900'}`}>
                   <div className="flex items-start gap-3">
                     {/* Checkbox / completion indicator */}
                     {!step.isRuleOfThree && !step.isZone && (
                       <button
                         onClick={() => setChecked(prev => ({ ...prev, [step.num]: !prev[step.num] }))}
                         className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                          checked[step.num] ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600 hover:border-slate-400'
+                          checked[step.num] ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-700 hover:border-slate-400'
                         }`}
                       >
                         {checked[step.num] && <span className="text-white text-xs font-bold">✓</span>}
                       </button>
                     )}
                     {(step.isRuleOfThree || step.isZone) && (
-                      <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${isComplete ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'}`}>
+                      <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${isComplete ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-700'}`}>
                         {isComplete && <span className="text-white text-xs font-bold">✓</span>}
                       </div>
                     )}
@@ -358,7 +358,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
                               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                                 ruleOfThree === opt.value
                                   ? 'bg-blue-600 border-blue-500 text-white'
-                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                                  : 'bg-zinc-900 border-zinc-800 text-slate-300 hover:border-slate-500'
                               }`}
                             >
                               {opt.title}
@@ -379,7 +379,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
                                   ? z.value === 'Green' ? 'bg-emerald-600 border-emerald-500 text-white'
                                     : z.value === 'Amber' ? 'bg-amber-600 border-amber-500 text-white'
                                     : 'bg-red-700 border-red-600 text-white'
-                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                                  : 'bg-zinc-900 border-zinc-800 text-slate-300 hover:border-slate-500'
                               }`}
                             >
                               {z.label}
@@ -404,7 +404,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
 
           {/* Action Buttons */}
           <div className="flex gap-3 mt-6">
-            <button type="button" onClick={handleReset} className="px-4 py-3 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-sm font-medium">
+            <button type="button" onClick={handleReset} className="px-4 py-3 rounded-lg border border-zinc-800 text-slate-300 hover:bg-zinc-900 transition-colors text-sm font-medium">
               Reset
             </button>
             <button
@@ -414,7 +414,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
               className={`flex-1 px-6 py-3 rounded-lg font-bold transition-all text-sm ${
                 canProceed && !unlocking
                   ? 'bg-emerald-500 hover:bg-emerald-600 text-black shadow-lg shadow-emerald-500/20'
-                  : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                  : 'bg-zinc-800 text-slate-400 cursor-not-allowed'
               }`}
             >
               {unlocking ? 'Opening...' : canProceed ? 'Confirm & Log Trade →' : `Complete all steps to proceed`}
@@ -426,7 +426,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
       {/* Reference Tab */}
       {activeTab === 'reference' && (
         <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-6 mb-8">
             <h2 className="text-2xl font-bold text-white mb-4">Quick Reference</h2>
             <p className="text-slate-400 text-sm">
               Use these resources while completing your checklist. Understanding these concepts helps you make better decisions.
@@ -435,10 +435,10 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
 
           {/* Key Concepts */}
           <div className="mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 pb-2 border-b border-slate-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 pb-2 border-b border-zinc-900">
               Key Concepts
             </h3>
-            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+            <div className="bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-800">
                   <tr>
@@ -476,7 +476,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
 
           {/* Zone Meanings */}
           <div className="mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 pb-2 border-b border-slate-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 pb-2 border-b border-zinc-900">
               Zone System
             </h3>
             <div className="grid gap-3">
@@ -565,23 +565,23 @@ const ChecklistAnswersList = ({ snapshot }) => {
                 ? 'bg-amber-500/20 text-amber-200 border-amber-400/50'
                 : value === 'Red'
                 ? 'bg-red-600/30 text-red-200 border-red-500/50'
-                : 'bg-slate-800 text-slate-300 border-slate-700'
+                : 'bg-zinc-900 text-slate-300 border-zinc-800'
             } else if (step.isSpecial) {
               display = value || '—'
               badgeClasses = value
                 ? 'bg-blue-600/20 text-blue-200 border-blue-400/50'
-                : 'bg-slate-800 text-slate-300 border-slate-700'
+                : 'bg-zinc-900 text-slate-300 border-zinc-800'
             } else {
               display = value === true ? 'YES' : value === false ? 'NO' : '—'
               badgeClasses = value === true
                 ? 'bg-emerald-600/20 text-emerald-200 border-emerald-400/50'
                 : value === false
                 ? 'bg-red-600/20 text-red-200 border-red-400/50'
-                : 'bg-slate-800 text-slate-300 border-slate-700'
+                : 'bg-zinc-900 text-slate-300 border-zinc-800'
             }
 
             return (
-              <div key={step.num} className="flex items-center justify-between gap-3 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
+              <div key={step.num} className="flex items-center justify-between gap-3 bg-zinc-950/40 border border-zinc-900 rounded-lg p-3">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="flex items-center justify-center w-6 h-6 bg-blue-900/50 border border-blue-700 text-blue-300 text-xs font-bold rounded-full flex-shrink-0">
                     {step.num}
@@ -636,14 +636,14 @@ const ChecklistAnswersList = ({ snapshot }) => {
                     ? 'bg-amber-500/20 text-amber-200 border border-amber-400/50'
                     : value === 'Red'
                       ? 'bg-red-600/30 text-red-200 border border-red-500/50'
-                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      : 'bg-zinc-900 text-slate-300 border border-zinc-800'
                 : value === 'yes'
                   ? 'bg-emerald-600/20 text-emerald-200 border border-emerald-400/50'
                   : value === 'no'
                     ? 'bg-red-600/20 text-red-200 border border-red-400/50'
-                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                    : 'bg-zinc-900 text-slate-300 border border-zinc-800'
               return (
-                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
+                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-zinc-950/40 border border-zinc-900 rounded-lg p-3">
                   <p className="text-slate-100 text-sm">{item.question}</p>
                   <span className={`px-3 py-1 rounded text-xs font-semibold tracking-wide text-center ${badgeClasses}`}>
                     {display}
@@ -719,7 +719,7 @@ const ChecklistAnalyticsCard = ({ config }) => {
   const topFailure = Object.entries(stats.failReasons || {}).sort((a, b) => b[1] - a[1])[0]
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+    <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase text-slate-500 tracking-widest">Decision Gate Discipline</p>
@@ -734,22 +734,22 @@ const ChecklistAnalyticsCard = ({ config }) => {
         <p className="text-slate-400 text-sm">Loading checklist stats...</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+          <div className="bg-black/60 border border-zinc-900 rounded-lg p-4">
             <p className="text-xs text-slate-500 tracking-wide uppercase">Pass Rate</p>
             <p className="text-3xl font-bold text-emerald-300">{passRate}%</p>
             <p className="text-xs text-slate-500 mt-1">{stats.passes} passes</p>
           </div>
-          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+          <div className="bg-black/60 border border-zinc-900 rounded-lg p-4">
             <p className="text-xs text-slate-500 tracking-wide uppercase">Failures Logged</p>
             <p className="text-3xl font-bold text-red-300">{stats.fails}</p>
             <p className="text-xs text-slate-500 mt-1">{failRate}% of attempts</p>
           </div>
-          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+          <div className="bg-black/60 border border-zinc-900 rounded-lg p-4">
             <p className="text-xs text-slate-500 tracking-wide uppercase">Consistency</p>
             <p className="text-lg font-semibold text-slate-100">Forecast discipline trend</p>
             <p className="text-xs text-slate-500 mt-1">Log every pass/fail to spot habits.</p>
           </div>
-          <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4">
+          <div className="bg-black/60 border border-zinc-900 rounded-lg p-4">
             <p className="text-xs text-slate-500 tracking-wide uppercase">Top Failure Reason</p>
             {topFailure ? (
               <>
@@ -927,8 +927,8 @@ const MODE_CONFIG = {
     stopSizeStep: null,
     uppercaseInstrument: true,
     classes: {
-      primaryButton: 'bg-purple-600 hover:bg-purple-700 border-purple-500 text-white',
-      primaryAction: 'bg-purple-600 hover:bg-purple-700 text-white'
+      primaryButton: 'bg-white hover:bg-zinc-100 border-white text-black font-semibold',
+      primaryAction: 'bg-white hover:bg-zinc-100 text-black font-semibold'
     }
   },
   futures: {
@@ -1090,8 +1090,8 @@ const MODE_CONFIG = {
     riskFraction: 0.01,
     uppercaseInstrument: true,
     classes: {
-      primaryButton: 'bg-amber-600 hover:bg-amber-700 border-amber-500 text-white',
-      primaryAction: 'bg-amber-600 hover:bg-amber-700 text-white'
+      primaryButton: 'bg-white hover:bg-zinc-100 border-white text-black font-semibold',
+      primaryAction: 'bg-white hover:bg-zinc-100 text-black font-semibold'
     }
   }
 }
@@ -1207,11 +1207,11 @@ const BalanceManager = ({ config }) => {
       </div>
 
       {hasMultipleAccounts ? (
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg mb-6">
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg mb-6">
           <h3 className="text-lg text-slate-400 mb-4">{labels.balanceAccountsTitle}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {accounts.map(account => (
-              <div key={account.value} className="p-4 bg-slate-900/60 border border-slate-700 rounded-lg">
+              <div key={account.value} className="p-4 bg-zinc-950/60 border border-zinc-800 rounded-lg">
                 <p className="text-sm text-slate-400">{account.label}</p>
                 <p className="text-3xl font-bold text-emerald-400">
                   ${(currentBalances[account.value] || 0).toFixed(2)}
@@ -1221,7 +1221,7 @@ const BalanceManager = ({ config }) => {
           </div>
         </div>
       ) : (
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg mb-6">
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg mb-6">
           <div className="text-center">
             <h3 className="text-lg text-slate-400">{labels.balanceHeroLabel}</h3>
             <p className="text-4xl font-bold text-emerald-400">${currentBalance.toFixed(2)}</p>
@@ -1230,7 +1230,7 @@ const BalanceManager = ({ config }) => {
       )}
 
       {showAddBalance && (
-        <form onSubmit={handleAddBalance} className="bg-slate-800 border border-slate-700 p-4 rounded-lg mb-6">
+        <form onSubmit={handleAddBalance} className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg mb-6">
           <h3 className="font-semibold mb-4 text-slate-100">{labels.addBalanceModalTitle}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {hasMultipleAccounts && (
@@ -1265,7 +1265,7 @@ const BalanceManager = ({ config }) => {
             <button
               type="button"
               onClick={() => setShowAddBalance(false)}
-              className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="px-6 py-2 bg-zinc-700 hover:bg-zinc-800 text-white rounded-lg transition-colors"
             >
               {labels.newBalanceToggleCancel}
             </button>
@@ -1273,8 +1273,8 @@ const BalanceManager = ({ config }) => {
         </form>
       )}
 
-      <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-        <h3 className="p-4 font-semibold border-b border-slate-700 text-slate-100">{labels.historyTitle}</h3>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+        <h3 className="p-4 font-semibold border-b border-zinc-800 text-slate-100">{labels.historyTitle}</h3>
         <div className="max-h-60 overflow-y-auto">
           {loading ? (
             <div className="p-4 text-slate-400">Loading balance history...</div>
@@ -1288,7 +1288,7 @@ const BalanceManager = ({ config }) => {
               const currencyLabel = hasMultipleAccounts ? entry[currencyColumn] : null
 
               return (
-                <div key={entry[idColumn] || index} className="p-4 border-b border-slate-700 last:border-b-0">
+                <div key={entry[idColumn] || index} className="p-4 border-b border-zinc-800 last:border-b-0">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium text-slate-100">{entry[reasonColumn]}</p>
@@ -1452,10 +1452,10 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-black text-slate-100 p-8">
       <button
         onClick={() => setCurrentView('menu')}
-        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+        className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors"
       >
         ← Back to Menu
       </button>
@@ -1493,7 +1493,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                 return (
                   <div
                     key={trade[tradeColumns.id]}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTrade?.[tradeColumns.id] === trade[tradeColumns.id] ? 'border-emerald-500 bg-emerald-900/20' : 'border-slate-700 hover:border-slate-600 bg-slate-800'}`}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTrade?.[tradeColumns.id] === trade[tradeColumns.id] ? 'border-emerald-500 bg-emerald-900/20' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900'}`}
                     onClick={() => setSelectedTrade(trade)}
                   >
                     <div className="flex justify-between items-start gap-4">
@@ -1521,7 +1521,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
             </div>
 
             {selectedTrade && (
-              <div className="mt-8 p-6 bg-slate-800 border border-slate-700 rounded-lg">
+              <div className="mt-8 p-6 bg-zinc-900 border border-zinc-800 rounded-lg">
                 <h3 className="text-xl font-semibold mb-4">Close Trade: {selectedTrade[instrumentColumn]} - {(selectedTrade[directionColumn] || '').toString().toUpperCase()}</h3>
                 <form onSubmit={handleUpdateTrade} className="space-y-4">
                   <InputField
@@ -1547,14 +1547,14 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                       onChange={(e) => setUpdateData(prev => ({ ...prev, notes: e.target.value }))}
                       placeholder="Exit reasons, lessons learned..."
                       rows="3"
-                      className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
+                      className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
                     />
                   </div>
                   <div className="flex gap-4">
                     <button
                       type="button"
                       onClick={() => setSelectedTrade(null)}
-                      className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                      className="px-6 py-2 bg-zinc-700 hover:bg-zinc-800 text-white rounded-lg transition-colors"
                     >
                       Cancel
                     </button>
@@ -1682,8 +1682,8 @@ const EditTradeView = ({ setCurrentView, config }) => {
   })
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">{labels.editTradeButton || 'Edit Trade'}</h1>
         {message && (
@@ -1700,14 +1700,14 @@ const EditTradeView = ({ setCurrentView, config }) => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by ticker..."
-                  className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-blue-500 focus:outline-none placeholder-slate-400"
+                  className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-blue-500 focus:outline-none placeholder-slate-400"
                 />
                 <div className="grid gap-3">
                   {filteredTrades.map(trade => (
                     <div
                       key={trade[idColumn]}
                       onClick={() => handleSelectTrade(trade)}
-                      className="p-4 bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg cursor-pointer transition-colors"
+                      className="p-4 bg-zinc-900 border border-zinc-800 hover:border-slate-500 rounded-lg cursor-pointer transition-colors"
                     >
                       <div className="flex justify-between items-center">
                         <div>
@@ -1718,7 +1718,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
                           <p className="text-slate-500 text-xs mt-1">{trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '—'}</p>
                         </div>
                         <div className="text-right">
-                          <span className={`text-xs px-2 py-1 rounded-full ${trade[statusColumn] === 'open' ? 'bg-emerald-900/40 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                          <span className={`text-xs px-2 py-1 rounded-full ${trade[statusColumn] === 'open' ? 'bg-emerald-900/40 text-emerald-400' : 'bg-zinc-800 text-slate-400'}`}>
                             {trade[statusColumn]}
                           </span>
                           {trade[tradeColumns.pnl] != null && (
@@ -1736,7 +1736,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
             )}
 
             {selectedTrade && (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-semibold">Editing: {selectedTrade[instrumentColumn]}</h2>
                   <button onClick={() => { setSelectedTrade(null); setEditData({}) }} className="text-slate-400 hover:text-slate-200 text-sm">← Back to list</button>
@@ -1793,13 +1793,13 @@ const EditTradeView = ({ setCurrentView, config }) => {
                         <div className="flex flex-wrap gap-2 mb-2">
                           {tickPresets.map(preset => (
                             <button key={preset.symbol} type="button" onClick={() => setEditData(p => ({ ...p, dollarPerTick: preset.dollarPerTick.toString() }))}
-                              className={`px-2 py-1 rounded text-xs border transition-colors ${editData.dollarPerTick === preset.dollarPerTick.toString() ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'}`}>
+                              className={`px-2 py-1 rounded text-xs border transition-colors ${editData.dollarPerTick === preset.dollarPerTick.toString() ? 'bg-white text-black border-white' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>
                               {preset.symbol} (${preset.dollarPerTick})
                             </button>
                           ))}
                         </div>
                       )}
-                      <input type="number" step="0.01" value={editData.dollarPerTick ?? ''} onChange={(e) => setEditData(p => ({ ...p, dollarPerTick: e.target.value }))} className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
+                      <input type="number" step="0.01" value={editData.dollarPerTick ?? ''} onChange={(e) => setEditData(p => ({ ...p, dollarPerTick: e.target.value }))} className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
                     </div>
                   )}
                   {tradeColumns.stopLossTicks && (
@@ -1817,12 +1817,12 @@ const EditTradeView = ({ setCurrentView, config }) => {
                   {tradeColumns.notes && (
                     <div className="mb-4">
                       <label className="block text-sm font-medium mb-2 text-slate-300">{labels.notesLabel || 'Notes'}</label>
-                      <textarea value={editData.notes || ''} onChange={(e) => setEditData(p => ({ ...p, notes: e.target.value }))} rows="3" className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
+                      <textarea value={editData.notes || ''} onChange={(e) => setEditData(p => ({ ...p, notes: e.target.value }))} rows="3" className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
                     </div>
                   )}
                   <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => { setSelectedTrade(null); setEditData({}) }} className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors">Cancel</button>
-                    <button type="submit" disabled={isSubmitting} className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${isSubmitting ? 'bg-slate-600 cursor-not-allowed' : classes.primaryAction}`}>
+                    <button type="button" onClick={() => { setSelectedTrade(null); setEditData({}) }} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-800 text-white rounded-lg transition-colors">Cancel</button>
+                    <button type="submit" disabled={isSubmitting} className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${isSubmitting ? 'bg-zinc-700 cursor-not-allowed' : classes.primaryAction}`}>
                       {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                   </div>
@@ -1871,12 +1871,12 @@ const ManageTagsView = ({ setCurrentView }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Manage Tags</h1>
         {message && <div className={`p-4 rounded-lg mb-6 border ${message.includes('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>{message}</div>}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">Create New Tag</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <InputField label="Tag Name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. High Conviction" required />
@@ -1894,12 +1894,12 @@ const ManageTagsView = ({ setCurrentView }) => {
           </form>
         </div>
         {loading ? <p className="text-slate-400">Loading tags...</p> : (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
             <h2 className="text-lg font-semibold mb-4">Your Tags ({tags.length})</h2>
             {tags.length === 0 ? <p className="text-slate-400">No tags yet.</p> : (
               <div className="space-y-2">
                 {tags.map(tag => (
-                  <div key={tag.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+                  <div key={tag.id} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
                       <span className="text-slate-200">{tag.name}</span>
@@ -1951,7 +1951,7 @@ const TagPicker = ({ tradeId, tagLinksTable }) => {
     <div className="flex flex-wrap gap-1.5 mt-2">
       {allTags.map(tag => (
         <button key={tag.id} onClick={() => toggle(tag.id)}
-          className={`px-2 py-0.5 rounded-full text-xs font-medium border transition-all ${linkedTagIds.has(tag.id) ? 'text-white border-transparent' : 'text-slate-400 border-slate-600 hover:border-slate-400 bg-transparent'}`}
+          className={`px-2 py-0.5 rounded-full text-xs font-medium border transition-all ${linkedTagIds.has(tag.id) ? 'text-white border-transparent' : 'text-slate-400 border-zinc-700 hover:border-slate-400 bg-transparent'}`}
           style={linkedTagIds.has(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}>
           {tag.name}
         </button>
@@ -2060,8 +2060,8 @@ const PartialExitView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Log Partial Exit</h1>
         {message && (
@@ -2073,7 +2073,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
               <div className="grid gap-3">
                 {openTrades.length === 0 && <p className="text-slate-400">No open trades found.</p>}
                 {openTrades.map(trade => (
-                  <div key={trade[idColumn]} onClick={() => handleSelectTrade(trade)} className="p-4 bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg cursor-pointer transition-colors">
+                  <div key={trade[idColumn]} onClick={() => handleSelectTrade(trade)} className="p-4 bg-zinc-900 border border-zinc-800 hover:border-slate-500 rounded-lg cursor-pointer transition-colors">
                     <div className="flex justify-between items-center">
                       <div>
                         <span className="font-semibold text-slate-100">{trade[instrumentColumn]}</span>
@@ -2089,7 +2089,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
 
             {selectedTrade && (
               <div className="space-y-6">
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
                   <div className="flex justify-between items-center mb-6">
                     <div>
                       <h2 className="text-xl font-semibold">{selectedTrade[instrumentColumn]}</h2>
@@ -2103,20 +2103,20 @@ const PartialExitView = ({ setCurrentView, config }) => {
                     <InputField label="Exit URL (Optional)" type="url" value={formData.exitUrl} onChange={e => setFormData(p => ({ ...p, exitUrl: e.target.value }))} placeholder="https://tradingview.com/chart/..." />
                     <div>
                       <label className="block text-sm font-medium mb-2 text-slate-300">Notes (Optional)</label>
-                      <textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} rows="2" className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none placeholder-slate-400" />
+                      <textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} rows="2" className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none placeholder-slate-400" />
                     </div>
-                    <button type="submit" disabled={isSubmitting} className={`w-full p-3 rounded-lg font-semibold transition-colors ${isSubmitting ? 'bg-slate-600 cursor-not-allowed' : classes.primaryAction}`}>
+                    <button type="submit" disabled={isSubmitting} className={`w-full p-3 rounded-lg font-semibold transition-colors ${isSubmitting ? 'bg-zinc-700 cursor-not-allowed' : classes.primaryAction}`}>
                       {isSubmitting ? 'Logging...' : 'Log Partial Exit'}
                     </button>
                   </form>
                 </div>
 
                 {partialExits.length > 0 && (
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
                     <h3 className="text-lg font-semibold mb-4">Previous Partial Exits</h3>
                     <div className="space-y-2">
                       {partialExits.map(exit => (
-                        <div key={exit.id} className="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <div key={exit.id} className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-lg">
                           <div>
                             <span className="text-slate-200 text-sm">{exit.contracts_exited} contracts @ {isOptions ? `$${exit.exit_premium}` : exit.exit_price}</span>
                             {exit.notes && <p className="text-slate-500 text-xs mt-0.5">{exit.notes}</p>}
@@ -2150,7 +2150,7 @@ const TradingAnalytics = ({ trades, config }) => {
   const closedTrades = trades.filter(trade => trade[statusColumn] === 'closed' && trade[pnlColumn] !== null && trade[pnlColumn] !== undefined)
   if (closedTrades.length < 5) {
     return (
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-8">
         <h2 className="text-2xl font-bold mb-4 text-slate-100">Trading Analytics</h2>
         <p className="text-slate-400">Need at least 5 completed trades for meaningful analysis. Current: {closedTrades.length}</p>
       </div>
@@ -2201,7 +2201,7 @@ const TradingAnalytics = ({ trades, config }) => {
   const riskRewardRatio = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : 'N/A'
 
   const StatCard = ({ title, stats }) => (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <h3 className="text-lg font-semibold mb-3 text-slate-100">{title}</h3>
       <div className="space-y-2">
         {Object.entries(stats)
@@ -2236,7 +2236,7 @@ const TradingAnalytics = ({ trades, config }) => {
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6 text-slate-100">Trading Analytics</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Risk-Reward Profile</h3>
           <div className="space-y-2">
             <div className="flex justify-between"><span className="text-slate-400">Average Win:</span><span className="text-emerald-400 font-semibold">${avgWin.toFixed(2)}</span></div>
@@ -2244,7 +2244,7 @@ const TradingAnalytics = ({ trades, config }) => {
             <div className="flex justify-between"><span className="text-slate-400">Risk-Reward Ratio:</span><span className="text-slate-100 font-semibold">{riskRewardRatio}</span></div>
           </div>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Trading Volume</h3>
           <div className="space-y-2">
             <div className="flex justify-between"><span className="text-slate-400">Total Trades:</span><span className="text-slate-100 font-semibold">{closedTrades.length}</span></div>
@@ -2252,7 +2252,7 @@ const TradingAnalytics = ({ trades, config }) => {
             <div className="flex justify-between"><span className="text-slate-400">Losing Trades:</span><span className="text-red-400 font-semibold">{losingTrades.length}</span></div>
           </div>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Performance Summary</h3>
           <div className="space-y-2">
             <div className="flex justify-between">
@@ -2484,8 +2484,8 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const winRate = trades.length > 0 ? ((winningTrades / (winningTrades + losingTrades)) * 100).toFixed(1) : 0
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">{labels.viewDataButton}</h1>
 
@@ -2497,7 +2497,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                   <span className="text-amber-300 font-semibold">Journal reminder: </span>
                   <span className="text-slate-200">{trade[instrumentColumn]} — 1-week review due. How did this trade go?</span>
                 </div>
-                <button onClick={() => handleOpenJournal(trade)} className="ml-4 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm transition-colors shrink-0">Write Journal</button>
+                <button onClick={() => handleOpenJournal(trade)} className="ml-4 px-3 py-1 bg-white hover:bg-zinc-100 text-black rounded text-sm transition-colors shrink-0">Write Journal</button>
               </div>
             ))}
           </div>
@@ -2505,7 +2505,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
 
         <BalanceManager config={config} />
 
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <h3 className="text-sm text-slate-400">Total Trades</h3>
@@ -2528,18 +2528,18 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Overview</button>
+          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Overview</button>
           {showAnalytics && (
-            <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Analytics</button>
+            <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Analytics</button>
           )}
-          <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Trades Table</button>
+          <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Trades Table</button>
         </div>
 
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Open Trades</h3><p className="text-2xl font-bold text-slate-100">{trades.filter(t => t[statusColumn] === 'open').length}</p></div>
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Closed Trades</h3><p className="text-2xl font-bold text-slate-100">{trades.filter(t => t[statusColumn] === 'closed').length}</p></div>
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Risk Budget (0.5%)</h3><p className="text-2xl font-bold text-slate-100">${(currentBalance * riskFraction).toFixed(2)}</p></div>
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Open Trades</h3><p className="text-2xl font-bold text-slate-100">{trades.filter(t => t[statusColumn] === 'open').length}</p></div>
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Closed Trades</h3><p className="text-2xl font-bold text-slate-100">{trades.filter(t => t[statusColumn] === 'closed').length}</p></div>
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Risk Budget (0.5%)</h3><p className="text-2xl font-bold text-slate-100">${(currentBalance * riskFraction).toFixed(2)}</p></div>
           </div>
         )}
 
@@ -2548,13 +2548,13 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
         {activeTab === 'trades' && (
           <>
             <div className="flex flex-wrap gap-3 mb-4 items-center">
-              <button onClick={() => setFilter('all')} className={`px-3 py-1 rounded border text-sm ${filter === 'all' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>All</button>
-              <button onClick={() => setFilter('open')} className={`px-3 py-1 rounded border text-sm ${filter === 'open' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>Open</button>
-              <button onClick={() => setFilter('closed')} className={`px-3 py-1 rounded border text-sm ${filter === 'closed' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>Closed</button>
+              <button onClick={() => setFilter('all')} className={`px-3 py-1 rounded border text-sm ${filter === 'all' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'}`}>All</button>
+              <button onClick={() => setFilter('open')} className={`px-3 py-1 rounded border text-sm ${filter === 'open' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'}`}>Open</button>
+              <button onClick={() => setFilter('closed')} className={`px-3 py-1 rounded border text-sm ${filter === 'closed' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'}`}>Closed</button>
               <div className="flex items-center gap-2 ml-auto">
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
                 <span className="text-slate-500 text-sm">to</span>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
+                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
                 {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-slate-400 hover:text-slate-200 text-sm px-2">✕</button>}
               </div>
             </div>
@@ -2564,8 +2564,8 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
               <p className="text-slate-400">No trades found.</p>
             ) : (
               <div className="overflow-x-auto -mx-4 px-4">
-                <table className="min-w-max w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700 text-sm">
-                  <thead className="bg-slate-700">
+                <table className="min-w-max w-full bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 text-sm">
+                  <thead className="bg-zinc-800">
                     <tr>
                       {[{ label: 'Entry Date', col: entryDateColumn }, { label: labels.instrument, col: instrumentColumn }].map(({ label, col }) => (
                         <th key={col} className="p-3 text-left text-slate-300 cursor-pointer hover:text-white select-none" onClick={() => handleSort(col)}>
@@ -2603,7 +2603,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                   </thead>
                   <tbody>
                     {displayedTrades.map((trade, idx) => (
-                      <tr key={trade[tradeColumns.id] || idx} className={idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+                      <tr key={trade[tradeColumns.id] || idx} className={idx % 2 === 0 ? 'bg-zinc-900' : 'bg-slate-750'}>
                         <td className="p-3 text-slate-300">{trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '-'}</td>
                         <td className="p-3 font-semibold text-slate-100">{trade[instrumentColumn]}</td>
                         {accountField && <td className="p-3 text-slate-300">{trade[accountField] || '-'}</td>}
@@ -2672,7 +2672,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                           {trade[statusColumn] === 'closed' ? (
                             <button
                               onClick={() => handleOpenJournal(trade)}
-                              className={`text-xs px-2 py-1 rounded border transition-colors ${trade.journal_notes ? 'border-emerald-600 text-emerald-400 hover:bg-emerald-600/10' : 'border-slate-600 text-slate-400 hover:border-slate-400'}`}
+                              className={`text-xs px-2 py-1 rounded border transition-colors ${trade.journal_notes ? 'border-emerald-600 text-emerald-400 hover:bg-emerald-600/10' : 'border-zinc-700 text-slate-400 hover:border-slate-400'}`}
                             >
                               {trade.journal_notes ? 'Edit' : 'Write'}
                             </button>
@@ -2689,7 +2689,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
       </div>
       {journalTrade && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-6 space-y-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl max-w-2xl w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-500">Trade Journal</p>
@@ -2703,14 +2703,14 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
               onChange={(e) => setJournalText(e.target.value)}
               rows={8}
               placeholder="Write your post-trade reflection here..."
-              className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder-slate-500"
+              className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder-slate-500"
             />
             {journalMessage && (
               <p className={`text-sm ${journalMessage.includes('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{journalMessage}</p>
             )}
             <div className="flex gap-3">
-              <button onClick={() => setJournalTrade(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors">Cancel</button>
-              <button onClick={handleSaveJournal} disabled={journalSaving} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors">
+              <button onClick={() => setJournalTrade(null)} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors">Cancel</button>
+              <button onClick={handleSaveJournal} disabled={journalSaving} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-zinc-700 text-white rounded-lg font-semibold transition-colors">
                 {journalSaving ? 'Saving...' : 'Save Journal'}
               </button>
             </div>
@@ -2719,7 +2719,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
       )}
       {selectedChecklist && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-500">Checklist Journal</p>
@@ -2748,7 +2748,7 @@ const MissedTradesAnalytics = ({ missed, config }) => {
   const { missedColumns, missedAnalyticsLabels } = config
   if (!missed.length) {
     return (
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-8">
         <h2 className="text-2xl font-bold mb-4 text-slate-100">Missed Trades Analytics</h2>
         <p className="text-slate-400">Log a few missed opportunities to unlock analytics.</p>
       </div>
@@ -2781,7 +2781,7 @@ const MissedTradesAnalytics = ({ missed, config }) => {
   const byPattern = groupBy(missedColumns.pattern)
 
   const StatCard = ({ title, stats, suffix = 'misses' }) => (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
       <h3 className="text-lg font-semibold mb-3 text-slate-100">{title}</h3>
       <div className="space-y-2">
         {Object.entries(stats)
@@ -2806,7 +2806,7 @@ const MissedTradesAnalytics = ({ missed, config }) => {
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6 text-slate-100">Missed Trades Analytics</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-2 text-slate-100">Overview</h3>
           <div className="space-y-2">
             <div className="flex justify-between"><span className="text-slate-400">Missed Trades:</span><span className="text-slate-100 font-semibold">{missed.length}</span></div>
@@ -2866,19 +2866,19 @@ const MissedTradeView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">{labels.missedTradeButton}</h1>
         {message && <div className={`p-4 rounded-lg mb-6 border ${message.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>{message}</div>}
-        <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
+        <form onSubmit={handleSubmit} className="space-y-6 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
           <InputField label={labels.instrument} value={form.instrument} onChange={(e) => handleInput('instrument', e.target.value)} placeholder={labels.instrumentPlaceholder} required />
           <SelectField label="Direction" value={form.direction} onChange={(e) => handleInput('direction', e.target.value)} options={LONG_SHORT_OPTIONS} required />
           <InputField label="Before Trade Chart/Notes (Optional)" type="url" value={form.beforeUrl} onChange={(e) => handleInput('beforeUrl', e.target.value)} placeholder="https://tradingview.com/chart/..." />
           <SelectField label={labels.missedPattern} value={form.pattern} onChange={(e) => handleInput('pattern', e.target.value)} options={missedPatternOptions} />
           <InputField label="After Trade Review (Optional)" type="url" value={form.afterUrl} onChange={(e) => handleInput('afterUrl', e.target.value)} placeholder="https://tradingview.com/chart/..." />
           <InputField label="Potential Return (%)" type="number" step="0.01" value={form.potential} onChange={(e) => handleInput('potential', e.target.value)} placeholder="e.g., 2.5 for +2.5" />
-          <button type="submit" disabled={isSubmitting} className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors">
+          <button type="submit" disabled={isSubmitting} className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-700 text-white rounded-lg font-semibold transition-colors">
             {isSubmitting ? 'Logging...' : 'Log Missed Trade'}
           </button>
         </form>
@@ -2915,22 +2915,22 @@ const ViewMissedTrades = ({ setCurrentView, config }) => {
   const avgPct = missed.length ? (totalPct / missed.length) : 0
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">{labels.missedDataButton}</h1>
 
         <div className="flex gap-2 mb-6">
-          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Overview</button>
-          <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Analytics</button>
-          <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500'}`}>Missed Trades Table</button>
+          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Overview</button>
+          <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'analytics' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Analytics</button>
+          <button onClick={() => setActiveTab('trades')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'trades' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Missed Trades Table</button>
         </div>
 
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Missed Trades</h3><p className="text-2xl font-bold text-slate-100">{missed.length}</p></div>
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Total Potential (Σ%)</h3><p className={`text-2xl font-bold ${totalPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{totalPct.toFixed(2)}%</p></div>
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Avg Potential / Miss</h3><p className="text-2xl font-bold text-slate-100">{avgPct.toFixed(2)}%</p></div>
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Missed Trades</h3><p className="text-2xl font-bold text-slate-100">{missed.length}</p></div>
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Total Potential (Σ%)</h3><p className={`text-2xl font-bold ${totalPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{totalPct.toFixed(2)}%</p></div>
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg"><h3 className="text-sm text-slate-400">Avg Potential / Miss</h3><p className="text-2xl font-bold text-slate-100">{avgPct.toFixed(2)}%</p></div>
           </div>
         )}
 
@@ -2944,8 +2944,8 @@ const ViewMissedTrades = ({ setCurrentView, config }) => {
               <p className="text-slate-400">No missed trades logged.</p>
             ) : (
               <div className="overflow-x-auto -mx-4 px-4">
-                <table className="min-w-max w-full bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-                  <thead className="bg-slate-700">
+                <table className="min-w-max w-full bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800">
+                  <thead className="bg-zinc-800">
                     <tr>
                       <th className="p-3 text-left text-slate-300">Date</th>
                       <th className="p-3 text-left text-slate-300">{labels.missedTableInstrument}</th>
@@ -2958,7 +2958,7 @@ const ViewMissedTrades = ({ setCurrentView, config }) => {
                   </thead>
                   <tbody>
                     {missed.map((row, idx) => (
-                      <tr key={row[missedColumns.id] || idx} className={idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750'}>
+                      <tr key={row[missedColumns.id] || idx} className={idx % 2 === 0 ? 'bg-zinc-900' : 'bg-slate-750'}>
                         <td className="p-3 text-sm text-slate-300">{row[missedColumns.createdAt] ? new Date(row[missedColumns.createdAt]).toLocaleDateString() : '-'}</td>
                         <td className="p-3 font-semibold text-slate-100">{row[missedColumns.instrument]}</td>
                         <td className="p-3">
@@ -3238,8 +3238,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl font-bold whitespace-nowrap">{labels.newTradeTitle}</h1>
@@ -3247,7 +3247,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             {balanceLoading ? (
               <div className="text-slate-400">Loading balance...</div>
             ) : (
-              <div className="bg-slate-800 border border-slate-700 p-5 md:p-6 rounded-lg w-fit min-w-[22rem] md:min-w-[28rem] text-left">
+              <div className="bg-zinc-900 border border-zinc-800 p-5 md:p-6 rounded-lg w-fit min-w-[22rem] md:min-w-[28rem] text-left">
                 <div className="text-base">
                   <span className="text-slate-400">{labels.balanceHeroLabel}</span>
                   {hasMultipleAccounts && selectedAccountLabel && (
@@ -3274,7 +3274,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
         )}
 
         {checklistSnapshot && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 mb-6 space-y-4">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-6 mb-6 space-y-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-500">Checklist Snapshot</p>
@@ -3284,7 +3284,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
               <button
                 type="button"
                 onClick={handleChecklistReset}
-                className="px-4 py-2 rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors"
+                className="px-4 py-2 rounded-lg border border-zinc-800 text-slate-200 hover:bg-zinc-900 transition-colors"
               >
                 Redo Checklist
               </button>
@@ -3323,10 +3323,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             }}
             onDragOver={e => e.preventDefault()}
             className={`mb-6 rounded-lg border-2 border-dashed px-4 py-4 text-center text-sm transition-colors cursor-default ${
-              pasteFormState === 'loading' ? 'border-slate-600 bg-slate-800/50 text-slate-400' :
+              pasteFormState === 'loading' ? 'border-zinc-700 bg-zinc-900/50 text-slate-400' :
               pasteFormState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
               pasteFormState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
-              'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+              'border-zinc-800 text-slate-500 hover:border-slate-500 hover:text-slate-300'
             }`}
           >
             {pasteFormState === 'loading' && 'Extracting from screenshot...'}
@@ -3336,7 +3336,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6 bg-slate-800 border border-slate-700 p-6 rounded-lg">
+        <form onSubmit={handleSubmit} className="space-y-6 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
           {accountField && accounts.length > 0 && (
             <SelectField
               label={labels.accountLabel}
@@ -3416,8 +3416,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                       onClick={() => handleInputChange('dollarPerTick', preset.dollarPerTick.toString())}
                       className={`px-2 py-1 rounded text-xs border transition-colors ${
                         formData.dollarPerTick === preset.dollarPerTick.toString()
-                          ? 'bg-amber-600 text-white border-amber-500'
-                          : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'
+                          ? 'bg-white text-black border-white'
+                          : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'
                       }`}
                     >
                       {preset.symbol} (${preset.dollarPerTick})
@@ -3431,7 +3431,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                 value={formData.dollarPerTick}
                 onChange={(e) => handleInputChange('dollarPerTick', e.target.value)}
                 placeholder="e.g., 12.50"
-                className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
+                className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400"
               />
             </div>
           )}
@@ -3494,11 +3494,11 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           {tradeColumns.notes && (
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2 text-slate-300">{labels.notesLabel || 'Notes'}</label>
-              <textarea value={formData.notes} onChange={(e) => handleInputChange('notes', e.target.value)} placeholder="Trade setup, reasons, strategy..." rows="4" className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
+              <textarea value={formData.notes} onChange={(e) => handleInputChange('notes', e.target.value)} placeholder="Trade setup, reasons, strategy..." rows="4" className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
             </div>
           )}
 
-          <button type="submit" disabled={isSubmitting || exceedsLimit} className={`w-full p-4 rounded-lg font-semibold transition-colors ${isSubmitting || exceedsLimit ? 'bg-slate-600 text-white cursor-not-allowed' : classes.primaryAction}`}>
+          <button type="submit" disabled={isSubmitting || exceedsLimit} className={`w-full p-4 rounded-lg font-semibold transition-colors ${isSubmitting || exceedsLimit ? 'bg-zinc-700 text-white cursor-not-allowed' : classes.primaryAction}`}>
             {exceedsLimit ? `Risk Exceeds ${(riskFraction * 100).toFixed(1)}% Limit` : isSubmitting ? 'Adding Trade...' : 'Add Trade'}
           </button>
         </form>
@@ -3581,8 +3581,8 @@ const TradingPlanView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-baseline justify-between mb-4">
           <h1 className="text-3xl font-bold">{labels.planTitle}</h1>
@@ -3597,7 +3597,7 @@ const TradingPlanView = ({ setCurrentView, config }) => {
           </div>
         )}
 
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg">
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
           {loading ? (
             <div className="text-slate-400">Loading...</div>
           ) : (
@@ -3608,14 +3608,14 @@ const TradingPlanView = ({ setCurrentView, config }) => {
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Outline your strategy, criteria, risk management, and review routine..."
                 rows={18}
-                className="w-full p-4 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-500"
+                className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-500"
               />
               <div className="flex items-center justify-between mt-4">
                 <div className="text-xs text-slate-500">Tip: Keep this updated as your playbook evolves.</div>
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-700 text-white rounded-lg font-semibold transition-colors"
                 >
                   {saving ? 'Saving...' : labels.planSave}
                 </button>
@@ -3735,7 +3735,7 @@ const GreeksCalcTab = () => {
     : null
 
   const ResultRow = ({ label, value, large, color }) => (
-    <div className={`flex justify-between items-center p-3 rounded-lg ${large ? 'bg-slate-800' : 'bg-slate-800/50'}`}>
+    <div className={`flex justify-between items-center p-3 rounded-lg ${large ? 'bg-zinc-900' : 'bg-zinc-900/50'}`}>
       <span className={`text-sm ${large ? 'text-slate-300' : 'text-slate-400'}`}>{label}</span>
       <span className={`font-bold ${large ? 'text-xl' : ''} ${color}`}>{value}</span>
     </div>
@@ -3752,7 +3752,7 @@ const GreeksCalcTab = () => {
         key={pct}
         disabled={isNaN(S)}
         onClick={() => computed !== null && setter(String(computed))}
-        className={`px-2 py-0.5 text-xs rounded border transition-colors ${isNaN(S) ? 'opacity-30 cursor-not-allowed border-slate-700 text-slate-500' : isActive ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
+        className={`px-2 py-0.5 text-xs rounded border transition-colors ${isNaN(S) ? 'opacity-30 cursor-not-allowed border-zinc-800 text-slate-500' : isActive ? 'border-white bg-white/10 text-white' : 'border-zinc-800 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
       >
         {pct > 0 ? `+${pct}%` : `${pct}%`}
       </button>
@@ -3802,10 +3802,10 @@ const GreeksCalcTab = () => {
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
         className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
-          pasteState === 'loading' ? 'border-slate-600 bg-slate-800/30 text-slate-400' :
+          pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
           pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
           pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
-          'border-slate-800 text-slate-600 hover:border-slate-700 hover:text-slate-500'
+          'border-zinc-900 text-slate-600 hover:border-zinc-800 hover:text-slate-500'
         }`}
       >
         {pasteState === 'loading' && 'Extracting Greeks from screenshot...'}
@@ -3814,7 +3814,7 @@ const GreeksCalcTab = () => {
         {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+      <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-5 mb-6">
           <div className="grid grid-cols-2 gap-3">
             <InputField label="Stock Price ($)" type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)} placeholder="e.g. 150.00" />
             <InputField label="Option Premium ($)" type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 3.50" />
@@ -3837,15 +3837,15 @@ const GreeksCalcTab = () => {
         </div>
 
         {scenarioRows && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg mb-6 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-800">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-lg mb-6 overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-900">
               <p className="text-sm font-semibold text-slate-300">Scenario Table</p>
               <p className="text-xs text-slate-500 mt-0.5">Click → SL or → TP to set a price level from any row.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-800">
+                  <tr className="border-b border-zinc-900">
                     <th className="text-left px-4 py-2 text-xs text-slate-500 font-medium">Move</th>
                     <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Stock Price</th>
                     <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Option Price</th>
@@ -3859,7 +3859,7 @@ const GreeksCalcTab = () => {
                     const isSl = i === closestSlIdx
                     const isTp = i === closestTpIdx
                     const borderClass = isSl ? 'border-l-2 border-l-red-500' : isTp ? 'border-l-2 border-l-emerald-500' : 'border-l-2 border-l-transparent'
-                    const bgClass = isZero ? 'bg-slate-800/60' : 'hover:bg-slate-800/30'
+                    const bgClass = isZero ? 'bg-zinc-900/60' : 'hover:bg-zinc-900/30'
                     return (
                       <tr key={row.pct} className={`${bgClass} ${borderClass} transition-colors`}>
                         <td className="px-4 py-2">
@@ -3912,7 +3912,7 @@ const GreeksCalcTab = () => {
         {result && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {result.stop && (
-              <div className="bg-slate-900 border border-red-500/30 rounded-lg p-4 space-y-2">
+              <div className="bg-zinc-950 border border-red-500/30 rounded-lg p-4 space-y-2">
                 <h2 className="text-sm font-bold text-red-400 uppercase tracking-wide mb-3">Stop Loss</h2>
                 <ResultRow label="ΔStock" value={`${result.stop.dStock >= 0 ? '+' : ''}${result.stop.dStock.toFixed(2)}`} color={result.stop.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
                 <ResultRow label="Option Price at SL" large value={<>{`$${Math.max(result.stop.estPrice, 0).toFixed(2)}`}{result.stop.estPrice < 0 && <span className="text-xs font-normal text-red-400 ml-1">(floored)</span>}</>} color="text-white" />
@@ -3921,7 +3921,7 @@ const GreeksCalcTab = () => {
               </div>
             )}
             {result.takeProfit && (
-              <div className="bg-slate-900 border border-emerald-500/30 rounded-lg p-4 space-y-2">
+              <div className="bg-zinc-950 border border-emerald-500/30 rounded-lg p-4 space-y-2">
                 <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wide mb-3">Take Profit</h2>
                 <ResultRow label="ΔStock" value={`${result.takeProfit.dStock >= 0 ? '+' : ''}${result.takeProfit.dStock.toFixed(2)}`} color={result.takeProfit.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
                 <ResultRow label="Option Price at TP" large value={`$${Math.max(result.takeProfit.estPrice, 0).toFixed(2)}`} color="text-white" />
@@ -3937,7 +3937,7 @@ const GreeksCalcTab = () => {
         )}
 
         {!result && !scenarioRows && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-8 text-center text-slate-500 text-sm">
             Fill in the fields above. Enter a stop, take profit, or both.
           </div>
         )}
@@ -4038,13 +4038,13 @@ const TrailingStopsTab = () => {
       </div>
 
         {showForm && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-5 mb-6">
             <p className="text-sm font-semibold text-slate-300 mb-4">New Trailing Stop</p>
             {openTrades.length > 0 && (
               <div className="mb-4">
                 <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
                 <select value={selectedImport} onChange={e => handleImportTrade(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-purple-500">
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
                   <option value="">— select a trade —</option>
                   {openTrades.map(t => (
                     <option key={t.id} value={String(t.id)}>
@@ -4060,51 +4060,51 @@ const TrailingStopsTab = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">Ticker (optional)</label>
-                <input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="e.g. AAPL" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="e.g. AAPL" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Entry Stock Price ($)</label>
-                <input type="number" step="0.01" value={form.entryPrice} onChange={e => setForm(f => ({ ...f, entryPrice: e.target.value }))} placeholder="e.g. 150.00" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="0.01" value={form.entryPrice} onChange={e => setForm(f => ({ ...f, entryPrice: e.target.value }))} placeholder="e.g. 150.00" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
-                <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm(f => ({ ...f, currentPrice: e.target.value }))} placeholder="e.g. 153.00" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm(f => ({ ...f, currentPrice: e.target.value }))} placeholder="e.g. 153.00" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Option Premium ($)</label>
-                <input type="number" step="0.01" value={form.premium} onChange={e => setForm(f => ({ ...f, premium: e.target.value }))} placeholder="e.g. 3.50" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="0.01" value={form.premium} onChange={e => setForm(f => ({ ...f, premium: e.target.value }))} placeholder="e.g. 3.50" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Contracts</label>
-                <input type="number" step="1" value={form.contracts} onChange={e => setForm(f => ({ ...f, contracts: e.target.value }))} placeholder="e.g. 2" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="1" value={form.contracts} onChange={e => setForm(f => ({ ...f, contracts: e.target.value }))} placeholder="e.g. 2" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Delta</label>
-                <input type="number" step="0.001" value={form.delta} onChange={e => setForm(f => ({ ...f, delta: e.target.value }))} placeholder="-0.45 for puts" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="0.001" value={form.delta} onChange={e => setForm(f => ({ ...f, delta: e.target.value }))} placeholder="-0.45 for puts" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Gamma</label>
-                <input type="number" step="0.001" value={form.gamma} onChange={e => setForm(f => ({ ...f, gamma: e.target.value }))} placeholder="e.g. 0.03" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="0.001" value={form.gamma} onChange={e => setForm(f => ({ ...f, gamma: e.target.value }))} placeholder="e.g. 0.03" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Trailing Type</label>
-                <select value={form.trailingType} onChange={e => setForm(f => ({ ...f, trailingType: e.target.value }))} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-purple-500">
+                <select value={form.trailingType} onChange={e => setForm(f => ({ ...f, trailingType: e.target.value }))} className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
                   <option value="percent">Percentage (%)</option>
                   <option value="dollar">Dollar ($)</option>
                 </select>
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Trailing Distance {form.trailingType === 'percent' ? '(%)' : '($)'}</label>
-                <input type="number" step="0.1" value={form.trailingDistance} onChange={e => setForm(f => ({ ...f, trailingDistance: e.target.value }))} placeholder={form.trailingType === 'percent' ? 'e.g. 3' : 'e.g. 5.00'} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                <input type="number" step="0.1" value={form.trailingDistance} onChange={e => setForm(f => ({ ...f, trailingDistance: e.target.value }))} placeholder={form.trailingType === 'percent' ? 'e.g. 3' : 'e.g. 5.00'} className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
               </div>
             </div>
             {formError && <p className="text-red-400 text-xs mt-3">{formError}</p>}
-            <button onClick={handleAdd} className="mt-4 w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded font-semibold text-sm transition-colors">Add Trailing Stop</button>
+            <button onClick={handleAdd} className="mt-4 w-full py-2.5 bg-white hover:bg-zinc-100 text-black rounded font-semibold text-sm transition-colors">Add Trailing Stop</button>
           </div>
         )}
 
         {stops.length === 0 && !showForm && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center text-slate-500 text-sm">No trailing stops yet. Click &quot;+ Add stop&quot; to create one.</div>
+          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-8 text-center text-slate-500 text-sm">No trailing stops yet. Click &quot;+ Add stop&quot; to create one.</div>
         )}
 
         <div className="space-y-4">
@@ -4112,8 +4112,8 @@ const TrailingStopsTab = () => {
             const { high, stopLevel, isTriggered, distToStop, estPrice, totalDollar } = computeStop(stop)
             const pctTrail = stop.trailingType === 'percent' ? `${stop.trailingDistance}%` : ff(stop.trailingDistance)
             return (
-              <div key={stop.id} className={`bg-slate-900 rounded-lg border ${isTriggered ? 'border-red-500' : 'border-slate-800'} overflow-hidden`}>
-                <div className={`flex items-center justify-between px-4 py-3 ${isTriggered ? 'bg-red-500/10' : 'bg-slate-800/40'}`}>
+              <div key={stop.id} className={`bg-zinc-950 rounded-lg border ${isTriggered ? 'border-red-500' : 'border-zinc-900'} overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 ${isTriggered ? 'bg-red-500/10' : 'bg-zinc-900/40'}`}>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-slate-100">{stop.ticker}</span>
                     <span className="text-xs text-slate-500">trailing {pctTrail} · {stop.contracts} contract{stop.contracts !== 1 ? 's' : ''}</span>
@@ -4127,7 +4127,7 @@ const TrailingStopsTab = () => {
                   </div>
                 </div>
 
-                <div className="px-4 py-4 grid grid-cols-3 gap-4 border-b border-slate-800">
+                <div className="px-4 py-4 grid grid-cols-3 gap-4 border-b border-zinc-900">
                   <div>
                     <p className="text-xs text-slate-500 mb-0.5">High Watermark</p>
                     <p className="text-lg font-bold text-slate-100">{ff(high)}</p>
@@ -4142,7 +4142,7 @@ const TrailingStopsTab = () => {
                   </div>
                 </div>
 
-                <div className="px-4 py-3 grid grid-cols-2 gap-4 border-b border-slate-800 bg-slate-800/20">
+                <div className="px-4 py-3 grid grid-cols-2 gap-4 border-b border-zinc-900 bg-zinc-900/20">
                   <div>
                     <p className="text-xs text-slate-500 mb-0.5">Distance to Stop</p>
                     <p className={`font-semibold text-sm ${distToStop <= 0 ? 'text-red-400' : distToStop < 2 ? 'text-amber-400' : 'text-slate-300'}`}>
@@ -4163,7 +4163,7 @@ const TrailingStopsTab = () => {
                     value={updateInputs[stop.id] || ''}
                     onChange={e => setUpdateInputs(prev => ({ ...prev, [stop.id]: e.target.value }))}
                     placeholder="New stock price..."
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500"
                     onKeyDown={e => e.key === 'Enter' && handleUpdatePrice(stop.id)}
                   />
                   <button onClick={() => handleUpdatePrice(stop.id)} className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors whitespace-nowrap">Update Price</button>
@@ -4183,13 +4183,13 @@ const TrailingStopsTab = () => {
 const OptionsToolsView = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('calculator')
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="border-b border-slate-800 px-6 py-4 flex items-center gap-6">
+    <div className="min-h-screen bg-black text-slate-100">
+      <div className="border-b border-zinc-900 px-6 py-4 flex items-center gap-6">
         <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
         <div className="flex gap-1">
           {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
             <button key={key} onClick={() => setActiveTab(key)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-900 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
               {label}
             </button>
           ))}
@@ -4246,7 +4246,7 @@ const EquityCurveView = ({ config, onBack }) => {
     if (!active || !payload?.length) return null
     const d = payload[0].payload
     return (
-      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm shadow-lg">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-sm shadow-lg">
         <p className="text-slate-300 font-semibold">{d.date}</p>
         <p className="text-white">Balance: <span className="font-bold">${d.balance.toFixed(2)}</span></p>
         {d.change !== 0 && <p className={d.change >= 0 ? 'text-emerald-400' : 'text-red-400'}>{d.change >= 0 ? '+' : ''}${d.change.toFixed(2)}</p>}
@@ -4256,8 +4256,8 @@ const EquityCurveView = ({ config, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <button onClick={onBack} className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors">← Back to Menu</button>
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={onBack} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Equity Curve</h1>
         {loading ? <p className="text-slate-400">Loading balance history...</p> : chartData.length < 2 ? (
@@ -4271,13 +4271,13 @@ const EquityCurveView = ({ config, onBack }) => {
                 { label: 'Total P&L', value: `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`, color: totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400' },
                 { label: 'Max Drawdown', value: `${maxDD.toFixed(1)}%`, color: maxDD > 10 ? 'text-red-400' : 'text-amber-400' },
               ].map(({ label, value, color }) => (
-                <div key={label} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                   <p className="text-xs text-slate-400 mb-1">{label}</p>
                   <p className={`text-xl font-bold ${color}`}>{value}</p>
                 </div>
               ))}
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
               <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -4290,11 +4290,11 @@ const EquityCurveView = ({ config, onBack }) => {
               </ResponsiveContainer>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                 <p className="text-sm text-slate-400 mb-1">Win Rate (balance changes)</p>
                 <p className="text-2xl font-bold text-slate-100">{winRate}{winRate !== 'N/A' ? '%' : ''}</p>
               </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                 <p className="text-sm text-slate-400 mb-1">Total Transactions</p>
                 <p className="text-2xl font-bold text-slate-100">{chartData.length}</p>
               </div>
@@ -4388,10 +4388,10 @@ const FuturesPositionSizer = ({ config, onBack }) => {
   }, [contracts, riskPercent, dollarPerTick, stopLossTicks, mode, currentBalance])
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+    <div className="min-h-screen bg-black text-slate-100 p-8">
       <button
         onClick={onBack}
-        className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+        className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors"
       >
         ← Back to Menu
       </button>
@@ -4400,7 +4400,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
         <h1 className="text-3xl font-bold mb-2">{labels.positionSizerButton || 'Position Sizing Calculator'}</h1>
         <p className="text-slate-400 mb-8">Calculate optimal position size or maximum stop loss based on your risk parameters.</p>
 
-        <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg mb-6">
+        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg mb-6">
           <div className="flex justify-between items-center">
             <span className="text-slate-400">{labels.balanceHeroLabel || 'Account Balance:'}</span>
             {loading ? (
@@ -4416,8 +4416,8 @@ const FuturesPositionSizer = ({ config, onBack }) => {
             onClick={() => setMode('stopFromContracts')}
             className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
               mode === 'stopFromContracts'
-                ? 'bg-amber-600 text-white border-amber-500'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+                ? 'bg-white text-black border-white'
+                : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'
             }`}
           >
             <div className="font-semibold">Calculate Max Stop</div>
@@ -4427,8 +4427,8 @@ const FuturesPositionSizer = ({ config, onBack }) => {
             onClick={() => setMode('contractsFromStop')}
             className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
               mode === 'contractsFromStop'
-                ? 'bg-amber-600 text-white border-amber-500'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+                ? 'bg-white text-black border-white'
+                : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'
             }`}
           >
             <div className="font-semibold">Calculate Max Contracts</div>
@@ -4436,7 +4436,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
           </button>
         </div>
 
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg space-y-4">
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg space-y-4">
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2 text-slate-300">Risk Percentage (%)</label>
             <div className="flex gap-2 mb-2">
@@ -4447,8 +4447,8 @@ const FuturesPositionSizer = ({ config, onBack }) => {
                   onClick={() => setRiskPercent(pct)}
                   className={`px-3 py-1 rounded text-sm border transition-colors ${
                     riskPercent === pct
-                      ? 'bg-amber-600 text-white border-amber-500'
-                      : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'
+                      ? 'bg-white text-black border-white'
+                      : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'
                   }`}
                 >
                   {pct}%
@@ -4460,7 +4460,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
               step="0.01"
               value={riskPercent}
               onChange={(e) => setRiskPercent(e.target.value)}
-              className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+              className="w-full p-3 bg-zinc-950 border border-zinc-700 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
               placeholder="Enter custom %"
             />
           </div>
@@ -4476,8 +4476,8 @@ const FuturesPositionSizer = ({ config, onBack }) => {
                     onClick={() => handlePresetChange(preset.symbol)}
                     className={`px-3 py-2 rounded text-sm border transition-colors ${
                       selectedPreset === preset.symbol
-                        ? 'bg-amber-600 text-white border-amber-500'
-                        : 'bg-slate-700 text-slate-300 border-slate-600 hover:border-slate-500'
+                        ? 'bg-white text-black border-white'
+                        : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'
                     }`}
                   >
                     <div className="font-semibold">{preset.symbol}</div>
@@ -4495,7 +4495,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
               step="0.01"
               value={dollarPerTick}
               onChange={(e) => { setDollarPerTick(e.target.value); setSelectedPreset(''); }}
-              className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+              className="w-full p-3 bg-zinc-950 border border-zinc-700 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
               placeholder="e.g., 12.50 for ES"
             />
           </div>
@@ -4508,7 +4508,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
                 step="1"
                 value={contracts}
                 onChange={(e) => setContracts(e.target.value)}
-                className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+                className="w-full p-3 bg-zinc-950 border border-zinc-700 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
                 placeholder="e.g., 2"
               />
             </div>
@@ -4520,7 +4520,7 @@ const FuturesPositionSizer = ({ config, onBack }) => {
                 step="1"
                 value={stopLossTicks}
                 onChange={(e) => setStopLossTicks(e.target.value)}
-                className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
+                className="w-full p-3 bg-zinc-950 border border-zinc-700 rounded-lg text-slate-100 focus:border-amber-500 focus:outline-none"
                 placeholder="e.g., 10"
               />
             </div>
@@ -4528,20 +4528,20 @@ const FuturesPositionSizer = ({ config, onBack }) => {
         </div>
 
         {result && (
-          <div className="mt-6 bg-slate-900 border border-amber-500/30 p-6 rounded-lg">
+          <div className="mt-6 bg-zinc-950 border border-amber-500/30 p-6 rounded-lg">
             <h3 className="text-xl font-bold text-amber-300 mb-4">Calculation Result</h3>
 
             {result.type === 'stopFromContracts' ? (
               <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                <div className="flex justify-between items-center p-3 bg-zinc-900 rounded-lg">
                   <span className="text-slate-300">Maximum Stop Loss:</span>
                   <span className="text-3xl font-bold text-emerald-400">{result.maxStopTicks} ticks</span>
                 </div>
-                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <div className="flex justify-between items-center p-3 bg-zinc-900/50 rounded-lg">
                   <span className="text-slate-400">Risk Amount:</span>
                   <span className="text-lg font-semibold text-slate-100">${result.riskDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <div className="flex justify-between items-center p-3 bg-zinc-900/50 rounded-lg">
                   <span className="text-slate-400">Actual Risk %:</span>
                   <span className="text-lg font-semibold text-slate-100">{result.riskPercent.toFixed(3)}%</span>
                 </div>
@@ -4551,15 +4551,15 @@ const FuturesPositionSizer = ({ config, onBack }) => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                <div className="flex justify-between items-center p-3 bg-zinc-900 rounded-lg">
                   <span className="text-slate-300">Maximum Contracts:</span>
                   <span className="text-3xl font-bold text-emerald-400">{result.maxContracts}</span>
                 </div>
-                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <div className="flex justify-between items-center p-3 bg-zinc-900/50 rounded-lg">
                   <span className="text-slate-400">Risk Amount:</span>
                   <span className="text-lg font-semibold text-slate-100">${result.riskDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <div className="flex justify-between items-center p-3 bg-zinc-900/50 rounded-lg">
                   <span className="text-slate-400">Actual Risk %:</span>
                   <span className="text-lg font-semibold text-slate-100">{result.riskPercent.toFixed(3)}%</span>
                 </div>
@@ -4629,8 +4629,8 @@ const TradingEnvironment = ({ config, onBack }) => {
     ] : []
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
-        <div className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+      <div className="min-h-screen bg-black text-slate-100">
+        <div className="border-b border-zinc-900 px-6 py-4 flex items-center justify-between">
           <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">{config.labels.menuBack}</button>
           <h1 className="text-xl font-bold text-slate-100">{config.environmentTitle}</h1>
           <div className="w-24" />
@@ -4640,7 +4640,7 @@ const TradingEnvironment = ({ config, onBack }) => {
           {dashStats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {statCards.map(({ label, value, color }) => (
-                <div key={label} className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div key={label} className="bg-zinc-950 border border-zinc-900 rounded-xl p-5">
                   <p className="text-xs text-slate-500 mb-2 uppercase tracking-wide">{label}</p>
                   <p className={`text-2xl font-bold ${color}`}>{value}</p>
                 </div>
@@ -4665,7 +4665,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               ...(supportsTagLinks ? [{ label: config.labels.manageTagsButton || 'Manage Tags', view: 'manage-tags' }] : []),
             ].map(({ label, view, primary }) => (
               <button key={view} onClick={() => setCurrentView(view)}
-                className={`p-4 rounded-xl border text-sm font-medium text-left transition-all ${primary ? config.classes.primaryButton + ' border-transparent' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'}`}>
+                className={`p-4 rounded-xl border text-sm font-medium text-left transition-all ${primary ? config.classes.primaryButton + ' border-transparent' : 'bg-zinc-950 border-zinc-900 text-slate-300 hover:border-zinc-700 hover:text-white'}`}>
                 {label}
               </button>
             ))}
@@ -4721,7 +4721,7 @@ export default function Home() {
 
   if (!activeMode) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center">
         <div className="w-full max-w-2xl px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-slate-100 mb-4">Trading Journal</h1>
           <p className="text-slate-400 mb-10 text-lg">Select your workspace to manage trades, review performance, and sharpen your edge.</p>
