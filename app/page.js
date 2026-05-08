@@ -807,6 +807,8 @@ const MODE_CONFIG = {
       gamma: 'gamma',
       theta: 'theta',
       entryStockPrice: 'entry_stock_price',
+      slStockPrice: 'sl_stock_price',
+      tpStockPrice: 'tp_stock_price',
       forecastUrl: 'forecast_url',
       entryUrl: 'entry_url',
       notes: 'notes',
@@ -894,6 +896,8 @@ const MODE_CONFIG = {
       deltaLabel: 'Delta',
       gammaLabel: 'Gamma',
       thetaLabel: 'Theta (Θ)',
+      slStockPriceLabel: 'SL Stock Price ($)',
+      tpStockPriceLabel: 'TP Stock Price ($)',
       greeksCalculatorButton: 'Greeks Calculator',
       editTradeButton: 'Edit Trade Details',
       missedTradeButton: 'Log Missed Option Trade',
@@ -919,6 +923,8 @@ const MODE_CONFIG = {
       contracts: '',
       premium: '',
       entryStockPrice: '',
+      slStockPrice: '',
+      tpStockPrice: '',
       delta: '',
       gamma: '',
       theta: '',
@@ -1628,6 +1634,8 @@ const EditTradeView = ({ setCurrentView, config }) => {
     if (tradeColumns.delta) data.delta = trade[tradeColumns.delta] ?? ''
     if (tradeColumns.gamma) data.gamma = trade[tradeColumns.gamma] ?? ''
     if (tradeColumns.theta) data.theta = trade[tradeColumns.theta] ?? ''
+    if (tradeColumns.slStockPrice) data.slStockPrice = trade[tradeColumns.slStockPrice] ?? ''
+    if (tradeColumns.tpStockPrice) data.tpStockPrice = trade[tradeColumns.tpStockPrice] ?? ''
     if (tradeColumns.entryPrice) data.entryPrice = trade[tradeColumns.entryPrice] ?? ''
     if (tradeColumns.dollarPerTick) data.dollarPerTick = trade[tradeColumns.dollarPerTick] ?? ''
     if (tradeColumns.stopLossTicks) data.stopLossTicks = trade[tradeColumns.stopLossTicks] ?? ''
@@ -1658,6 +1666,8 @@ const EditTradeView = ({ setCurrentView, config }) => {
       set(tradeColumns.delta, editData.delta === '' ? null : (editData.delta != null ? parseFloat(editData.delta) : null))
       set(tradeColumns.gamma, editData.gamma === '' ? null : (editData.gamma != null ? parseFloat(editData.gamma) : null))
       set(tradeColumns.theta, editData.theta === '' ? null : (editData.theta != null ? parseFloat(editData.theta) : null))
+      set(tradeColumns.slStockPrice, editData.slStockPrice === '' ? null : (editData.slStockPrice != null ? parseFloat(editData.slStockPrice) : null))
+      set(tradeColumns.tpStockPrice, editData.tpStockPrice === '' ? null : (editData.tpStockPrice != null ? parseFloat(editData.tpStockPrice) : null))
       set(tradeColumns.entryPrice, editData.entryPrice === '' ? null : (editData.entryPrice != null ? parseFloat(editData.entryPrice) : null))
       set(tradeColumns.dollarPerTick, editData.dollarPerTick === '' ? null : (editData.dollarPerTick != null ? parseFloat(editData.dollarPerTick) : null))
       set(tradeColumns.stopLossTicks, editData.stopLossTicks === '' ? null : (editData.stopLossTicks != null ? parseInt(editData.stopLossTicks) : null))
@@ -1790,6 +1800,12 @@ const EditTradeView = ({ setCurrentView, config }) => {
                   )}
                   {tradeColumns.theta && (
                     <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={editData.theta ?? ''} onChange={(e) => setEditData(p => ({ ...p, theta: e.target.value }))} />
+                  )}
+                  {tradeColumns.slStockPrice && (
+                    <InputField label={labels.slStockPriceLabel || 'SL Stock Price ($)'} type="number" step="0.01" value={editData.slStockPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, slStockPrice: e.target.value }))} />
+                  )}
+                  {tradeColumns.tpStockPrice && (
+                    <InputField label={labels.tpStockPriceLabel || 'TP Stock Price ($)'} type="number" step="0.01" value={editData.tpStockPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, tpStockPrice: e.target.value }))} />
                   )}
                   {tradeColumns.entryPrice && (
                     <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={editData.entryPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, entryPrice: e.target.value }))} />
@@ -2845,7 +2861,7 @@ const MissedTradesAnalytics = ({ missed, config }) => {
   )
 }
 
-const MissedTradeView = ({ setCurrentView, config }) => {
+const MissedTradeView = ({ setCurrentView, config, embedded = false }) => {
   const { tables, missedColumns, labels, missedPatternOptions } = config
   const missedTable = tables.missed
 
@@ -2884,10 +2900,10 @@ const MissedTradeView = ({ setCurrentView, config }) => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">{labels.missedTradeButton}</h1>
+    <div className={embedded ? 'p-6 max-w-2xl mx-auto' : 'min-h-screen bg-black text-slate-100 p-8'}>
+      {!embedded && <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>}
+      <div className={embedded ? '' : 'max-w-2xl mx-auto'}>
+        {!embedded && <h1 className="text-3xl font-bold mb-6">{labels.missedTradeButton}</h1>}
         {message && <div className={`p-4 rounded-lg mb-6 border ${message.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>{message}</div>}
         <form onSubmit={handleSubmit} className="space-y-6 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
           <InputField label={labels.instrument} value={form.instrument} onChange={(e) => handleInput('instrument', e.target.value)} placeholder={labels.instrumentPlaceholder} required />
@@ -2905,7 +2921,7 @@ const MissedTradeView = ({ setCurrentView, config }) => {
   )
 }
 
-const ViewMissedTrades = ({ setCurrentView, config }) => {
+const ViewMissedTrades = ({ setCurrentView, config, embedded = false }) => {
   const { tables, missedColumns, labels, missedAnalyticsLabels } = config
   const missedTable = tables.missed
 
@@ -2933,10 +2949,10 @@ const ViewMissedTrades = ({ setCurrentView, config }) => {
   const avgPct = missed.length ? (totalPct / missed.length) : 0
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 p-8">
-      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">{labels.missedDataButton}</h1>
+    <div className={embedded ? 'p-6' : 'min-h-screen bg-black text-slate-100 p-8'}>
+      {!embedded && <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>}
+      <div className={embedded ? '' : 'max-w-7xl mx-auto'}>
+        {!embedded && <h1 className="text-3xl font-bold mb-8">{labels.missedDataButton}</h1>}
 
         <div className="flex gap-2 mb-6">
           <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg border transition-colors ${activeTab === 'overview' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>Overview</button>
@@ -3035,8 +3051,6 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const [checklistComplete, setChecklistComplete] = useState(false)
   const [checklistSnapshot, setChecklistSnapshot] = useState(null)
   const [pasteFormState, setPasteFormState] = useState('idle')
-  const [slPrice, setSlPrice] = useState('')
-  const [tpPrice, setTpPrice] = useState('')
 
   useEffect(() => {
     if (!tradeColumns.premium) return
@@ -3210,6 +3224,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.delta, formData.delta === '' ? null : (formData.delta ? parseFloat(formData.delta) : null))
       assignValue(tradeColumns.gamma, formData.gamma === '' ? null : (formData.gamma ? parseFloat(formData.gamma) : null))
       assignValue(tradeColumns.theta, formData.theta === '' ? null : (formData.theta ? parseFloat(formData.theta) : null))
+      assignValue(tradeColumns.slStockPrice, formData.slStockPrice === '' ? null : (formData.slStockPrice ? parseFloat(formData.slStockPrice) : null))
+      assignValue(tradeColumns.tpStockPrice, formData.tpStockPrice === '' ? null : (formData.tpStockPrice ? parseFloat(formData.tpStockPrice) : null))
       assignValue(tradeColumns.entryPrice, formData.entryPrice === '' ? null : (formData.entryPrice ? parseFloat(formData.entryPrice) : null))
       assignValue(tradeColumns.dollarPerTick, formData.dollarPerTick === '' ? null : (formData.dollarPerTick ? parseFloat(formData.dollarPerTick) : null))
       assignValue(tradeColumns.stopLossTicks, formData.stopLossTicks === '' ? null : (formData.stopLossTicks ? parseInt(formData.stopLossTicks) : null))
@@ -3245,8 +3261,6 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       setFormData({ ...config.formDefaults })
       setChecklistSnapshot(null)
       setChecklistComplete(false)
-      setSlPrice('')
-      setTpPrice('')
     } catch (err) {
       setMessage(`Error: ${err.message}`)
     }
@@ -3432,12 +3446,12 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={formData.theta} onChange={(e) => handleInputChange('theta', e.target.value)} placeholder="-0.05 (daily decay)" />
           )}
 
-          {tradeColumns.premium && (
-            <InputField label="SL Stock Price ($)" type="number" step="0.01" value={slPrice} onChange={e => setSlPrice(e.target.value)} placeholder="e.g. 145.00" />
+          {tradeColumns.slStockPrice && (
+            <InputField label={labels.slStockPriceLabel || 'SL Stock Price ($)'} type="number" step="0.01" value={formData.slStockPrice} onChange={e => handleInputChange('slStockPrice', e.target.value)} placeholder="e.g. 145.00" />
           )}
 
-          {tradeColumns.premium && (
-            <InputField label="TP Stock Price ($)" type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)} placeholder="e.g. 158.00" />
+          {tradeColumns.tpStockPrice && (
+            <InputField label={labels.tpStockPriceLabel || 'TP Stock Price ($)'} type="number" step="0.01" value={formData.tpStockPrice} onChange={e => handleInputChange('tpStockPrice', e.target.value)} placeholder="e.g. 158.00" />
           )}
 
           {tradeColumns.entryPrice && (
@@ -3544,8 +3558,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             const _d = parseFloat(formData.delta)
             const _g = parseFloat(formData.gamma)
             const _n = parseInt(formData.contracts)
-            const _sl = parseFloat(slPrice)
-            const _tp = parseFloat(tpPrice)
+            const _sl = parseFloat(formData.slStockPrice)
+            const _tp = parseFloat(formData.tpStockPrice)
             const _th = parseFloat(formData.theta)
             const _expiry = formData.expiry
             const hasGreeks = ![_S, _P, _d, _g, _n].some(isNaN) && _n > 0
@@ -3609,17 +3623,17 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 }
 
 const MissedTradesView = ({ setCurrentView, config }) => {
-  const [tab, setTab] = useState('review')
+  const [tab, setTab] = useState('log')
   return (
     <div className="min-h-screen bg-black text-slate-100">
       <div className="sticky top-0 z-10 bg-black/95 border-b border-zinc-900 px-8 py-3 flex items-center gap-3">
-        <button onClick={() => setCurrentView('menu')} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors mr-2">← Menu</button>
-        <button onClick={() => setTab('review')} className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${tab === 'review' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Review</button>
+        <button onClick={() => setCurrentView('menu')} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors mr-4">← Menu</button>
         <button onClick={() => setTab('log')} className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${tab === 'log' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Log New</button>
+        <button onClick={() => setTab('review')} className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${tab === 'review' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Review</button>
       </div>
-      {tab === 'review'
-        ? <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
-        : <MissedTradeView setCurrentView={setCurrentView} config={config} />
+      {tab === 'log'
+        ? <MissedTradeView setCurrentView={setCurrentView} config={config} embedded />
+        : <ViewMissedTrades setCurrentView={setCurrentView} config={config} embedded />
       }
     </div>
   )
@@ -3778,7 +3792,7 @@ const GreeksCalcTab = () => {
   useEffect(() => {
     supabase
       .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, expiry_date')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, sl_stock_price, tp_stock_price, expiry_date')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
@@ -3795,6 +3809,8 @@ const GreeksCalcTab = () => {
     if (t.theta != null) setTheta(String(t.theta))
     if (t.contracts != null) setContracts(String(t.contracts))
     if (t.expiry_date) setExpiry(t.expiry_date.split('T')[0])
+    if (t.sl_stock_price != null) setStopPrice(String(t.sl_stock_price))
+    if (t.tp_stock_price != null) setTpPrice(String(t.tp_stock_price))
   }
 
   useEffect(() => {
@@ -4149,7 +4165,7 @@ const TrailingStopsTab = () => {
   useEffect(() => {
     supabase
       .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, sl_stock_price, tp_stock_price')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
