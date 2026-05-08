@@ -289,12 +289,12 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
       <nav className="bg-zinc-950/95 border-b border-zinc-900 px-4 py-3 sticky top-0 z-50 backdrop-blur-sm">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-blue-400">Falcon FX</h1>
+            <h1 className="text-lg font-bold text-white">Falcon FX</h1>
             <p className="text-xs text-slate-400 uppercase tracking-wider">Pre-Trade Checklist</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setActiveTab('checklist')} className={`px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'checklist' ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-slate-200'}`}>Checklist</button>
-            <button onClick={() => setActiveTab('reference')} className={`px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'reference' ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-slate-200'}`}>Reference</button>
+            <button onClick={() => setActiveTab('checklist')} className={`px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'checklist' ? 'text-white bg-white/10' : 'text-slate-400 hover:text-slate-200'}`}>Checklist</button>
+            <button onClick={() => setActiveTab('reference')} className={`px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'reference' ? 'text-white bg-white/10' : 'text-slate-400 hover:text-slate-200'}`}>Reference</button>
           </div>
         </div>
       </nav>
@@ -313,7 +313,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
               <span>{completedCount}/{totalCount} complete</span>
             </div>
             <div className="bg-zinc-900 rounded-full h-2 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+              <div className="h-full bg-gradient-to-r from-zinc-400 to-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
           </div>
 
@@ -342,7 +342,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-blue-400 w-5">{step.num}.</span>
+                        <span className="text-xs font-bold text-zinc-400 w-5">{step.num}.</span>
                         <span className="text-xs uppercase tracking-wide text-slate-500">{step.section}</span>
                       </div>
                       <p className={`text-sm font-medium mb-1 ${isComplete ? 'text-slate-300' : 'text-white'}`}>{step.question}</p>
@@ -357,7 +357,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
                               onClick={() => setRuleOfThree(opt.value)}
                               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                                 ruleOfThree === opt.value
-                                  ? 'bg-blue-600 border-blue-500 text-white'
+                                  ? 'bg-white/10 border-white text-white'
                                   : 'bg-zinc-900 border-zinc-800 text-slate-300 hover:border-slate-500'
                               }`}
                             >
@@ -413,7 +413,7 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
               onClick={handleProceed}
               className={`flex-1 px-6 py-3 rounded-lg font-bold transition-all text-sm ${
                 canProceed && !unlocking
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-black shadow-lg shadow-emerald-500/20'
+                  ? 'bg-white hover:bg-zinc-100 text-black font-semibold'
                   : 'bg-zinc-800 text-slate-400 cursor-not-allowed'
               }`}
             >
@@ -2495,7 +2495,12 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
     <div className="min-h-screen bg-black text-slate-100 p-8">
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">{labels.viewDataButton}</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold">{labels.viewDataButton}</h1>
+          {config.tables?.tagLinks && (
+            <button onClick={() => setCurrentView('manage-tags')} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Manage Tags</button>
+          )}
+        </div>
 
         {journalReminders.length > 0 && (
           <div className="mb-6 space-y-2">
@@ -2684,7 +2689,12 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                             >
                               {trade.journal_notes ? 'Edit' : 'Write'}
                             </button>
-                          ) : <span className="text-slate-600 text-xs">—</span>}
+                          ) : (
+                            <div className="flex gap-1">
+                              <button onClick={() => setCurrentView('edit-trade')} className="text-xs px-2 py-1 rounded border border-zinc-700 text-slate-400 hover:border-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Edit</button>
+                              {config.tables?.partialExits && <button onClick={() => setCurrentView('partial-exit')} className="text-xs px-2 py-1 rounded border border-zinc-700 text-slate-400 hover:border-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Part. Exit</button>}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -3025,6 +3035,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const [checklistComplete, setChecklistComplete] = useState(false)
   const [checklistSnapshot, setChecklistSnapshot] = useState(null)
   const [pasteFormState, setPasteFormState] = useState('idle')
+  const [slPrice, setSlPrice] = useState('')
+  const [tpPrice, setTpPrice] = useState('')
 
   useEffect(() => {
     if (!tradeColumns.premium) return
@@ -3233,6 +3245,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       setFormData({ ...config.formDefaults })
       setChecklistSnapshot(null)
       setChecklistComplete(false)
+      setSlPrice('')
+      setTpPrice('')
     } catch (err) {
       setMessage(`Error: ${err.message}`)
     }
@@ -3418,6 +3432,14 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={formData.theta} onChange={(e) => handleInputChange('theta', e.target.value)} placeholder="-0.05 (daily decay)" />
           )}
 
+          {tradeColumns.premium && (
+            <InputField label="SL Stock Price ($)" type="number" step="0.01" value={slPrice} onChange={e => setSlPrice(e.target.value)} placeholder="e.g. 145.00" />
+          )}
+
+          {tradeColumns.premium && (
+            <InputField label="TP Stock Price ($)" type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)} placeholder="e.g. 158.00" />
+          )}
+
           {tradeColumns.entryPrice && (
             <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={formData.entryPrice} onChange={(e) => handleInputChange('entryPrice', e.target.value)} placeholder="e.g., 4500.25" />
           )}
@@ -3516,11 +3538,89 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             </div>
           )}
 
+          {(() => {
+            const _S = parseFloat(formData.entryStockPrice)
+            const _P = parseFloat(formData.premium)
+            const _d = parseFloat(formData.delta)
+            const _g = parseFloat(formData.gamma)
+            const _n = parseInt(formData.contracts)
+            const _sl = parseFloat(slPrice)
+            const _tp = parseFloat(tpPrice)
+            const _th = parseFloat(formData.theta)
+            const _expiry = formData.expiry
+            const hasGreeks = ![_S, _P, _d, _g, _n].some(isNaN) && _n > 0
+            const hasSl = !isNaN(_sl)
+            const hasTp = !isNaN(_tp)
+            const hasTheta = !isNaN(_th) && _expiry
+            if (!hasGreeks || (!hasSl && !hasTp && !hasTheta)) return null
+            const daysToExpiry = _expiry ? Math.max(0, Math.ceil((new Date(_expiry) - new Date()) / 86400000)) : null
+            const slCalc = hasSl ? calcOptionLeg(_P, _d, _g, _sl, _S, _n) : null
+            const tpCalc = hasTp ? calcOptionLeg(_P, _d, _g, _tp, _S, _n) : null
+            const rr = slCalc && tpCalc && slCalc.totalDollar !== 0 ? Math.abs(tpCalc.totalDollar / slCalc.totalDollar) : null
+            const fmtDollar = v => `${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}${v < 0 ? ' loss' : ' gain'}`
+            const fmtPct = v => v !== null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : null
+            return (
+              <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-4 mb-4">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Pre-Trade P&amp;L Estimate</p>
+                {hasTheta && daysToExpiry !== null && (
+                  <div className="mb-3 p-3 rounded-lg bg-zinc-900 border border-amber-500/20">
+                    <p className="text-xs text-amber-400 font-medium mb-1">Theta Decay</p>
+                    <div className="flex gap-4 text-xs text-slate-300">
+                      <span>Daily: <span className="text-amber-400 font-mono">${(_th * _n * 100).toFixed(2)}</span></span>
+                      <span>To expiry ({daysToExpiry}d): <span className="text-red-400 font-mono">${(_th * daysToExpiry * _n * 100).toFixed(2)}</span></span>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {slCalc && (
+                    <div className="p-3 rounded-lg border border-red-500/30 bg-zinc-900/50">
+                      <p className="text-xs text-red-400 font-medium mb-2">At SL (${_sl})</p>
+                      <p className="text-xs text-slate-400">Option price: <span className="text-white font-mono">${Math.max(0, slCalc.estPrice).toFixed(2)}</span></p>
+                      <p className="text-xs text-slate-400">P&amp;L: <span className={`font-mono font-semibold ${slCalc.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtDollar(slCalc.totalDollar)}</span></p>
+                      {slCalc.pctChange !== null && <p className="text-xs text-slate-500">{fmtPct(slCalc.pctChange)} option change</p>}
+                    </div>
+                  )}
+                  {tpCalc && (
+                    <div className="p-3 rounded-lg border border-emerald-500/30 bg-zinc-900/50">
+                      <p className="text-xs text-emerald-400 font-medium mb-2">At TP (${_tp})</p>
+                      <p className="text-xs text-slate-400">Option price: <span className="text-white font-mono">${Math.max(0, tpCalc.estPrice).toFixed(2)}</span></p>
+                      <p className="text-xs text-slate-400">P&amp;L: <span className={`font-mono font-semibold ${tpCalc.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtDollar(tpCalc.totalDollar)}</span></p>
+                      {tpCalc.pctChange !== null && <p className="text-xs text-slate-500">{fmtPct(tpCalc.pctChange)} option change</p>}
+                    </div>
+                  )}
+                </div>
+                {rr !== null && (
+                  <div className={`mt-3 p-2 rounded text-center text-xs font-semibold border ${rr >= 1.5 ? 'border-emerald-600/50 text-emerald-400' : 'border-amber-600/50 text-amber-400'}`}>
+                    R:R {rr.toFixed(2)}:1{rr < 1.5 ? ' — below 1.5:1 minimum' : ''}
+                  </div>
+                )}
+                <p className="text-xs text-zinc-700 mt-2">Delta-gamma approx. only — does not account for IV changes.</p>
+              </div>
+            )
+          })()}
+
           <button type="submit" disabled={isSubmitting || exceedsLimit} className={`w-full p-4 rounded-lg font-semibold transition-colors ${isSubmitting || exceedsLimit ? 'bg-zinc-700 text-white cursor-not-allowed' : classes.primaryAction}`}>
             {exceedsLimit ? `Risk Exceeds ${(riskFraction * 100).toFixed(1)}% Limit` : isSubmitting ? 'Adding Trade...' : 'Add Trade'}
           </button>
         </form>
       </div>
+    </div>
+  )
+}
+
+const MissedTradesView = ({ setCurrentView, config }) => {
+  const [tab, setTab] = useState('review')
+  return (
+    <div className="min-h-screen bg-black text-slate-100">
+      <div className="sticky top-0 z-10 bg-black/95 border-b border-zinc-900 px-8 py-3 flex items-center gap-3">
+        <button onClick={() => setCurrentView('menu')} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors mr-2">← Menu</button>
+        <button onClick={() => setTab('review')} className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${tab === 'review' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Review</button>
+        <button onClick={() => setTab('log')} className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${tab === 'log' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Log New</button>
+      </div>
+      {tab === 'review'
+        ? <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
+        : <MissedTradeView setCurrentView={setCurrentView} config={config} />
+      }
     </div>
   )
 }
@@ -3672,6 +3772,30 @@ const GreeksCalcTab = () => {
   const [contracts, setContracts] = useState('')
   const [result, setResult] = useState(null)
   const [pasteState, setPasteState] = useState('idle')
+  const [openTrades, setOpenTrades] = useState([])
+  const [selectedImport, setSelectedImport] = useState('')
+
+  useEffect(() => {
+    supabase
+      .from('options_trades')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, expiry_date')
+      .eq('status', 'open')
+      .order('entry_date', { ascending: false })
+      .then(({ data }) => { if (data) setOpenTrades(data) })
+  }, [])
+
+  const handleImportGreeks = (id) => {
+    setSelectedImport(id)
+    const t = openTrades.find(o => String(o.id) === id)
+    if (!t) return
+    if (t.entry_stock_price != null) setStockPrice(String(t.entry_stock_price))
+    if (t.premium != null) setPremium(String(t.premium))
+    if (t.delta != null) setDelta(String(t.delta))
+    if (t.gamma != null) setGamma(String(t.gamma))
+    if (t.theta != null) setTheta(String(t.theta))
+    if (t.contracts != null) setContracts(String(t.contracts))
+    if (t.expiry_date) setExpiry(t.expiry_date.split('T')[0])
+  }
 
   useEffect(() => {
     const handlePaste = async e => {
@@ -3823,8 +3947,23 @@ const GreeksCalcTab = () => {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-slate-500 text-sm">Enter details or paste a broker screenshot to auto-fill.</p>
-        <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setTheta(''); setExpiry(''); setDaysHeld(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null); setPasteState('idle') }} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
+        <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setTheta(''); setExpiry(''); setDaysHeld(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null); setPasteState('idle'); setSelectedImport('') }} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
       </div>
+
+      {openTrades.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
+          <select value={selectedImport} onChange={e => handleImportGreeks(e.target.value)}
+            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
+            <option value="">— select a trade —</option>
+            {openTrades.map(t => (
+              <option key={t.id} value={String(t.id)}>
+                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ' (no Greeks)'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div
         onDrop={handleDrop}
@@ -4710,15 +4849,12 @@ const TradingEnvironment = ({ config, onBack }) => {
             {[
               { label: config.labels.newTradeButton, view: 'new-trade', primary: true },
               { label: config.labels.updateTradeButton, view: 'update-trade' },
-              { label: config.labels.editTradeButton || 'Edit Trade', view: 'edit-trade' },
               { label: config.labels.viewDataButton, view: 'view-data' },
-              ...(supportsPartialExits ? [{ label: config.labels.partialExitButton || 'Partial Exit', view: 'partial-exit' }] : []),
               ...(supportsGreeksCalculator ? [{ label: 'Options Tools', view: 'options-tools' }] : []),
               ...(supportsPositionSizer ? [{ label: config.labels.positionSizerButton, view: 'position-sizer' }] : []),
-              ...(supportsMissedTrades ? [{ label: config.labels.missedTradeButton, view: 'missed-trade' }, { label: config.labels.missedDataButton, view: 'missed-data' }] : []),
+              ...(supportsMissedTrades ? [{ label: 'Missed Trades', view: 'missed-trades' }] : []),
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
               ...(supportsEquityCurve ? [{ label: 'Equity Curve', view: 'equity-curve' }] : []),
-              ...(supportsTagLinks ? [{ label: config.labels.manageTagsButton || 'Manage Tags', view: 'manage-tags' }] : []),
             ].map(({ label, view, primary }) => (
               <button key={view} onClick={() => setCurrentView(view)}
                 className={`p-4 rounded-xl border text-sm font-medium text-left transition-all ${primary ? config.classes.primaryButton + ' border-transparent' : 'bg-zinc-950 border-zinc-900 text-slate-300 hover:border-zinc-700 hover:text-white'}`}>
@@ -4764,8 +4900,9 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'manage-tags' && supportsTagLinks) return <ManageTagsView setCurrentView={setCurrentView} />
   if (currentView === 'equity-curve' && supportsEquityCurve) return <EquityCurveView config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'view-data') return <ViewHistoricalData setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-trade' && supportsMissedTrades) return <MissedTradeView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-data' && supportsMissedTrades) return <ViewMissedTrades setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'missed-trades' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'missed-trade' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'missed-data' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'options-tools' && supportsGreeksCalculator) return <OptionsToolsView onBack={() => setCurrentView('menu')} />
