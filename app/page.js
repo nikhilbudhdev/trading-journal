@@ -940,43 +940,33 @@ const MODE_CONFIG = {
       primaryAction: 'bg-white hover:bg-zinc-100 text-black font-semibold'
     }
   },
-  futures: {
-    key: 'futures',
-    journalTitle: "Nik's Futures Trading Journal",
-    environmentTitle: 'Futures Trading Workspace',
-    environmentDescription: 'Track futures contracts with position sizing, risk management, and pre-trade discipline.',
-    homeButtonLabel: 'Futures Trades',
-    menuTagline: 'Manage your futures positions with precise position sizing.',
+  forex: {
+    key: 'forex',
+    journalTitle: "FTMO Forex Journal",
+    environmentTitle: 'Forex Trading Workspace',
+    environmentDescription: 'Track FTMO forex trades with lot sizing, risk management, and pre-trade discipline.',
+    homeButtonLabel: 'Forex Trades (FTMO)',
+    menuTagline: 'Manage your FTMO forex positions with precise lot sizing.',
     features: {
       missedTrades: true,
       analytics: true,
       tradingPlan: true,
-      positionSizer: true
+      forexTools: true
     },
     accounts: [],
-    checklist: {
-      tables: {
-        logs: 'futures_checklist_logs',
-        attempts: 'futures_checklist_attempts'
-      },
-      workspaceValue: 'futures'
-    },
     tables: {
-      trades: 'futures_trades',
-      balance: 'futures_balance_history',
-      missed: 'futures_missed_trades',
-      partialExits: 'futures_partial_exits',
-      tagLinks: 'futures_trade_tag_links',
-      plan: 'futures_trading_plan'
+      trades: 'forex_trades',
+      balance: 'forex_balance_history',
+      missed: 'forex_missed_trades',
+      plan: 'forex_trading_plan'
     },
     tradeColumns: {
-      instrument: 'ticker',
+      instrument: 'instrument',
       direction: 'direction',
-      contracts: 'contracts',
+      lotSize: 'lot_size',
       entryPrice: 'entry_price',
-      dollarPerTick: 'dollar_per_tick',
-      stopLossTicks: 'stop_loss_ticks',
-      targetTicks: 'target_ticks',
+      stopLossPips: 'stop_loss_pips',
+      takeProfitPips: 'take_profit_pips',
       notes: 'notes',
       forecastUrl: 'forecast_url',
       entryUrl: 'entry_url',
@@ -998,7 +988,7 @@ const MODE_CONFIG = {
     },
     missedColumns: {
       id: 'id',
-      instrument: 'ticker',
+      instrument: 'instrument',
       direction: 'direction',
       beforeUrl: 'before_url',
       afterUrl: 'after_url',
@@ -1008,7 +998,7 @@ const MODE_CONFIG = {
     },
     missedAnalyticsLabels: {
       day: 'By Day of Week',
-      instrument: 'By Symbol',
+      instrument: 'By Pair',
       pattern: 'Top Setups Missed'
     },
     missedPatternOptions: [
@@ -1017,7 +1007,7 @@ const MODE_CONFIG = {
       { value: 'Pullback', label: 'Pullback' },
       { value: 'Trend Continuation', label: 'Trend Continuation' },
       { value: 'Reversal', label: 'Reversal' },
-      { value: 'Gap and Go', label: 'Gap and Go' }
+      { value: 'Range Fade', label: 'Range Fade' }
     ],
     planColumns: {
       id: 'id',
@@ -1025,51 +1015,47 @@ const MODE_CONFIG = {
       updatedAt: 'updated_at'
     },
     labels: {
-      instrument: 'Ticker/Symbol',
-      instrumentPlaceholder: 'e.g., ES, NQ, CL, GC',
-      balanceTitle: 'Futures Account Balance',
+      instrument: 'Currency Pair',
+      instrumentPlaceholder: 'e.g., EUR/USD',
+      balanceTitle: 'FTMO Account Balance',
       balanceHeroLabel: 'Account Balance:',
       addBalanceButton: 'Add Deposit/Withdrawal',
       addBalanceModalTitle: 'Add Deposit or Withdrawal',
-      addBalancePlaceholder: 'e.g., Funding account, Margin adjustment',
+      addBalancePlaceholder: 'e.g., Funding account, Drawdown adjustment',
       addBalanceSubmit: 'Add Transaction',
       newBalanceToggleCancel: 'Cancel',
       historyTitle: 'Recent Balance Changes',
-      newTradeButton: 'Log Futures Trade',
-      updateTradeButton: 'Close Existing Futures Trade',
-      viewDataButton: 'View Futures History',
-      tradingPlanButton: 'Futures Playbook',
-      positionSizerButton: 'Position Sizing Calculator',
+      newTradeButton: 'Log Forex Trade',
+      updateTradeButton: 'Close Existing Forex Trade',
+      viewDataButton: 'View Forex History',
+      tradingPlanButton: 'Forex Playbook',
       entryUrlLabel: 'Entry Chart URL (Optional)',
       forecastUrlLabel: 'Forecast TradingView URL (Optional)',
       notesLabel: 'Notes (Optional)',
       pnlLabel: 'P&L ($)',
-      planTitle: 'Futures Playbook',
+      planTitle: 'Forex Playbook',
       planSave: 'Save Playbook',
       menuBack: '← All Workspaces',
       riskSummaryLabel: 'Account Balance',
-      analyticsInstrumentTitle: 'Symbol Performance',
-      newTradeTitle: 'Log Futures Trade',
+      analyticsInstrumentTitle: 'Pair Performance',
+      newTradeTitle: 'Log Forex Trade',
       balanceToggleLabel: 'Add Deposit/Withdrawal',
       directionLabel: 'Direction',
-      contractsLabel: 'Contracts',
+      lotSizeLabel: 'Lot Size',
       entryPriceLabel: 'Entry Price',
-      dollarPerTickLabel: 'Dollar per Tick ($)',
-      stopLossTicksLabel: 'Stop Loss (Ticks)',
-      targetTicksLabel: 'Target (Ticks)',
+      stopLossPipsLabel: 'Stop Loss (Pips)',
+      takeProfitPipsLabel: 'Take Profit (Pips)',
       editTradeButton: 'Edit Trade Details',
-      missedTradeButton: 'Log Missed Futures Trade',
-      missedDataButton: 'Review Missed Futures',
+      missedTradeButton: 'Log Missed Forex Trade',
+      missedDataButton: 'Review Missed Forex',
       missedPattern: 'Setup Spotted',
-      missedTableInstrument: 'Symbol',
+      missedTableInstrument: 'Pair',
       missedTablePattern: 'Setup',
-      missedPatternPlaceholder: 'Select a setup...',
-      partialExitButton: 'Log Partial Exit',
-      manageTagsButton: 'Manage Tags'
+      missedPatternPlaceholder: 'Select a setup...'
     },
     analyticsLabels: {
       day: 'Day of Week Performance',
-      instrument: 'Symbol Performance'
+      instrument: 'Pair Performance'
     },
     directionOptions: [
       { value: 'long', label: 'Long (Buy)' },
@@ -1078,26 +1064,16 @@ const MODE_CONFIG = {
     formDefaults: {
       instrument: '',
       direction: 'long',
-      contracts: '',
+      lotSize: '',
       entryPrice: '',
-      dollarPerTick: '',
-      stopLossTicks: '',
-      targetTicks: '',
+      stopLossPips: '',
+      takeProfitPips: '',
       forecastUrl: '',
       entryUrl: '',
       notes: ''
     },
-    tickPresets: [
-      { symbol: 'ES', dollarPerTick: 12.50, description: 'E-mini S&P 500' },
-      { symbol: 'NQ', dollarPerTick: 5.00, description: 'E-mini Nasdaq 100' },
-      { symbol: 'CL', dollarPerTick: 10.00, description: 'Crude Oil' },
-      { symbol: 'GC', dollarPerTick: 10.00, description: 'Gold' },
-      { symbol: 'MES', dollarPerTick: 1.25, description: 'Micro E-mini S&P' },
-      { symbol: 'MNQ', dollarPerTick: 0.50, description: 'Micro E-mini Nasdaq' },
-      { symbol: 'RTY', dollarPerTick: 5.00, description: 'E-mini Russell 2000' }
-    ],
-    riskFraction: 0.01,
-    uppercaseInstrument: true,
+    riskFraction: 0.005,
+    uppercaseInstrument: false,
     classes: {
       primaryButton: 'bg-white hover:bg-zinc-100 border-white text-black font-semibold',
       primaryAction: 'bg-white hover:bg-zinc-100 text-black font-semibold'
@@ -1637,6 +1613,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
     if (tradeColumns.slStockPrice) data.slStockPrice = trade[tradeColumns.slStockPrice] ?? ''
     if (tradeColumns.tpStockPrice) data.tpStockPrice = trade[tradeColumns.tpStockPrice] ?? ''
     if (tradeColumns.entryPrice) data.entryPrice = trade[tradeColumns.entryPrice] ?? ''
+    if (tradeColumns.lotSize) data.lotSize = trade[tradeColumns.lotSize] ?? ''
+    if (tradeColumns.stopLossPips) data.stopLossPips = trade[tradeColumns.stopLossPips] ?? ''
+    if (tradeColumns.takeProfitPips) data.takeProfitPips = trade[tradeColumns.takeProfitPips] ?? ''
     if (tradeColumns.dollarPerTick) data.dollarPerTick = trade[tradeColumns.dollarPerTick] ?? ''
     if (tradeColumns.stopLossTicks) data.stopLossTicks = trade[tradeColumns.stopLossTicks] ?? ''
     if (tradeColumns.targetTicks) data.targetTicks = trade[tradeColumns.targetTicks] ?? ''
@@ -1669,6 +1648,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
       set(tradeColumns.slStockPrice, editData.slStockPrice === '' ? null : (editData.slStockPrice != null ? parseFloat(editData.slStockPrice) : null))
       set(tradeColumns.tpStockPrice, editData.tpStockPrice === '' ? null : (editData.tpStockPrice != null ? parseFloat(editData.tpStockPrice) : null))
       set(tradeColumns.entryPrice, editData.entryPrice === '' ? null : (editData.entryPrice != null ? parseFloat(editData.entryPrice) : null))
+      set(tradeColumns.lotSize, editData.lotSize === '' ? null : (editData.lotSize != null ? parseFloat(editData.lotSize) : null))
+      set(tradeColumns.stopLossPips, editData.stopLossPips === '' ? null : (editData.stopLossPips != null ? parseFloat(editData.stopLossPips) : null))
+      set(tradeColumns.takeProfitPips, editData.takeProfitPips === '' ? null : (editData.takeProfitPips != null ? parseFloat(editData.takeProfitPips) : null))
       set(tradeColumns.dollarPerTick, editData.dollarPerTick === '' ? null : (editData.dollarPerTick != null ? parseFloat(editData.dollarPerTick) : null))
       set(tradeColumns.stopLossTicks, editData.stopLossTicks === '' ? null : (editData.stopLossTicks != null ? parseInt(editData.stopLossTicks) : null))
       set(tradeColumns.targetTicks, editData.targetTicks === '' ? null : (editData.targetTicks != null ? parseInt(editData.targetTicks) : null))
@@ -1808,7 +1790,16 @@ const EditTradeView = ({ setCurrentView, config }) => {
                     <InputField label={labels.tpStockPriceLabel || 'TP Stock Price ($)'} type="number" step="0.01" value={editData.tpStockPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, tpStockPrice: e.target.value }))} />
                   )}
                   {tradeColumns.entryPrice && (
-                    <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={editData.entryPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, entryPrice: e.target.value }))} />
+                    <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.00001" value={editData.entryPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, entryPrice: e.target.value }))} />
+                  )}
+                  {tradeColumns.lotSize && (
+                    <InputField label={labels.lotSizeLabel || 'Lot Size'} type="number" step="0.01" value={editData.lotSize ?? ''} onChange={(e) => setEditData(p => ({ ...p, lotSize: e.target.value }))} />
+                  )}
+                  {tradeColumns.stopLossPips && (
+                    <InputField label={labels.stopLossPipsLabel || 'Stop Loss (Pips)'} type="number" step="0.1" value={editData.stopLossPips ?? ''} onChange={(e) => setEditData(p => ({ ...p, stopLossPips: e.target.value }))} />
+                  )}
+                  {tradeColumns.takeProfitPips && (
+                    <InputField label={labels.takeProfitPipsLabel || 'Take Profit (Pips)'} type="number" step="0.1" value={editData.takeProfitPips ?? ''} onChange={(e) => setEditData(p => ({ ...p, takeProfitPips: e.target.value }))} />
                   )}
                   {tradeColumns.dollarPerTick && (
                     <div className="mb-4">
@@ -2327,6 +2318,9 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const premiumColumn = tradeColumns.premium
   const directionColumn = tradeColumns.direction
   const entryPriceColumn = tradeColumns.entryPrice
+  const lotSizeColumn = tradeColumns.lotSize
+  const stopLossPipsColumn = tradeColumns.stopLossPips
+  const takeProfitPipsColumn = tradeColumns.takeProfitPips
   const dollarPerTickColumn = tradeColumns.dollarPerTick
   const stopLossTicksColumn = tradeColumns.stopLossTicks
   const targetTicksColumn = tradeColumns.targetTicks
@@ -2609,6 +2603,9 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                       {contractsColumn && <th className="p-3 text-left text-slate-300">{labels.contractsLabel || 'Contracts'}</th>}
                       {premiumColumn && <th className="p-3 text-left text-slate-300">{labels.premiumLabel || 'Premium'}</th>}
                       {entryPriceColumn && <th className="p-3 text-left text-slate-300">{labels.entryPriceLabel || 'Entry Price'}</th>}
+                      {lotSizeColumn && <th className="p-3 text-left text-slate-300">{labels.lotSizeLabel || 'Lot Size'}</th>}
+                      {stopLossPipsColumn && <th className="p-3 text-left text-slate-300">{labels.stopLossPipsLabel || 'SL Pips'}</th>}
+                      {takeProfitPipsColumn && <th className="p-3 text-left text-slate-300">{labels.takeProfitPipsLabel || 'TP Pips'}</th>}
                       {dollarPerTickColumn && <th className="p-3 text-left text-slate-300">{labels.dollarPerTickLabel || '$/Tick'}</th>}
                       {stopLossTicksColumn && <th className="p-3 text-left text-slate-300">{labels.stopLossTicksLabel || 'SL Ticks'}</th>}
                       {targetTicksColumn && <th className="p-3 text-left text-slate-300">{labels.targetTicksLabel || 'Target Ticks'}</th>}
@@ -2643,6 +2640,9 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         {contractsColumn && <td className="p-3 text-slate-300">{trade[contractsColumn] ?? '-'}</td>}
                         {premiumColumn && <td className="p-3 text-slate-300">{trade[premiumColumn] ?? '-'}</td>}
                         {entryPriceColumn && <td className="p-3 text-slate-300">{trade[entryPriceColumn] ?? '-'}</td>}
+                        {lotSizeColumn && <td className="p-3 text-slate-300">{trade[lotSizeColumn] ?? '-'}</td>}
+                        {stopLossPipsColumn && <td className="p-3 text-slate-300">{trade[stopLossPipsColumn] ?? '-'}</td>}
+                        {takeProfitPipsColumn && <td className="p-3 text-slate-300">{trade[takeProfitPipsColumn] ?? '-'}</td>}
                         {dollarPerTickColumn && <td className="p-3 text-slate-300">{trade[dollarPerTickColumn] ? `$${trade[dollarPerTickColumn]}` : '-'}</td>}
                         {stopLossTicksColumn && <td className="p-3 text-slate-300">{trade[stopLossTicksColumn] ?? '-'}</td>}
                         {targetTicksColumn && <td className="p-3 text-slate-300">{trade[targetTicksColumn] ?? '-'}</td>}
@@ -3155,7 +3155,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   }
 
   const logChecklistAttempt = useCallback(async ({ status, snapshot, failureReason }) => {
-    if (!checklistTables.attempts) throw new Error('Checklist attempts table is not configured.')
+    if (!checklistTables.attempts) return
     const payload = {}
     if (checklistAttemptColumns.workspace) payload[checklistAttemptColumns.workspace] = workspaceValue
     if (checklistAttemptColumns.status) payload[checklistAttemptColumns.status] = status
@@ -3227,6 +3227,9 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.slStockPrice, formData.slStockPrice === '' ? null : (formData.slStockPrice ? parseFloat(formData.slStockPrice) : null))
       assignValue(tradeColumns.tpStockPrice, formData.tpStockPrice === '' ? null : (formData.tpStockPrice ? parseFloat(formData.tpStockPrice) : null))
       assignValue(tradeColumns.entryPrice, formData.entryPrice === '' ? null : (formData.entryPrice ? parseFloat(formData.entryPrice) : null))
+      assignValue(tradeColumns.lotSize, formData.lotSize === '' ? null : (formData.lotSize ? parseFloat(formData.lotSize) : null))
+      assignValue(tradeColumns.stopLossPips, formData.stopLossPips === '' ? null : (formData.stopLossPips ? parseFloat(formData.stopLossPips) : null))
+      assignValue(tradeColumns.takeProfitPips, formData.takeProfitPips === '' ? null : (formData.takeProfitPips ? parseFloat(formData.takeProfitPips) : null))
       assignValue(tradeColumns.dollarPerTick, formData.dollarPerTick === '' ? null : (formData.dollarPerTick ? parseFloat(formData.dollarPerTick) : null))
       assignValue(tradeColumns.stopLossTicks, formData.stopLossTicks === '' ? null : (formData.stopLossTicks ? parseInt(formData.stopLossTicks) : null))
       assignValue(tradeColumns.targetTicks, formData.targetTicks === '' ? null : (formData.targetTicks ? parseInt(formData.targetTicks) : null))
@@ -3455,7 +3458,19 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           )}
 
           {tradeColumns.entryPrice && (
-            <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.01" value={formData.entryPrice} onChange={(e) => handleInputChange('entryPrice', e.target.value)} placeholder="e.g., 4500.25" />
+            <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.00001" value={formData.entryPrice} onChange={(e) => handleInputChange('entryPrice', e.target.value)} placeholder="e.g., 1.08500" />
+          )}
+
+          {tradeColumns.lotSize && (
+            <InputField label={labels.lotSizeLabel || 'Lot Size'} type="number" step="0.01" value={formData.lotSize} onChange={(e) => handleInputChange('lotSize', e.target.value)} placeholder="e.g., 0.01" />
+          )}
+
+          {tradeColumns.stopLossPips && (
+            <InputField label={labels.stopLossPipsLabel || 'Stop Loss (Pips)'} type="number" step="0.1" value={formData.stopLossPips} onChange={(e) => handleInputChange('stopLossPips', e.target.value)} placeholder="e.g., 20" />
+          )}
+
+          {tradeColumns.takeProfitPips && (
+            <InputField label={labels.takeProfitPipsLabel || 'Take Profit (Pips)'} type="number" step="0.1" value={formData.takeProfitPips} onChange={(e) => handleInputChange('takeProfitPips', e.target.value)} placeholder="e.g., 40" />
           )}
 
           {tradeColumns.dollarPerTick && (
@@ -4391,6 +4406,129 @@ const TrailingStopsTab = () => {
   )
 }
 
+const FOREX_PIP_VALUES = {
+  'EUR/USD': 10, 'GBP/USD': 10, 'AUD/USD': 10, 'NZD/USD': 10,
+  'USD/JPY': 9.30, 'USD/CAD': 7.70, 'USD/CHF': 10.80,
+  'GBP/JPY': 9.30, 'EUR/JPY': 9.30, 'EUR/GBP': 10, 'AUD/JPY': 9.30,
+}
+
+const ForexLotSizeCalculator = ({ config }) => {
+  const [accountBalance, setAccountBalance] = useState(0)
+  const [balanceLoading, setBalanceLoading] = useState(true)
+  const [riskPercent, setRiskPercent] = useState('0.5')
+  const [pair, setPair] = useState('EUR/USD')
+  const [stopLossPips, setStopLossPips] = useState('')
+
+  useEffect(() => {
+    const load = async () => {
+      setBalanceLoading(true)
+      try {
+        const { data } = await supabase
+          .from(config.tables.balance)
+          .select('balance')
+          .order(config.balanceColumns?.createdAt || 'created_at', { ascending: false })
+          .limit(1)
+        const balCol = config.balanceColumns?.balance || 'balance'
+        setAccountBalance(data?.[0] ? parseFloat(data[0][balCol]) || 0 : config.accountBalance || 10000)
+      } catch {
+        setAccountBalance(config.accountBalance || 10000)
+      }
+      setBalanceLoading(false)
+    }
+    load()
+  }, [config.tables.balance, config.accountBalance])
+
+  const pipValue = FOREX_PIP_VALUES[pair] ?? 10
+  const riskDollars = accountBalance * (parseFloat(riskPercent) / 100)
+  const stopPips = parseFloat(stopLossPips)
+  const lotSize = (!isNaN(stopPips) && stopPips > 0 && riskDollars > 0)
+    ? Math.round((riskDollars / (stopPips * pipValue)) * 100) / 100
+    : null
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-2">FX Lot Size Calculator</h2>
+      <p className="text-slate-400 mb-6">Calculate the right lot size for your FTMO risk parameters.</p>
+
+      <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg mb-6 flex justify-between items-center">
+        <span className="text-slate-400">Account Balance</span>
+        {balanceLoading ? (
+          <span className="text-slate-400 text-sm">Loading...</span>
+        ) : (
+          <span className="text-white font-semibold">${accountBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        )}
+      </div>
+
+      <div className="space-y-5">
+        <div>
+          <label className="block text-sm font-medium mb-2 text-slate-300">Risk %</label>
+          <div className="flex gap-2 mb-2">
+            {['0.25', '0.5', '1'].map(p => (
+              <button key={p} type="button" onClick={() => setRiskPercent(p)}
+                className={`px-3 py-1.5 rounded text-sm border transition-colors ${riskPercent === p ? 'bg-white text-black border-white' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>
+                {p}%
+              </button>
+            ))}
+          </div>
+          <input type="number" step="0.01" min="0.01" max="5" value={riskPercent} onChange={e => setRiskPercent(e.target.value)}
+            className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-slate-500 focus:outline-none" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2 text-slate-300">Currency Pair</label>
+          <select value={pair} onChange={e => setPair(e.target.value)}
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-3 text-sm text-slate-100 focus:outline-none focus:border-slate-500">
+            {Object.keys(FOREX_PIP_VALUES).map(p => <option key={p} value={p}>{p} (${FOREX_PIP_VALUES[p]}/pip)</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2 text-slate-300">Stop Loss (Pips)</label>
+          <input type="number" step="0.1" min="0.1" value={stopLossPips} onChange={e => setStopLossPips(e.target.value)}
+            placeholder="e.g., 20"
+            className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-slate-500 focus:outline-none placeholder-slate-500" />
+        </div>
+      </div>
+
+      {lotSize !== null && (
+        <div className="mt-6 bg-zinc-950 border border-zinc-800 rounded-xl p-6">
+          {lotSize < 0.01 ? (
+            <p className="text-amber-400 text-sm">Position too small — tighten stop or increase risk %</p>
+          ) : (
+            <>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Recommended Lot Size</p>
+              <p className="text-5xl font-bold text-white mb-1">{lotSize.toFixed(2)}</p>
+              <p className="text-slate-400 text-sm">lots</p>
+              <div className="mt-4 flex gap-6 text-sm text-slate-300">
+                <span>Risk: <span className="text-emerald-400 font-semibold">${riskDollars.toFixed(2)}</span></span>
+                <span>Pip value: <span className="text-slate-100">${pipValue}/lot</span></span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {lotSize === null && stopLossPips && (
+        <div className="mt-6 bg-zinc-950 border border-zinc-800 rounded-xl p-6 text-slate-500 text-sm">
+          Enter a valid stop loss to see the recommendation.
+        </div>
+      )}
+    </div>
+  )
+}
+
+const ForexToolsView = ({ config, onBack }) => (
+  <div className="min-h-screen bg-black text-slate-100">
+    <div className="border-b border-zinc-900 px-6 py-4 flex items-center gap-6">
+      <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
+      <h1 className="text-lg font-semibold text-slate-100">Forex Tools</h1>
+    </div>
+    <div className="max-w-2xl mx-auto px-6 py-6">
+      <ForexLotSizeCalculator config={config} />
+    </div>
+  </div>
+)
+
 const OptionsToolsView = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('calculator')
   return (
@@ -4786,6 +4924,113 @@ const FuturesPositionSizer = ({ config, onBack }) => {
   )
 }
 
+const DailyJournalView = ({ onBack }) => {
+  const today = new Date().toISOString().split('T')[0]
+  const displayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const [entry, setEntry] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('daily_journal_entries').select('content').eq('date', today).single()
+      if (data) setEntry(data.content || '')
+    }
+    load()
+  }, [today])
+
+  const handleSave = async () => {
+    if (!entry.trim()) return
+    setSaving(true)
+    setSaveMessage('')
+    try {
+      const { error } = await supabase.from('daily_journal_entries').upsert(
+        { date: today, content: entry, updated_at: new Date().toISOString() },
+        { onConflict: 'date' }
+      )
+      if (error) throw error
+      setSaveMessage('Saved!')
+      setTimeout(() => setSaveMessage(''), 3000)
+    } catch (err) {
+      setSaveMessage(`Error: ${err.message}`)
+    }
+    setSaving(false)
+  }
+
+  const handleToggleHistory = async () => {
+    if (!showHistory && history.length === 0) {
+      setHistoryLoading(true)
+      const { data } = await supabase.from('daily_journal_entries').select('date, content').order('date', { ascending: false }).limit(60)
+      setHistory(data || [])
+      setHistoryLoading(false)
+    }
+    setShowHistory(prev => !prev)
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={onBack} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-1">Daily Journal</h1>
+        <p className="text-slate-400 text-sm mb-6">{displayDate}</p>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-4">
+          <textarea
+            value={entry}
+            onChange={e => setEntry(e.target.value)}
+            placeholder="How are you feeling today? What are you looking to accomplish? Any key levels or setups on your radar?"
+            rows={8}
+            className="w-full bg-transparent border-none outline-none text-slate-100 placeholder-slate-600 resize-none text-sm leading-relaxed"
+          />
+        </div>
+
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={handleSave}
+            disabled={saving || !entry.trim()}
+            className="px-6 py-2 bg-white hover:bg-zinc-100 text-black font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save Entry'}
+          </button>
+          {saveMessage && (
+            <span className={`text-sm ${saveMessage.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{saveMessage}</span>
+          )}
+          <button
+            onClick={handleToggleHistory}
+            className="ml-auto text-sm text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            {showHistory ? 'Hide Journal ▲' : 'View Journal ▾'}
+          </button>
+        </div>
+
+        {showHistory && (
+          <div className="space-y-4">
+            {historyLoading ? (
+              <p className="text-slate-400 text-sm">Loading...</p>
+            ) : history.length === 0 ? (
+              <p className="text-slate-500 text-sm">No past entries yet.</p>
+            ) : (
+              history
+                .filter(h => h.date !== today)
+                .map(h => (
+                  <div key={h.date} className="bg-zinc-950 border border-zinc-900 rounded-lg p-4">
+                    <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">
+                      {new Date(h.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                    <p className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">{h.content}</p>
+                  </div>
+                ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const TradingEnvironment = ({ config, onBack }) => {
   const [currentView, setCurrentView] = useState('menu')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -4797,6 +5042,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   const supportsTradingPlan = features.tradingPlan !== false && config.tables?.plan
   const supportsPositionSizer = features.positionSizer && config.tables?.balance
   const supportsGreeksCalculator = config.key === 'options'
+  const supportsForexTools = Boolean(config.features?.forexTools)
   const supportsPartialExits = Boolean(config.tables?.partialExits)
   const supportsTagLinks = Boolean(config.tables?.tagLinks)
   const supportsEquityCurve = Boolean(config.tables?.balance)
@@ -4867,10 +5113,12 @@ const TradingEnvironment = ({ config, onBack }) => {
               { label: config.labels.updateTradeButton, view: 'update-trade' },
               { label: config.labels.viewDataButton, view: 'view-data' },
               ...(supportsGreeksCalculator ? [{ label: 'Options Tools', view: 'options-tools' }] : []),
+              ...(supportsForexTools ? [{ label: 'Forex Tools', view: 'forex-tools' }] : []),
               ...(supportsPositionSizer ? [{ label: config.labels.positionSizerButton, view: 'position-sizer' }] : []),
               ...(supportsMissedTrades ? [{ label: 'Missed Trades', view: 'missed-trades' }] : []),
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
               ...(supportsEquityCurve ? [{ label: 'Equity Curve', view: 'equity-curve' }] : []),
+              { label: 'Daily Journal', view: 'daily-journal' },
             ].map(({ label, view, primary }) => (
               <button key={view} onClick={() => setCurrentView(view)}
                 className={`p-4 rounded-xl border text-sm font-medium text-left transition-all ${primary ? config.classes.primaryButton + ' border-transparent' : 'bg-zinc-950 border-zinc-900 text-slate-300 hover:border-zinc-700 hover:text-white'}`}>
@@ -4922,6 +5170,8 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
   if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'options-tools' && supportsGreeksCalculator) return <OptionsToolsView onBack={() => setCurrentView('menu')} />
+  if (currentView === 'forex-tools' && supportsForexTools) return <ForexToolsView config={config} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'daily-journal') return <DailyJournalView onBack={() => setCurrentView('menu')} />
   return null
 }
 
@@ -4938,8 +5188,8 @@ export default function Home() {
             <MenuButton onClick={() => setActiveMode('options')} className={MODE_CONFIG.options.classes.primaryButton}>
               {MODE_CONFIG.options.homeButtonLabel}
             </MenuButton>
-            <MenuButton onClick={() => setActiveMode('futures')} className={MODE_CONFIG.futures.classes.primaryButton}>
-              {MODE_CONFIG.futures.homeButtonLabel}
+            <MenuButton onClick={() => setActiveMode('forex')} className={MODE_CONFIG.forex.classes.primaryButton}>
+              {MODE_CONFIG.forex.homeButtonLabel}
             </MenuButton>
           </div>
         </div>
