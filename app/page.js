@@ -54,6 +54,19 @@ const LONG_SHORT_OPTIONS = [
   { value: 'short', label: 'Short (Sell)' }
 ]
 
+const getLastWeekBounds = () => {
+  const today = new Date()
+  const day = today.getDay() // 0=Sun, 1=Mon … 6=Sat
+  const daysToLastMon = day === 0 ? 13 : day + 6
+  const lastMon = new Date(today)
+  lastMon.setDate(today.getDate() - daysToLastMon)
+  lastMon.setHours(0, 0, 0, 0)
+  const lastFri = new Date(lastMon)
+  lastFri.setDate(lastMon.getDate() + 4)
+  lastFri.setHours(23, 59, 59, 999)
+  return { from: lastMon, to: lastFri }
+}
+
 const TRADE_CHECKLIST_SECTIONS = [
   {
     id: 'section1',
@@ -3051,6 +3064,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const [checklistComplete, setChecklistComplete] = useState(false)
   const [checklistSnapshot, setChecklistSnapshot] = useState(null)
   const [pasteFormState, setPasteFormState] = useState('idle')
+  const [reviewPending, setReviewPending] = useState(null)
 
   useEffect(() => {
     if (!tradeColumns.premium) return
@@ -3094,6 +3108,22 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     document.addEventListener('paste', handlePaste)
     return () => document.removeEventListener('paste', handlePaste)
   }, [tradeColumns.premium, setFormData])
+
+  useEffect(() => {
+    if (!tradeColumns.exitDate) { setReviewPending(false); return }
+    const check = async () => {
+      const { from, to } = getLastWeekBounds()
+      const { data } = await supabase
+        .from(tradesTable)
+        .select(`${tradeColumns.id}, journal_notes`)
+        .eq(tradeColumns.status, 'closed')
+        .gte(tradeColumns.exitDate, from.toISOString())
+        .lte(tradeColumns.exitDate, to.toISOString())
+      const unreviewed = (data || []).filter(t => !t.journal_notes?.trim())
+      setReviewPending(unreviewed.length > 0 ? unreviewed.length : false)
+    }
+    check()
+  }, [tradesTable, tradeColumns.exitDate, tradeColumns.id, tradeColumns.status])
 
   useEffect(() => {
     if (!checklistComplete) return
@@ -3269,6 +3299,41 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     }
 
     setIsSubmitting(false)
+  }
+
+  if (reviewPending === null) {
+    return (
+      <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center">
+        <p className="text-slate-400 text-sm">Checking weekly review status...</p>
+      </div>
+    )
+  }
+
+  if (reviewPending) {
+    return (
+      <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center p-8">
+        <div className="max-w-lg w-full bg-zinc-950 border border-amber-500/30 rounded-xl p-8 text-center">
+          <p className="text-5xl mb-5">⚠️</p>
+          <h2 className="text-2xl font-bold mb-3">Weekly Review Pending</h2>
+          <p className="text-slate-400 mb-8">
+            You have <span className="text-white font-semibold">{reviewPending} trade{reviewPending !== 1 ? 's' : ''}</span> from last week without a self-review.
+            Complete your weekly review before logging new trades.
+          </p>
+          <button
+            onClick={() => setCurrentView('weekly-review')}
+            className="w-full px-6 py-3 bg-white hover:bg-zinc-100 text-black font-semibold rounded-lg mb-4 transition-colors"
+          >
+            Go to Weekly Review
+          </button>
+          <button
+            onClick={() => setCurrentView('menu')}
+            className="text-slate-500 hover:text-slate-300 text-sm transition-colors"
+          >
+            Back to menu
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!checklistComplete) {
@@ -4924,6 +4989,187 @@ const FuturesPositionSizer = ({ config, onBack }) => {
   )
 }
 
+const WeeklyReviewView = ({ config, onBack }) => {
+  const { tables, tradeColumns, labels } = config
+  const { from, to } = getLastWeekBounds()
+
+  const weekLabel = (() => {
+    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return `${fmt(from)} – ${fmt(to)}`
+  })()
+
+  const [trades, setTrades] = useState([])
+  const [notes, setNotes] = useState({})
+  const [saving, setSaving] = useState({})
+  const [saved, setSaved] = useState({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      const { data } = await supabase
+        .from(tables.trades)
+        .select('*')
+        .eq(tradeColumns.status, 'closed')
+        .gte(tradeColumns.exitDate, from.toISOString())
+        .lte(tradeColumns.exitDate, to.toISOString())
+        .order(tradeColumns.exitDate, { ascending: true })
+      const rows = data || []
+      setTrades(rows)
+      const init = {}
+      rows.forEach(t => { init[t[tradeColumns.id]] = t.journal_notes || '' })
+      setNotes(init)
+      setLoading(false)
+    }
+    load()
+  }, [tables.trades, tradeColumns.status, tradeColumns.exitDate, tradeColumns.id, from, to])
+
+  const handleSave = async (id) => {
+    setSaving(s => ({ ...s, [id]: true }))
+    await supabase
+      .from(tables.trades)
+      .update({ journal_notes: notes[id], journal_reviewed_at: new Date().toISOString() })
+      .eq(tradeColumns.id, id)
+    setSaving(s => ({ ...s, [id]: false }))
+    setSaved(s => ({ ...s, [id]: true }))
+  }
+
+  const reviewedCount = Object.entries(saved).filter(([, v]) => v).length +
+    trades.filter(t => t.journal_notes?.trim() && !saved[t[tradeColumns.id]]).length
+  const allDone = trades.length > 0 && reviewedCount >= trades.length
+
+  if (loading) return (
+    <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center">
+      <p className="text-slate-400">Loading trades...</p>
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={onBack} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold mb-1">Weekly Review</h1>
+            <p className="text-slate-400 text-sm">{weekLabel}</p>
+          </div>
+          {trades.length > 0 && (
+            <span className={`px-3 py-1.5 rounded-full text-sm font-medium border ${allDone ? 'bg-emerald-900/30 text-emerald-400 border-emerald-700' : 'bg-amber-900/20 text-amber-400 border-amber-700/50'}`}>
+              {reviewedCount} / {trades.length} reviewed
+            </span>
+          )}
+        </div>
+
+        {allDone && (
+          <div className="mb-6 p-4 bg-emerald-900/20 border border-emerald-700 rounded-lg text-emerald-300 text-sm font-medium">
+            Week complete — you&apos;re clear to trade next week.
+          </div>
+        )}
+
+        {trades.length === 0 ? (
+          <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-8 text-center">
+            <p className="text-slate-400">No closed trades last week. Nothing to review.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {trades.map(trade => {
+              const id = trade[tradeColumns.id]
+              const instrument = trade[tradeColumns.instrument] || '—'
+              const direction = (trade[tradeColumns.direction] || '').toUpperCase()
+              const pnl = trade[tradeColumns.pnl]
+              const exitDateStr = trade[tradeColumns.exitDate] ? new Date(trade[tradeColumns.exitDate]).toLocaleDateString() : '—'
+              const entryUrl = tradeColumns.entryUrl ? trade[tradeColumns.entryUrl] : null
+              const forecastUrl = tradeColumns.forecastUrl ? trade[tradeColumns.forecastUrl] : null
+              const exitUrl = tradeColumns.exitUrl ? trade[tradeColumns.exitUrl] : null
+              const isSaved = saved[id] || (trade.journal_notes?.trim() && !saved[id] === false)
+              const noteValue = notes[id] ?? ''
+              const hasNote = noteValue.trim().length > 0
+
+              return (
+                <div key={id} className="bg-zinc-950 border border-zinc-900 rounded-xl p-6">
+                  <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg font-bold text-white">{instrument}</span>
+                        <span className="text-sm text-slate-400">{direction}</span>
+                        {saved[id] && <span className="text-xs text-emerald-400 font-medium">✓ Reviewed</span>}
+                        {!saved[id] && trade.journal_notes?.trim() && <span className="text-xs text-emerald-400 font-medium">✓ Previously reviewed</span>}
+                      </div>
+                      <p className="text-xs text-slate-500">Closed {exitDateStr}</p>
+                    </div>
+                    <div className="text-right">
+                      {pnl !== null && pnl !== undefined && (
+                        <p className={`text-xl font-bold ${parseFloat(pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {parseFloat(pnl) >= 0 ? '+' : ''}${parseFloat(pnl).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {(tradeColumns.entryPrice || tradeColumns.lotSize || tradeColumns.premium || tradeColumns.contracts) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 mb-3">
+                      {tradeColumns.entryPrice && trade[tradeColumns.entryPrice] != null && (
+                        <span>Entry: <span className="text-slate-200">{trade[tradeColumns.entryPrice]}</span></span>
+                      )}
+                      {tradeColumns.lotSize && trade[tradeColumns.lotSize] != null && (
+                        <span>Lot: <span className="text-slate-200">{trade[tradeColumns.lotSize]}</span></span>
+                      )}
+                      {tradeColumns.stopLossPips && trade[tradeColumns.stopLossPips] != null && (
+                        <span>SL: <span className="text-slate-200">{trade[tradeColumns.stopLossPips]}p</span></span>
+                      )}
+                      {tradeColumns.takeProfitPips && trade[tradeColumns.takeProfitPips] != null && (
+                        <span>TP: <span className="text-slate-200">{trade[tradeColumns.takeProfitPips]}p</span></span>
+                      )}
+                      {tradeColumns.premium && trade[tradeColumns.premium] != null && (
+                        <span>Premium: <span className="text-slate-200">${trade[tradeColumns.premium]}</span></span>
+                      )}
+                      {tradeColumns.contracts && trade[tradeColumns.contracts] != null && (
+                        <span>Contracts: <span className="text-slate-200">{trade[tradeColumns.contracts]}</span></span>
+                      )}
+                      {tradeColumns.strike && trade[tradeColumns.strike] != null && (
+                        <span>Strike: <span className="text-slate-200">${trade[tradeColumns.strike]}</span></span>
+                      )}
+                    </div>
+                  )}
+
+                  {(entryUrl || forecastUrl || exitUrl) && (
+                    <div className="flex gap-3 mb-4">
+                      {forecastUrl && <a href={forecastUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-emerald-400 underline transition-colors">Forecast ↗</a>}
+                      {entryUrl && <a href={entryUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-emerald-400 underline transition-colors">Entry Chart ↗</a>}
+                      {exitUrl && <a href={exitUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-emerald-400 underline transition-colors">Exit Chart ↗</a>}
+                    </div>
+                  )}
+
+                  <div className="border-t border-zinc-800 pt-4">
+                    <label className="block text-xs text-slate-500 mb-2 uppercase tracking-wide">Self Review</label>
+                    <textarea
+                      value={noteValue}
+                      onChange={e => setNotes(n => ({ ...n, [id]: e.target.value }))}
+                      placeholder="What went well? What didn't? How can you do better?"
+                      rows={4}
+                      className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm placeholder-slate-600 focus:border-zinc-600 focus:outline-none resize-none leading-relaxed"
+                    />
+                    <div className="flex items-center gap-3 mt-2">
+                      <button
+                        onClick={() => handleSave(id)}
+                        disabled={saving[id] || !hasNote}
+                        className="px-4 py-1.5 bg-white hover:bg-zinc-100 text-black text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {saving[id] ? 'Saving...' : 'Save Note'}
+                      </button>
+                      {saved[id] && <span className="text-xs text-emerald-400">✓ Saved</span>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const DailyJournalView = ({ onBack }) => {
   const today = new Date().toISOString().split('T')[0]
   const displayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -5118,6 +5364,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               ...(supportsMissedTrades ? [{ label: 'Missed Trades', view: 'missed-trades' }] : []),
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
               ...(supportsEquityCurve ? [{ label: 'Equity Curve', view: 'equity-curve' }] : []),
+              { label: 'Weekly Review', view: 'weekly-review' },
               { label: 'Daily Journal', view: 'daily-journal' },
             ].map(({ label, view, primary }) => (
               <button key={view} onClick={() => setCurrentView(view)}
@@ -5171,6 +5418,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'options-tools' && supportsGreeksCalculator) return <OptionsToolsView onBack={() => setCurrentView('menu')} />
   if (currentView === 'forex-tools' && supportsForexTools) return <ForexToolsView config={config} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'weekly-review') return <WeeklyReviewView config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'daily-journal') return <DailyJournalView onBack={() => setCurrentView('menu')} />
   return null
 }
