@@ -4990,13 +4990,13 @@ const FuturesPositionSizer = ({ config, onBack }) => {
 }
 
 const WeeklyReviewView = ({ config, onBack }) => {
-  const { tables, tradeColumns, labels } = config
-  const { from, to } = getLastWeekBounds()
+  const { tables, tradeColumns } = config
+  const { from, to } = useMemo(() => getLastWeekBounds(), [])
 
-  const weekLabel = (() => {
+  const weekLabel = useMemo(() => {
     const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     return `${fmt(from)} – ${fmt(to)}`
-  })()
+  }, [from, to])
 
   const [trades, setTrades] = useState([])
   const [notes, setNotes] = useState({})
@@ -5022,7 +5022,7 @@ const WeeklyReviewView = ({ config, onBack }) => {
       setLoading(false)
     }
     load()
-  }, [tables.trades, tradeColumns.status, tradeColumns.exitDate, tradeColumns.id, from, to])
+  }, [tables.trades, tradeColumns.status, tradeColumns.exitDate, tradeColumns.id])
 
   const handleSave = async (id) => {
     setSaving(s => ({ ...s, [id]: true }))
