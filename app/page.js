@@ -4603,6 +4603,45 @@ const BuyStopCalculatorTab = () => {
   const [contracts, setContracts] = useState('1')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
+  const [pasteState, setPasteState] = useState('idle')
+
+  const extractFromImage = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setPasteState('loading')
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      const [header, base64] = ev.target.result.split(',')
+      const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+      try {
+        const res = await fetch('/api/extract-greeks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64, mediaType })
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
+        if (data.premium != null) setPremium(String(data.premium))
+        if (data.delta != null) setDelta(String(data.delta))
+        if (data.gamma != null) setGamma(String(data.gamma))
+        setPasteState('success')
+        setTimeout(() => setPasteState('idle'), 4000)
+      } catch {
+        setPasteState('error')
+        setTimeout(() => setPasteState('idle'), 4000)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  useEffect(() => {
+    const handlePaste = async e => {
+      const imageItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'))
+      if (imageItem) extractFromImage(imageItem.getAsFile())
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
 
   useEffect(() => {
     supabase
@@ -4657,6 +4696,22 @@ const BuyStopCalculatorTab = () => {
           </select>
         </div>
       )}
+
+      <div
+        onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
+        onDragOver={e => e.preventDefault()}
+        className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
+          pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
+          pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
+          pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
+          'border-zinc-900 text-slate-600 hover:border-zinc-800 hover:text-slate-500'
+        }`}
+      >
+        {pasteState === 'loading' && 'Extracting Greeks from screenshot...'}
+        {pasteState === 'success' && '✓ Auto-filled — review values and adjust if needed'}
+        {pasteState === 'error' && 'Could not extract — please fill in fields manually'}
+        {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
+      </div>
 
       <div className="space-y-4 mb-6">
         <div className="grid grid-cols-2 gap-4">
