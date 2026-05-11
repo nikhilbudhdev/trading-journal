@@ -4594,6 +4594,166 @@ const ForexToolsView = ({ config, onBack }) => (
   </div>
 )
 
+const BuyStopCalculatorTab = () => {
+  const [stockPrice, setStockPrice] = useState('')
+  const [premium, setPremium] = useState('')
+  const [delta, setDelta] = useState('')
+  const [gamma, setGamma] = useState('')
+  const [targetStockPrice, setTargetStockPrice] = useState('')
+  const [contracts, setContracts] = useState('1')
+  const [openTrades, setOpenTrades] = useState([])
+  const [selectedImport, setSelectedImport] = useState('')
+
+  useEffect(() => {
+    supabase
+      .from('options_trades')
+      .select('id, ticker, premium, contracts, delta, gamma, entry_stock_price')
+      .eq('status', 'open')
+      .order('entry_date', { ascending: false })
+      .then(({ data }) => { if (data) setOpenTrades(data) })
+  }, [])
+
+  const handleImport = (id) => {
+    setSelectedImport(id)
+    const t = openTrades.find(o => String(o.id) === id)
+    if (!t) return
+    if (t.entry_stock_price != null) setStockPrice(String(t.entry_stock_price))
+    if (t.premium != null) setPremium(String(t.premium))
+    if (t.delta != null) setDelta(String(t.delta))
+    if (t.gamma != null) setGamma(String(t.gamma))
+    if (t.contracts != null) setContracts(String(t.contracts))
+  }
+
+  const S = parseFloat(stockPrice)
+  const P = parseFloat(premium)
+  const d = parseFloat(delta)
+  const g = parseFloat(gamma)
+  const T = parseFloat(targetStockPrice)
+  const n = parseInt(contracts) || 1
+  const canCalc = [S, P, d, g, T].every(v => !isNaN(v)) && P > 0
+  const result = canCalc ? calcOptionLeg(P, d, g, T, S, n) : null
+
+  const isUpside = canCalc && T > S
+  const isDownside = canCalc && T < S
+  const atMarket = canCalc && T === S
+  const worthless = result && result.estPrice <= 0
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-1">Buy Stop Calculator</h2>
+      <p className="text-slate-400 text-sm mb-6">Find the option contract price to use as your buy stop — enter only when the stock confirms your direction.</p>
+
+      {openTrades.length > 0 && (
+        <div className="mb-5">
+          <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
+          <select value={selectedImport} onChange={e => handleImport(e.target.value)}
+            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
+            <option value="">— select a trade —</option>
+            {openTrades.map(t => (
+              <option key={t.id} value={String(t.id)}>
+                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
+            <input type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)}
+              placeholder="e.g. 152.50"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Target Stock Price ($)</label>
+            <input type="number" step="0.01" value={targetStockPrice} onChange={e => setTargetStockPrice(e.target.value)}
+              placeholder="e.g. 155.00"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Premium ($)</label>
+            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
+              placeholder="e.g. 3.20"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Contracts</label>
+            <input type="number" step="1" min="1" value={contracts} onChange={e => setContracts(e.target.value)}
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
+            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
+              placeholder="e.g. 0.45 or -0.45"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
+            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
+              placeholder="e.g. 0.03"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+      </div>
+
+      {canCalc && atMarket && (
+        <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-xl text-slate-400 text-sm text-center">
+          Target equals current price — enter at market.
+        </div>
+      )}
+
+      {canCalc && !atMarket && worthless && (
+        <div className="p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-red-400 text-sm text-center">
+          Option likely worthless at that level — target is too far from current price.
+        </div>
+      )}
+
+      {canCalc && !atMarket && !worthless && result && (
+        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Buy Stop Order Price</p>
+            <span className={`text-xs font-medium px-2 py-1 rounded-full border ${isUpside ? 'text-emerald-400 border-emerald-700 bg-emerald-900/20' : 'text-amber-400 border-amber-700 bg-amber-900/20'}`}>
+              {isUpside ? 'Waiting for upside impulse ↑' : 'Waiting for downside impulse ↓'}
+            </span>
+          </div>
+
+          <p className="text-5xl font-bold text-white mb-1">${Math.max(0, result.estPrice).toFixed(2)}</p>
+          <p className="text-slate-500 text-sm mb-5">per contract · set as your buy stop limit</p>
+
+          <div className="grid grid-cols-3 gap-3 text-sm border-t border-zinc-800 pt-4">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">vs entering now</p>
+              <p className={`font-semibold ${result.dOption >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {result.dOption >= 0 ? '+' : ''}${(result.dOption * 100).toFixed(2)}/contract
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Total cost ({n} contracts)</p>
+              <p className="text-white font-semibold">${(Math.max(0, result.estPrice) * n * 100).toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Premium change</p>
+              <p className={`font-semibold ${(result.pctChange ?? 0) >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {result.pctChange != null ? `${result.pctChange >= 0 ? '+' : ''}${result.pctChange.toFixed(1)}%` : '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-zinc-900 rounded-lg border border-zinc-800 text-xs text-slate-400 leading-relaxed">
+            ⚡ Entering at <span className="text-white">${T.toFixed(2)}</span> instead of <span className="text-white">${S.toFixed(2)}</span> costs <span className="text-white">${Math.abs(result.dOption * 100).toFixed(2)}</span> {result.dOption >= 0 ? 'more' : 'less'} per contract — but you avoid theta decay while the market is still corrective.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const OptionsToolsView = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('calculator')
   return (
@@ -4601,7 +4761,7 @@ const OptionsToolsView = ({ onBack }) => {
       <div className="border-b border-zinc-900 px-6 py-4 flex items-center gap-6">
         <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
         <div className="flex gap-1">
-          {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
+          {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops'], ['buystop', 'Buy Stop']].map(([key, label]) => (
             <button key={key} onClick={() => setActiveTab(key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-900 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
               {label}
@@ -4610,7 +4770,7 @@ const OptionsToolsView = ({ onBack }) => {
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-6 py-6">
-        {activeTab === 'calculator' ? <GreeksCalcTab /> : <TrailingStopsTab />}
+        {activeTab === 'calculator' ? <GreeksCalcTab /> : activeTab === 'trailing' ? <TrailingStopsTab /> : <BuyStopCalculatorTab />}
       </div>
     </div>
   )
