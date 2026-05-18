@@ -4809,6 +4809,242 @@ const BuyStopCalculatorTab = () => {
   )
 }
 
+const DollarRiskStopTab = () => {
+  const [stockPrice, setStockPrice] = useState('')
+  const [premium, setPremium] = useState('')
+  const [delta, setDelta] = useState('')
+  const [gamma, setGamma] = useState('')
+  const [contracts, setContracts] = useState('1')
+  const [maxRisk, setMaxRisk] = useState('300')
+  const [openTrades, setOpenTrades] = useState([])
+  const [selectedImport, setSelectedImport] = useState('')
+  const [pasteState, setPasteState] = useState('idle')
+
+  const extractFromImage = async (file) => {
+    if (!file) return
+    setPasteState('loading')
+    try {
+      const reader = new FileReader()
+      const base64 = await new Promise((res, rej) => {
+        reader.onload = () => res(reader.result.split(',')[1])
+        reader.onerror = rej
+        reader.readAsDataURL(file)
+      })
+      const resp = await fetch('/api/extract-greeks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mediaType: file.type })
+      })
+      const data = await resp.json()
+      if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
+      if (data.premium != null) setPremium(String(data.premium))
+      if (data.delta != null) setDelta(String(data.delta))
+      if (data.gamma != null) setGamma(String(data.gamma))
+      setPasteState('success')
+    } catch {
+      setPasteState('error')
+    }
+  }
+
+  useEffect(() => {
+    const handlePaste = async e => {
+      const imageItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'))
+      if (imageItem) extractFromImage(imageItem.getAsFile())
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
+  useEffect(() => {
+    supabase.from('options_trades').select('id, ticker, premium, contracts, delta, gamma, entry_stock_price').eq('status', 'open').order('entry_date', { ascending: false })
+      .then(({ data }) => { if (data) setOpenTrades(data) })
+  }, [])
+
+  const handleImport = (id) => {
+    setSelectedImport(id)
+    const t = openTrades.find(o => String(o.id) === id)
+    if (!t) return
+    if (t.entry_stock_price != null) setStockPrice(String(t.entry_stock_price))
+    if (t.premium != null) setPremium(String(t.premium))
+    if (t.delta != null) setDelta(String(t.delta))
+    if (t.gamma != null) setGamma(String(t.gamma))
+    if (t.contracts != null) setContracts(String(t.contracts))
+  }
+
+  const S = parseFloat(stockPrice)
+  const P = parseFloat(premium)
+  const d = parseFloat(delta)
+  const g = parseFloat(gamma)
+  const n = parseInt(contracts) || 1
+  const R = parseFloat(maxRisk)
+
+  const canCalc = [S, P, d, g, R].every(v => !isNaN(v)) && P > 0 && R > 0
+
+  let result = null
+  if (canCalc) {
+    const maxLossPerShare = R / (n * 100)
+    const stopOptionPrice = P - maxLossPerShare
+    if (stopOptionPrice <= 0) {
+      result = { worthless: true }
+    } else {
+      let stockStopPrice = null
+      let noSolution = false
+      if (Math.abs(g) < 0.0001) {
+        stockStopPrice = S + (-maxLossPerShare / d)
+      } else {
+        const disc = d * d - 2 * g * maxLossPerShare
+        if (disc < 0) {
+          noSolution = true
+        } else {
+          const dS = d > 0 ? (-d - Math.sqrt(disc)) / g : (-d + Math.sqrt(disc)) / g
+          stockStopPrice = S + dS
+        }
+      }
+      if (noSolution) {
+        result = { noSolution: true }
+      } else {
+        result = {
+          stopOptionPrice,
+          stockStopPrice,
+          maxLossPerShare,
+          totalLoss: R,
+          pctDrop: ((stopOptionPrice - P) / P) * 100,
+          isCall: d > 0
+        }
+      }
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-1">Dollar Risk Stop Loss</h2>
+      <p className="text-slate-400 text-sm mb-6">Enter your max dollar risk to find the option stop price and the stock price level that triggers it.</p>
+
+      {openTrades.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
+          <select value={selectedImport} onChange={e => handleImport(e.target.value)}
+            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
+            <option value="">— select a trade —</option>
+            {openTrades.map(t => (
+              <option key={t.id} value={String(t.id)}>
+                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div
+        onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
+        onDragOver={e => e.preventDefault()}
+        className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
+          pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
+          pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
+          pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
+          'border-zinc-900 text-slate-600 hover:border-zinc-800 hover:text-slate-500'
+        }`}
+      >
+        {pasteState === 'loading' && 'Extracting Greeks from screenshot...'}
+        {pasteState === 'success' && '✓ Auto-filled — review values and adjust if needed'}
+        {pasteState === 'error' && 'Could not extract — please fill in fields manually'}
+        {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
+      </div>
+
+      <div className="space-y-4 mb-6">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Max Dollar Risk ($)</label>
+          <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)}
+            placeholder="e.g. 300"
+            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
+            <input type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)}
+              placeholder="e.g. 152.50"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Premium ($)</label>
+            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
+              placeholder="e.g. 3.20"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
+            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
+              placeholder="e.g. 0.45"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
+            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
+              placeholder="e.g. 0.03"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Contracts</label>
+            <input type="number" step="1" min="1" value={contracts} onChange={e => setContracts(e.target.value)}
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
+          </div>
+        </div>
+      </div>
+
+      {result?.worthless && (
+        <div className="rounded-lg border border-amber-700/40 bg-amber-900/10 p-4 text-sm text-amber-400">
+          Max risk exceeds total option value — the option would expire worthless before your stop is hit. Reduce your max risk or increase contracts.
+        </div>
+      )}
+
+      {result?.noSolution && (
+        <div className="rounded-lg border border-red-700/40 bg-red-900/10 p-4 text-sm text-red-400">
+          Could not back-calculate a stock stop level — try reducing max risk.
+        </div>
+      )}
+
+      {result && !result.worthless && !result.noSolution && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 space-y-4">
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Stop Loss Option Price</p>
+            <p className="text-4xl font-bold text-red-400">${result.stopOptionPrice.toFixed(2)}</p>
+            <p className="text-slate-500 text-xs mt-1">Sell if premium drops to this level</p>
+          </div>
+
+          <div className="border-t border-zinc-800 pt-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Stock Back-Check</p>
+            <p className={`text-2xl font-semibold ${result.isCall ? 'text-red-400' : 'text-amber-400'}`}>
+              ${result.stockStopPrice.toFixed(2)}
+            </p>
+            <p className="text-slate-500 text-xs mt-1">
+              {result.isCall
+                ? `If the stock falls to ~$${result.stockStopPrice.toFixed(2)}, exit the option (calls lose value on stock drops ↓)`
+                : `If the stock rises to ~$${result.stockStopPrice.toFixed(2)}, exit the option (puts lose value on stock rises ↑)`}
+            </p>
+          </div>
+
+          <div className="border-t border-zinc-800 pt-4 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Max Loss</p>
+              <p className="text-sm font-medium text-slate-200">${result.totalLoss.toFixed(0)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Per Contract</p>
+              <p className="text-sm font-medium text-slate-200">${(result.maxLossPerShare * 100).toFixed(0)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Premium Drop</p>
+              <p className="text-sm font-medium text-red-400">{result.pctDrop.toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const OptionsToolsView = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('calculator')
   return (
@@ -4816,7 +5052,7 @@ const OptionsToolsView = ({ onBack }) => {
       <div className="border-b border-zinc-900 px-6 py-4 flex items-center gap-6">
         <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
         <div className="flex gap-1">
-          {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops'], ['buystop', 'Buy Stop']].map(([key, label]) => (
+          {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops'], ['buystop', 'Buy Stop'], ['dollarstop', '$ Risk Stop']].map(([key, label]) => (
             <button key={key} onClick={() => setActiveTab(key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-900 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
               {label}
@@ -4825,7 +5061,7 @@ const OptionsToolsView = ({ onBack }) => {
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-6 py-6">
-        {activeTab === 'calculator' ? <GreeksCalcTab /> : activeTab === 'trailing' ? <TrailingStopsTab /> : <BuyStopCalculatorTab />}
+        {activeTab === 'calculator' ? <GreeksCalcTab /> : activeTab === 'trailing' ? <TrailingStopsTab /> : activeTab === 'buystop' ? <BuyStopCalculatorTab /> : <DollarRiskStopTab />}
       </div>
     </div>
   )
