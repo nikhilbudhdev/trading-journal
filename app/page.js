@@ -4609,6 +4609,7 @@ const BuyStopCalculatorTab = () => {
   const [vega, setVega] = useState('')
   const [targetStockPrice, setTargetStockPrice] = useState('')
   const [contracts, setContracts] = useState('1')
+  const [daysToHold, setDaysToHold] = useState('1')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
@@ -4681,6 +4682,7 @@ const BuyStopCalculatorTab = () => {
   const v = parseFloat(vega)
   const T = parseFloat(targetStockPrice)
   const n = parseInt(contracts) || 1
+  const days = parseInt(daysToHold) || 1
   const canCalc = [S, P, d, g, T].every(x => !isNaN(x)) && P > 0
   const result = canCalc ? calcOptionLeg(P, d, g, T, S, n) : null
   const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
@@ -4783,6 +4785,14 @@ const BuyStopCalculatorTab = () => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Days to Hold <span className="text-slate-600">optional</span></label>
+            <input type="number" step="1" min="1" value={daysToHold} onChange={e => setDaysToHold(e.target.value)}
+              placeholder="e.g. 3"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
       </div>
 
       {canCalc && atMarket && (
@@ -4840,9 +4850,9 @@ const BuyStopCalculatorTab = () => {
           <div className="space-y-2">
             {thetaDailyDollar != null && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Theta decay (per day)</span>
-                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {thetaDailyDollar >= 0 ? '+' : '-'}${Math.abs(thetaDailyDollar).toFixed(2)}
+                <span className="text-sm text-slate-400">Theta decay ({days} day{days !== 1 ? 's' : ''})</span>
+                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar * days < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {thetaDailyDollar * days >= 0 ? '+' : '-'}${Math.abs(thetaDailyDollar * days).toFixed(2)}
                 </span>
               </div>
             )}
@@ -4871,6 +4881,7 @@ const DollarRiskStopTab = () => {
   const [underlyingPrice, setUnderlyingPrice] = useState('')
   const [premium, setPremium] = useState('')
   const [expectedMove, setExpectedMove] = useState('')
+  const [daysToHold, setDaysToHold] = useState('1')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
@@ -4936,6 +4947,7 @@ const DollarRiskStopTab = () => {
   const v = parseFloat(vega)
   const S = parseFloat(underlyingPrice)
   const P = parseFloat(premium)
+  const days = parseInt(daysToHold) || 1
   const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
   const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
 
@@ -5072,6 +5084,14 @@ const DollarRiskStopTab = () => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Days to Hold <span className="text-slate-600">optional</span></label>
+            <input type="number" step="1" min="1" value={daysToHold} onChange={e => setDaysToHold(e.target.value)}
+              placeholder="e.g. 3"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
       </div>
 
       {fwd && (
@@ -5132,9 +5152,9 @@ const DollarRiskStopTab = () => {
           <div className="space-y-2">
             {thetaDailyDollar != null && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Theta decay (per day)</span>
-                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {fmtDollar(thetaDailyDollar)}
+                <span className="text-sm text-slate-400">Theta decay ({days} day{days !== 1 ? 's' : ''})</span>
+                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar * days < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {fmtDollar(thetaDailyDollar * days)}
                 </span>
               </div>
             )}
