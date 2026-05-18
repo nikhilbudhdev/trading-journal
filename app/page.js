@@ -4058,7 +4058,8 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
   let fwd = null
   if (canForward) {
     const calc = calcOptionLeg(P, d, g, S + dS, S, n)
-    fwd = { ...calc, pnlPerContract: calc.dOption * 100, breached: Math.abs(calc.totalDollar) >= R }
+    const fwdAllIn = calc.totalDollar + timeDragDollar
+    fwd = { ...calc, pnlPerContract: calc.dOption * 100, fwdAllIn, breached: Math.abs(fwdAllIn) >= R }
   }
 
   const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
@@ -4463,9 +4464,9 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 mb-1">Total P&L</p>
-                <p className={`text-xl font-bold ${fwd.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {fmtDollar(fwd.totalDollar)}
+                <p className="text-xs text-slate-500 mb-1">Total P&L (all-in)</p>
+                <p className={`text-xl font-bold ${fwd.fwdAllIn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(fwd.fwdAllIn)}
                 </p>
               </div>
             </div>
