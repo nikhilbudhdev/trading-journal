@@ -335,18 +335,19 @@ const FalconFXChecklist = ({ onBack, onUnlock, onLogAttempt }) => {
             {steps.map(step => {
               const isComplete = step.isRuleOfThree ? !!ruleOfThree : step.isZone ? (!!zone && zone !== 'Red') : !!checked[step.num]
               return (
-                <div key={step.num} className={`bg-zinc-950 border rounded-lg p-4 transition-colors ${isComplete ? 'border-emerald-700/50' : 'border-zinc-900'}`}>
+                <div
+                  key={step.num}
+                  onClick={!step.isRuleOfThree && !step.isZone ? () => setChecked(prev => ({ ...prev, [step.num]: !prev[step.num] })) : undefined}
+                  className={`bg-zinc-950 border rounded-lg p-4 transition-colors ${isComplete ? 'border-emerald-700/50' : 'border-zinc-900'} ${!step.isRuleOfThree && !step.isZone ? 'cursor-pointer' : ''}`}
+                >
                   <div className="flex items-start gap-3">
                     {/* Checkbox / completion indicator */}
                     {!step.isRuleOfThree && !step.isZone && (
-                      <button
-                        onClick={() => setChecked(prev => ({ ...prev, [step.num]: !prev[step.num] }))}
-                        className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                          checked[step.num] ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-700 hover:border-slate-400'
-                        }`}
-                      >
+                      <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        checked[step.num] ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-700'
+                      }`}>
                         {checked[step.num] && <span className="text-white text-xs font-bold">✓</span>}
-                      </button>
+                      </div>
                     )}
                     {(step.isRuleOfThree || step.isZone) && (
                       <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${isComplete ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-700'}`}>
@@ -3351,7 +3352,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     <div className={`min-h-screen bg-black text-slate-100 ${sidePanel ? 'flex' : 'p-8'}`}>
       <div className={sidePanel ? 'flex-1 min-w-0 overflow-y-auto p-8' : ''}>
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
-      <div className={sidePanel ? 'max-w-2xl' : 'max-w-2xl mx-auto'}>
+      <div className={sidePanel ? '' : 'max-w-2xl mx-auto'}>
         <div className="flex justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl font-bold whitespace-nowrap">{labels.newTradeTitle}</h1>
           <div className="shrink-0">
