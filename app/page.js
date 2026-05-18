@@ -3032,7 +3032,7 @@ const ViewMissedTrades = ({ setCurrentView, config, embedded = false }) => {
   )
 }
 
-const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage, config }) => {
+const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage, config, sidePanel }) => {
   const {
     tables,
     tradeColumns,
@@ -3348,9 +3348,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   }
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 p-8">
+    <div className={`min-h-screen bg-black text-slate-100 ${sidePanel ? 'flex' : 'p-8'}`}>
+      <div className={sidePanel ? 'flex-1 min-w-0 overflow-y-auto p-8' : ''}>
       <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
-      <div className="max-w-2xl mx-auto">
+      <div className={sidePanel ? 'max-w-2xl' : 'max-w-2xl mx-auto'}>
         <div className="flex justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl font-bold whitespace-nowrap">{labels.newTradeTitle}</h1>
           <div className="shrink-0">
@@ -3700,6 +3701,12 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           </button>
         </form>
       </div>
+      </div>
+      {sidePanel && (
+        <div className="w-[440px] shrink-0 border-l border-zinc-900 sticky top-0 h-screen overflow-y-auto bg-zinc-950">
+          {sidePanel}
+        </div>
+      )}
     </div>
   )
 }
@@ -5059,6 +5066,344 @@ const DollarRiskStopTab = () => {
   )
 }
 
+const StopMarketOrderView = ({ onBack }) => {
+  const [ticker, setTicker] = useState('')
+  const [optionType, setOptionType] = useState('call')
+  const [strike, setStrike] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [contracts, setContracts] = useState('1')
+  const [premium, setPremium] = useState('')
+  const [delta, setDelta] = useState('')
+  const [gamma, setGamma] = useState('')
+  const [stopOptionPrice, setStopOptionPrice] = useState('')
+  const [targetUnderlyingPrice, setTargetUnderlyingPrice] = useState('')
+  const [maxRisk, setMaxRisk] = useState('300')
+  const [notes, setNotes] = useState('')
+  const [pasteState, setPasteState] = useState('idle')
+  const [submitting, setSubmitting] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const extractFromImage = async (file) => {
+    if (!file) return
+    setPasteState('loading')
+    try {
+      const reader = new FileReader()
+      const base64 = await new Promise((res, rej) => {
+        reader.onload = () => res(reader.result.split(',')[1])
+        reader.onerror = rej
+        reader.readAsDataURL(file)
+      })
+      const resp = await fetch('/api/extract-greeks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mediaType: file.type })
+      })
+      const data = await resp.json()
+      if (data.strike != null) setStrike(String(data.strike))
+      if (data.premium != null) setPremium(String(data.premium))
+      if (data.delta != null) setDelta(String(data.delta))
+      if (data.gamma != null) setGamma(String(data.gamma))
+      setPasteState('success')
+    } catch {
+      setPasteState('error')
+    }
+  }
+
+  useEffect(() => {
+    const handlePaste = async e => {
+      const imageItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'))
+      if (imageItem) extractFromImage(imageItem.getAsFile())
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    if (!ticker.trim()) return setMessage('Ticker is required.')
+    setSubmitting(true)
+    setMessage('')
+    const { error } = await supabase.from('stop_market_orders').insert({
+      ticker: ticker.trim().toUpperCase(),
+      option_type: optionType,
+      strike_price: strike ? parseFloat(strike) : null,
+      expiry_date: expiry || null,
+      contracts: contracts ? parseInt(contracts) : null,
+      premium: premium ? parseFloat(premium) : null,
+      delta: delta ? parseFloat(delta) : null,
+      gamma: gamma ? parseFloat(gamma) : null,
+      stop_option_price: stopOptionPrice ? parseFloat(stopOptionPrice) : null,
+      target_underlying_price: targetUnderlyingPrice ? parseFloat(targetUnderlyingPrice) : null,
+      max_risk: maxRisk ? parseFloat(maxRisk) : null,
+      notes: notes.trim() || null,
+      status: 'pending',
+    })
+    if (error) {
+      setMessage(`Error: ${error.message}`)
+    } else {
+      setMessage('Stop market order logged as pending.')
+      setTicker(''); setStrike(''); setExpiry(''); setContracts('1')
+      setPremium(''); setDelta(''); setGamma(''); setStopOptionPrice('')
+      setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
+      setOptionType('call'); setPasteState('idle')
+    }
+    setSubmitting(false)
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors text-sm">← Back to Menu</button>
+      <h1 className="text-3xl font-bold mb-1">Log Stop Market Order</h1>
+      <p className="text-slate-400 text-sm mb-6">Log an options buy stop order. Mark it as executed once the trade fills, or cancel if the level is never reached.</p>
+
+      {message && (
+        <div className={`p-4 rounded-lg mb-6 border ${message.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>
+          {message}
+        </div>
+      )}
+
+      <div
+        onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
+        onDragOver={e => e.preventDefault()}
+        className={`mb-6 rounded-lg border-2 border-dashed px-4 py-4 text-center text-sm transition-colors cursor-default ${
+          pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/50 text-slate-400' :
+          pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
+          pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
+          'border-zinc-800 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+        }`}
+      >
+        {pasteState === 'loading' && 'Extracting from screenshot...'}
+        {pasteState === 'success' && '✓ Auto-filled strike, premium & Greeks — review and adjust'}
+        {pasteState === 'error' && 'Could not extract — fill in fields manually'}
+        {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Ticker</label>
+            <input value={ticker} onChange={e => setTicker(e.target.value)} placeholder="e.g. AAPL"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Option Type</label>
+            <select value={optionType} onChange={e => setOptionType(e.target.value)}
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none">
+              <option value="call">Call</option>
+              <option value="put">Put</option>
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Strike Price ($)</label>
+            <input type="number" step="0.01" value={strike} onChange={e => setStrike(e.target.value)} placeholder="e.g. 185"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Expiry Date</label>
+            <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Contracts</label>
+            <input type="number" step="1" min="1" value={contracts} onChange={e => setContracts(e.target.value)}
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Premium ($)</label>
+            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 2.80"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
+            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)} placeholder="e.g. 0.45"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
+            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)} placeholder="e.g. 0.03"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Stop Option Price ($)</label>
+            <input type="number" step="0.01" value={stopOptionPrice} onChange={e => setStopOptionPrice(e.target.value)} placeholder="Buy stop at this premium"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Target Underlying Price ($)</label>
+            <input type="number" step="0.01" value={targetUnderlyingPrice} onChange={e => setTargetUnderlyingPrice(e.target.value)} placeholder="Stock trigger price"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Max Risk ($)</label>
+          <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)} placeholder="e.g. 300"
+            className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Notes / Thesis</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Why are you placing this stop order? What's your thesis?"
+            className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600 resize-none" />
+        </div>
+        <button type="submit" disabled={submitting}
+          className={`w-full p-4 rounded-lg font-semibold transition-colors ${submitting ? 'bg-zinc-700 text-white cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}>
+          {submitting ? 'Logging...' : 'Log Stop Market Order'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+const StopMarketOrdersListView = ({ onBack }) => {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [actionMsg, setActionMsg] = useState('')
+
+  const loadOrders = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('stop_market_orders').select('*').order('created_at', { ascending: false })
+    setOrders(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadOrders() }, [])
+
+  const handleExecute = async (order) => {
+    setActionMsg('')
+    const { error: insertErr } = await supabase.from('options_trades').insert({
+      ticker: order.ticker,
+      option_type: order.option_type,
+      strike_price: order.strike_price,
+      expiry_date: order.expiry_date,
+      contracts: order.contracts,
+      premium: order.stop_option_price,
+      entry_stock_price: order.target_underlying_price,
+      delta: order.delta,
+      gamma: order.gamma,
+      notes: order.notes,
+      status: 'open',
+      entry_date: new Date().toISOString(),
+    })
+    if (insertErr) return setActionMsg(`Error promoting trade: ${insertErr.message}`)
+    await supabase.from('stop_market_orders').update({ status: 'executed', executed_at: new Date().toISOString() }).eq('id', order.id)
+    setActionMsg(`${order.ticker} stop order executed — trade is now tracked as open.`)
+    loadOrders()
+  }
+
+  const handleCancel = async (order) => {
+    await supabase.from('stop_market_orders').update({ status: 'cancelled' }).eq('id', order.id)
+    loadOrders()
+  }
+
+  const fmtDate = s => s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '—'
+
+  const statusBadge = status => {
+    if (status === 'pending') return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-900/40 border border-amber-700/50 text-amber-400">PENDING</span>
+    if (status === 'executed') return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-900/40 border border-emerald-700/50 text-emerald-400">EXECUTED</span>
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-zinc-800 border border-zinc-700 text-slate-400">CANCELLED</span>
+  }
+
+  const groups = [
+    { key: 'pending', label: 'Pending Orders' },
+    { key: 'executed', label: 'Executed' },
+    { key: 'cancelled', label: 'Cancelled' },
+  ]
+
+  return (
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={onBack} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors text-sm">← Back to Menu</button>
+      <h1 className="text-3xl font-bold mb-1">Stop Market Orders</h1>
+      <p className="text-slate-400 text-sm mb-6">Manage your pending buy stop orders. Execute when filled, cancel if the level is never hit.</p>
+
+      {actionMsg && (
+        <div className={`p-4 rounded-lg mb-6 border ${actionMsg.startsWith('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>
+          {actionMsg}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-slate-500">Loading...</p>
+      ) : orders.length === 0 ? (
+        <p className="text-slate-500">No stop market orders yet.</p>
+      ) : (
+        <div className="space-y-8">
+          {groups.map(({ key, label }) => {
+            const groupOrders = orders.filter(o => o.status === key)
+            if (groupOrders.length === 0) return null
+            return (
+              <div key={key}>
+                <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-3">{label}</h2>
+                <div className="space-y-3">
+                  {groupOrders.map(order => (
+                    <div key={order.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-5">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {statusBadge(order.status)}
+                          <span className="text-lg font-bold">{order.ticker}</span>
+                          <span className="text-slate-400 text-sm capitalize">{order.option_type}</span>
+                          {order.strike_price && <span className="text-slate-400 text-sm">Strike ${order.strike_price}</span>}
+                          {order.expiry_date && <span className="text-slate-400 text-sm">Exp {fmtDate(order.expiry_date)}</span>}
+                          {order.contracts && <span className="text-slate-400 text-sm">{order.contracts}×</span>}
+                        </div>
+                        {order.status === 'pending' && (
+                          <div className="flex gap-2 shrink-0">
+                            <button onClick={() => handleExecute(order)}
+                              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                              Execute
+                            </button>
+                            <button onClick={() => handleCancel(order)}
+                              className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-slate-300 text-xs font-semibold rounded-lg transition-colors border border-zinc-700">
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-400">
+                        {order.stop_option_price && <span>Stop entry: <span className="text-slate-200">${order.stop_option_price}/contract</span></span>}
+                        {order.target_underlying_price && <span>Trigger: <span className="text-slate-200">stock @ ${order.target_underlying_price}</span></span>}
+                        {order.max_risk && <span>Max risk: <span className="text-slate-200">${order.max_risk}</span></span>}
+                        <span>Logged: <span className="text-slate-200">{fmtDate(order.created_at)}</span></span>
+                        {order.executed_at && <span>Executed: <span className="text-emerald-400">{fmtDate(order.executed_at)}</span></span>}
+                      </div>
+                      {order.notes && <p className="mt-2 text-xs text-slate-500 italic">{order.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const InlineCalculatorPanel = () => {
+  const [activeTab, setActiveTab] = useState('buystop')
+  return (
+    <div className="h-full flex flex-col">
+      <div className="border-b border-zinc-900 px-4 py-3 flex gap-1 flex-wrap shrink-0">
+        {[['buystop', 'Buy Stop'], ['dollarstop', '$ Risk Stop'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-800 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4 text-sm">
+        {activeTab === 'buystop' ? <BuyStopCalculatorTab /> :
+         activeTab === 'dollarstop' ? <DollarRiskStopTab /> :
+         <TrailingStopsTab />}
+      </div>
+    </div>
+  )
+}
+
 const OptionsToolsView = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('calculator')
   return (
@@ -5823,6 +6168,8 @@ const TradingEnvironment = ({ config, onBack }) => {
               { label: config.labels.newTradeButton, view: 'new-trade', primary: true },
               { label: config.labels.updateTradeButton, view: 'update-trade' },
               { label: config.labels.viewDataButton, view: 'view-data' },
+              ...(supportsGreeksCalculator ? [{ label: 'Log Stop Market Order', view: 'stop-market-new' }] : []),
+              ...(supportsGreeksCalculator ? [{ label: 'Stop Market Orders', view: 'stop-market-list' }] : []),
               ...(supportsGreeksCalculator ? [{ label: 'Options Tools', view: 'options-tools' }] : []),
               ...(supportsForexTools ? [{ label: 'Forex Tools', view: 'forex-tools' }] : []),
               ...(supportsPositionSizer ? [{ label: config.labels.positionSizerButton, view: 'position-sizer' }] : []),
@@ -5854,8 +6201,26 @@ const TradingEnvironment = ({ config, onBack }) => {
         message={message}
         setMessage={setMessage}
         config={config}
+        sidePanel={supportsGreeksCalculator ? <InlineCalculatorPanel /> : undefined}
       />
     )
+  }
+
+  if (currentView === 'stop-market-new' && supportsGreeksCalculator) {
+    return (
+      <div className="min-h-screen bg-black text-slate-100 flex">
+        <div className="flex-1 min-w-0 overflow-y-auto p-8">
+          <StopMarketOrderView onBack={() => setCurrentView('menu')} />
+        </div>
+        <div className="w-[440px] shrink-0 border-l border-zinc-900 sticky top-0 h-screen overflow-y-auto bg-zinc-950">
+          <InlineCalculatorPanel />
+        </div>
+      </div>
+    )
+  }
+
+  if (currentView === 'stop-market-list' && supportsGreeksCalculator) {
+    return <StopMarketOrdersListView onBack={() => setCurrentView('menu')} />
   }
 
   if (currentView === 'update-trade') {
