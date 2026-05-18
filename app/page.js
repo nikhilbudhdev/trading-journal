@@ -3887,6 +3887,7 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
   const [targetStockPrice, setTargetStockPrice] = useState('')
   const [maxRisk, setMaxRisk] = useState('300')
   const [expectedMove, setExpectedMove] = useState('')
+  const [ivChange, setIvChange] = useState('0')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
@@ -3959,7 +3960,7 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
     setStockPrice(''); setPremium(''); setContracts('1'); setDaysToHold('1')
     setDelta(''); setGamma(''); setTheta(''); setVega('')
     setExpiry(''); setDaysHeld(''); setStopPrice(''); setTpPrice('')
-    setTargetStockPrice(''); setMaxRisk('300'); setExpectedMove('')
+    setTargetStockPrice(''); setMaxRisk('300'); setExpectedMove(''); setIvChange('0')
     setPasteState('idle'); setSelectedImport('')
   }
 
@@ -4008,9 +4009,22 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
 
   const R = parseFloat(maxRisk)
   const canReverse = canBase && !isNaN(R) && R > 0
+  const ivChg = parseFloat(ivChange) || 0
+
+  const thetaCostDollar = !isNaN(th) ? th * holdDays * 100 * n : 0
+  const ivImpactDollar  = !isNaN(v)  ? v  * ivChg    * 100 * n : 0
+  const timeDragDollar  = thetaCostDollar + ivImpactDollar
+
+  const adjustedPriceBudget = canReverse ? R + timeDragDollar : 0
+  const timeDragExceedsRisk = canReverse && timeDragDollar <= -R
+
+  const thetaPct = canReverse ? Math.abs(thetaCostDollar) / R * 100 : 0
+  const ivPct    = canReverse ? Math.abs(ivImpactDollar)  / R * 100 : 0
+  const pricePct = canReverse && !timeDragExceedsRisk ? adjustedPriceBudget / R * 100 : 0
+
   let stopLevel = null
-  if (canReverse) {
-    const maxLossPerShare = R / (n * 100)
+  if (canReverse && !timeDragExceedsRisk && adjustedPriceBudget > 0) {
+    const maxLossPerShare = adjustedPriceBudget / (n * 100)
     const dir = d > 0 ? -1 : 1
     let lo = 0, hi = 1000
     for (let i = 0; i < 60; i++) {
@@ -4022,6 +4036,21 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
     }
     const magnitude = (lo + hi) / 2
     stopLevel = { dS: dir * magnitude, stopStockPrice: S + dir * magnitude, isCall: d > 0 }
+  }
+
+  const timeDragPerShare = (!isNaN(th) ? th * holdDays : 0) + (!isNaN(v) ? v * ivChg : 0)
+  let breakevenMove = null
+  if (canReverse && timeDragPerShare !== 0) {
+    if (Math.abs(g) < 1e-10) {
+      breakevenMove = d !== 0 ? -timeDragPerShare / d : null
+    } else {
+      const disc = d * d - 2 * g * timeDragPerShare
+      if (disc >= 0) {
+        breakevenMove = d > 0
+          ? (-d + Math.sqrt(disc)) / g
+          : (-d - Math.sqrt(disc)) / g
+      }
+    }
   }
 
   const dS = parseFloat(expectedMove)
@@ -4159,6 +4188,20 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
             <input type="number" step="1" min="1" value={daysToHold} onChange={e => setDaysToHold(e.target.value)}
               placeholder="e.g. 3"
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+            <div className="flex gap-1 mt-1.5">
+              {[['1D', '1'], ['3D', '3']].map(([label, val]) => (
+                <button key={label} onClick={() => setDaysToHold(val)}
+                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${daysToHold === val ? 'border-white bg-white/10 text-white' : 'border-zinc-800 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}>
+                  {label}
+                </button>
+              ))}
+              <button
+                disabled={daysToExpiry === null}
+                onClick={() => daysToExpiry !== null && setDaysToHold(String(daysToExpiry))}
+                className={`px-2 py-0.5 text-xs rounded border transition-colors ${daysToExpiry === null ? 'opacity-30 cursor-not-allowed border-zinc-800 text-slate-500' : daysToHold === String(daysToExpiry) ? 'border-white bg-white/10 text-white' : 'border-zinc-800 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}>
+                To Exp
+              </button>
+            </div>
           </div>
         </div>
 
@@ -4387,6 +4430,19 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Expected IV Change (pts) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.1" value={ivChange} onChange={e => setIvChange(e.target.value)}
+              placeholder="e.g. -5 for crush"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        {timeDragExceedsRisk && (
+          <div className="p-4 bg-amber-900/20 border border-amber-800/50 rounded-xl text-amber-400 text-sm mb-4">
+            Time decay alone exceeds your risk budget over this holding period — no stop level available.
+          </div>
+        )}
         {fwd && (
           <div className={`rounded-xl border p-5 mb-4 ${fwd.breached ? 'border-red-700/50 bg-red-900/10' : 'border-emerald-700/50 bg-emerald-900/10'}`}>
             <div className="flex items-center gap-2 mb-4">
@@ -4434,6 +4490,51 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
               {stopLevel.isCall
                 ? `Exit if the stock falls to ~$${stopLevel.stopStockPrice.toFixed(2)} — calls lose value on drops ↓`
                 : `Exit if the stock rises to ~$${stopLevel.stopStockPrice.toFixed(2)} — puts lose value on rises ↑`}
+            </p>
+          </div>
+        )}
+        {canReverse && !timeDragExceedsRisk && stopLevel && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 mt-3 space-y-2">
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Risk Budget</p>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">Price move budget</span>
+              <span className="text-sm font-semibold font-mono text-slate-200">
+                ${adjustedPriceBudget.toFixed(2)} <span className="text-xs text-slate-600">({pricePct.toFixed(0)}%)</span>
+              </span>
+            </div>
+            {thetaCostDollar !== 0 && (
+              <div className="flex justify-between items-center">
+                <span className={`text-sm ${thetaPct > 50 ? 'text-red-400' : thetaPct > 30 ? 'text-amber-400' : 'text-slate-400'}`}>
+                  Theta cost ({holdDays}d)
+                </span>
+                <span className={`text-sm font-semibold font-mono ${thetaPct > 50 ? 'text-red-400' : thetaPct > 30 ? 'text-amber-400' : 'text-slate-400'}`}>
+                  {fmtDollar(thetaCostDollar)} <span className="text-xs text-slate-600">({thetaPct.toFixed(0)}%)</span>
+                </span>
+              </div>
+            )}
+            {ivImpactDollar !== 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">IV impact ({ivChg > 0 ? '+' : ''}{ivChg} pts)</span>
+                <span className={`text-sm font-semibold font-mono ${ivImpactDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(ivImpactDollar)} <span className="text-xs text-slate-600">({ivPct.toFixed(0)}%)</span>
+                </span>
+              </div>
+            )}
+            <div className="border-t border-zinc-800 pt-2 flex justify-between items-center">
+              <span className="text-sm text-slate-400">Total risk budget</span>
+              <span className="text-sm font-semibold font-mono text-slate-200">${R.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+        {breakevenMove !== null && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 mt-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Breakeven Move</p>
+            <p className="text-sm text-slate-300">
+              Underlying must move{' '}
+              <span className="font-semibold text-white">
+                {breakevenMove >= 0 ? '+' : ''}${Math.abs(breakevenMove).toFixed(2)}
+              </span>{' '}
+              in your favor just to break even after {holdDays} day{holdDays !== 1 ? 's' : ''} of holding.
             </p>
           </div>
         )}
