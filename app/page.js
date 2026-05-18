@@ -820,6 +820,7 @@ const MODE_CONFIG = {
       delta: 'delta',
       gamma: 'gamma',
       theta: 'theta',
+      vega: 'vega',
       entryStockPrice: 'entry_stock_price',
       slStockPrice: 'sl_stock_price',
       tpStockPrice: 'tp_stock_price',
@@ -942,6 +943,7 @@ const MODE_CONFIG = {
       delta: '',
       gamma: '',
       theta: '',
+      vega: '',
       entryUrl: '',
       forecastUrl: '',
       notes: ''
@@ -1624,6 +1626,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
     if (tradeColumns.delta) data.delta = trade[tradeColumns.delta] ?? ''
     if (tradeColumns.gamma) data.gamma = trade[tradeColumns.gamma] ?? ''
     if (tradeColumns.theta) data.theta = trade[tradeColumns.theta] ?? ''
+    if (tradeColumns.vega) data.vega = trade[tradeColumns.vega] ?? ''
     if (tradeColumns.slStockPrice) data.slStockPrice = trade[tradeColumns.slStockPrice] ?? ''
     if (tradeColumns.tpStockPrice) data.tpStockPrice = trade[tradeColumns.tpStockPrice] ?? ''
     if (tradeColumns.entryPrice) data.entryPrice = trade[tradeColumns.entryPrice] ?? ''
@@ -1659,6 +1662,7 @@ const EditTradeView = ({ setCurrentView, config }) => {
       set(tradeColumns.delta, editData.delta === '' ? null : (editData.delta != null ? parseFloat(editData.delta) : null))
       set(tradeColumns.gamma, editData.gamma === '' ? null : (editData.gamma != null ? parseFloat(editData.gamma) : null))
       set(tradeColumns.theta, editData.theta === '' ? null : (editData.theta != null ? parseFloat(editData.theta) : null))
+      set(tradeColumns.vega, editData.vega === '' ? null : (editData.vega != null ? parseFloat(editData.vega) : null))
       set(tradeColumns.slStockPrice, editData.slStockPrice === '' ? null : (editData.slStockPrice != null ? parseFloat(editData.slStockPrice) : null))
       set(tradeColumns.tpStockPrice, editData.tpStockPrice === '' ? null : (editData.tpStockPrice != null ? parseFloat(editData.tpStockPrice) : null))
       set(tradeColumns.entryPrice, editData.entryPrice === '' ? null : (editData.entryPrice != null ? parseFloat(editData.entryPrice) : null))
@@ -1796,6 +1800,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
                   )}
                   {tradeColumns.theta && (
                     <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={editData.theta ?? ''} onChange={(e) => setEditData(p => ({ ...p, theta: e.target.value }))} />
+                  )}
+                  {tradeColumns.vega && (
+                    <InputField label={labels.vegaLabel || 'Vega (V)'} type="number" step="0.001" value={editData.vega ?? ''} onChange={(e) => setEditData(p => ({ ...p, vega: e.target.value }))} />
                   )}
                   {tradeColumns.slStockPrice && (
                     <InputField label={labels.slStockPriceLabel || 'SL Stock Price ($)'} type="number" step="0.01" value={editData.slStockPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, slStockPrice: e.target.value }))} />
@@ -3256,6 +3263,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.delta, formData.delta === '' ? null : (formData.delta ? parseFloat(formData.delta) : null))
       assignValue(tradeColumns.gamma, formData.gamma === '' ? null : (formData.gamma ? parseFloat(formData.gamma) : null))
       assignValue(tradeColumns.theta, formData.theta === '' ? null : (formData.theta ? parseFloat(formData.theta) : null))
+      assignValue(tradeColumns.vega, formData.vega === '' ? null : (formData.vega ? parseFloat(formData.vega) : null))
       assignValue(tradeColumns.slStockPrice, formData.slStockPrice === '' ? null : (formData.slStockPrice ? parseFloat(formData.slStockPrice) : null))
       assignValue(tradeColumns.tpStockPrice, formData.tpStockPrice === '' ? null : (formData.tpStockPrice ? parseFloat(formData.tpStockPrice) : null))
       assignValue(tradeColumns.entryPrice, formData.entryPrice === '' ? null : (formData.entryPrice ? parseFloat(formData.entryPrice) : null))
@@ -3512,6 +3520,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
           {tradeColumns.theta && (
             <InputField label={labels.thetaLabel || 'Theta (Θ)'} type="number" step="0.001" value={formData.theta} onChange={(e) => handleInputChange('theta', e.target.value)} placeholder="-0.05 (daily decay)" />
+          )}
+
+          {tradeColumns.vega && (
+            <InputField label={labels.vegaLabel || 'Vega (V)'} type="number" step="0.001" value={formData.vega} onChange={(e) => handleInputChange('vega', e.target.value)} placeholder="e.g. 0.12" />
           )}
 
           {tradeColumns.slStockPrice && (
@@ -4634,6 +4646,7 @@ const BuyStopCalculatorTab = () => {
         if (data.delta != null) setDelta(String(data.delta))
         if (data.gamma != null) setGamma(String(data.gamma))
         if (data.theta != null) setTheta(String(data.theta))
+        if (data.vega != null) setVega(String(data.vega))
         setPasteState('success')
         setTimeout(() => setPasteState('idle'), 4000)
       } catch {
@@ -4656,7 +4669,7 @@ const BuyStopCalculatorTab = () => {
   useEffect(() => {
     supabase
       .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, vega, entry_stock_price')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
@@ -4671,6 +4684,7 @@ const BuyStopCalculatorTab = () => {
     if (t.delta != null) setDelta(String(t.delta))
     if (t.gamma != null) setGamma(String(t.gamma))
     if (t.theta != null) setTheta(String(t.theta))
+    if (t.vega != null) setVega(String(t.vega))
     if (t.contracts != null) setContracts(String(t.contracts))
   }
 
@@ -4689,7 +4703,6 @@ const BuyStopCalculatorTab = () => {
   const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
 
   const isUpside = canCalc && T > S
-  const isDownside = canCalc && T < S
   const atMarket = canCalc && T === S
   const worthless = result && result.estPrice <= 0
 
@@ -4907,6 +4920,7 @@ const DollarRiskStopTab = () => {
       if (data.delta != null) setDelta(String(data.delta))
       if (data.gamma != null) setGamma(String(data.gamma))
       if (data.theta != null) setTheta(String(data.theta))
+      if (data.vega != null) setVega(String(data.vega))
       setPasteState('success')
     } catch {
       setPasteState('error')
@@ -4923,7 +4937,7 @@ const DollarRiskStopTab = () => {
   }, [])
 
   useEffect(() => {
-    supabase.from('options_trades').select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price').eq('status', 'open').order('entry_date', { ascending: false })
+    supabase.from('options_trades').select('id, ticker, premium, contracts, delta, gamma, theta, vega, entry_stock_price').eq('status', 'open').order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
   }, [])
 
@@ -4936,6 +4950,7 @@ const DollarRiskStopTab = () => {
     if (t.delta != null) setDelta(String(t.delta))
     if (t.gamma != null) setGamma(String(t.gamma))
     if (t.theta != null) setTheta(String(t.theta))
+    if (t.vega != null) setVega(String(t.vega))
     if (t.contracts != null) setContracts(String(t.contracts))
   }
 
@@ -5105,7 +5120,7 @@ const DollarRiskStopTab = () => {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-slate-500 mb-1">Est. Option Price</p>
-              <p className="text-xl font-bold text-slate-100">${fwd.estPrice.toFixed(2)}</p>
+              <p className="text-xl font-bold text-slate-100">${Math.max(0, fwd.estPrice).toFixed(2)}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500 mb-1">P&L / Contract</p>
