@@ -4605,6 +4605,8 @@ const BuyStopCalculatorTab = () => {
   const [premium, setPremium] = useState('')
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
+  const [theta, setTheta] = useState('')
+  const [vega, setVega] = useState('')
   const [targetStockPrice, setTargetStockPrice] = useState('')
   const [contracts, setContracts] = useState('1')
   const [openTrades, setOpenTrades] = useState([])
@@ -4630,6 +4632,7 @@ const BuyStopCalculatorTab = () => {
         if (data.premium != null) setPremium(String(data.premium))
         if (data.delta != null) setDelta(String(data.delta))
         if (data.gamma != null) setGamma(String(data.gamma))
+        if (data.theta != null) setTheta(String(data.theta))
         setPasteState('success')
         setTimeout(() => setPasteState('idle'), 4000)
       } catch {
@@ -4652,7 +4655,7 @@ const BuyStopCalculatorTab = () => {
   useEffect(() => {
     supabase
       .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, entry_stock_price')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
@@ -4666,6 +4669,7 @@ const BuyStopCalculatorTab = () => {
     if (t.premium != null) setPremium(String(t.premium))
     if (t.delta != null) setDelta(String(t.delta))
     if (t.gamma != null) setGamma(String(t.gamma))
+    if (t.theta != null) setTheta(String(t.theta))
     if (t.contracts != null) setContracts(String(t.contracts))
   }
 
@@ -4673,10 +4677,14 @@ const BuyStopCalculatorTab = () => {
   const P = parseFloat(premium)
   const d = parseFloat(delta)
   const g = parseFloat(gamma)
+  const th = parseFloat(theta)
+  const v = parseFloat(vega)
   const T = parseFloat(targetStockPrice)
   const n = parseInt(contracts) || 1
-  const canCalc = [S, P, d, g, T].every(v => !isNaN(v)) && P > 0
+  const canCalc = [S, P, d, g, T].every(x => !isNaN(x)) && P > 0
   const result = canCalc ? calcOptionLeg(P, d, g, T, S, n) : null
+  const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
+  const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
 
   const isUpside = canCalc && T > S
   const isDownside = canCalc && T < S
@@ -4761,6 +4769,20 @@ const BuyStopCalculatorTab = () => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)}
+              placeholder="e.g. -0.08"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Vega (V) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.001" value={vega} onChange={e => setVega(e.target.value)}
+              placeholder="e.g. 0.12"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
       </div>
 
       {canCalc && atMarket && (
@@ -4808,6 +4830,30 @@ const BuyStopCalculatorTab = () => {
 
           <div className="mt-4 p-3 bg-zinc-900 rounded-lg border border-zinc-800 text-xs text-slate-400 leading-relaxed">
             ⚡ Entering at <span className="text-white">${T.toFixed(2)}</span> instead of <span className="text-white">${S.toFixed(2)}</span> costs <span className="text-white">${Math.abs(result.dOption * 100).toFixed(2)}</span> {result.dOption >= 0 ? 'more' : 'less'} per contract — but you avoid theta decay while the market is still corrective.
+          </div>
+        </div>
+      )}
+
+      {(thetaDailyDollar != null || vegaPerPctDollar != null) && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mt-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Greek Callouts</p>
+          <div className="space-y-2">
+            {thetaDailyDollar != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Theta decay (per day)</span>
+                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {thetaDailyDollar >= 0 ? '+' : '-'}${Math.abs(thetaDailyDollar).toFixed(2)}
+                </span>
+              </div>
+            )}
+            {vegaPerPctDollar != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Vega impact (per 1% IV move)</span>
+                <span className={`text-sm font-semibold font-mono ${vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {vegaPerPctDollar >= 0 ? '+' : '-'}${Math.abs(vegaPerPctDollar).toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
