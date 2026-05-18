@@ -4824,6 +4824,7 @@ const DollarRiskStopTab = () => {
   const [vega, setVega] = useState('')
   const [underlyingPrice, setUnderlyingPrice] = useState('')
   const [premium, setPremium] = useState('')
+  const [expectedMove, setExpectedMove] = useState('')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
@@ -4913,6 +4914,14 @@ const DollarRiskStopTab = () => {
     }
   }
 
+  const dS = parseFloat(expectedMove)
+  const canForward = [d, g, S, P, R].every(x => !isNaN(x)) && !isNaN(dS) && R > 0
+  let fwd = null
+  if (canForward) {
+    const calc = calcOptionLeg(P, d, g, S + dS, S, n)
+    fwd = { ...calc, pnlPerContract: calc.dOption * 100, breached: Math.abs(calc.totalDollar) >= R }
+  }
+
   const fmtDollar = (v, sign = true) => {
     const abs = Math.abs(v).toFixed(2)
     if (!sign) return `$${abs}`
@@ -4983,6 +4992,12 @@ const DollarRiskStopTab = () => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Expected Move in Underlying ($) <span className="text-slate-600">optional</span></label>
+          <input type="number" step="0.01" value={expectedMove} onChange={e => setExpectedMove(e.target.value)}
+            placeholder="e.g. -5.00 — negative for a drop, positive for a rise"
+            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
@@ -5012,6 +5027,35 @@ const DollarRiskStopTab = () => {
           </div>
         </div>
       </div>
+
+      {fwd && (
+        <div className={`rounded-xl border p-5 mb-4 ${fwd.breached ? 'border-red-700/50 bg-red-900/10' : 'border-emerald-700/50 bg-emerald-900/10'}`}>
+          <div className="flex items-center gap-2 mb-4">
+            <span className={`text-lg font-bold tracking-wide ${fwd.breached ? 'text-red-400' : 'text-emerald-400'}`}>
+              {fwd.breached ? '✗ STOP LOSS HIT' : '✓ SAFE'}
+            </span>
+            <span className="text-xs text-slate-500">at expected move of {dS > 0 ? '+' : ''}{dS.toFixed(2)}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Est. Option Price</p>
+              <p className="text-xl font-bold text-slate-100">${fwd.estPrice.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">P&L / Contract</p>
+              <p className={`text-xl font-bold ${fwd.pnlPerContract >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtDollar(fwd.pnlPerContract)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Total P&L</p>
+              <p className={`text-xl font-bold ${fwd.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtDollar(fwd.totalDollar)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {stopLevel && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mb-4">
