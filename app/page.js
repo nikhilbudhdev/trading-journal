@@ -4818,7 +4818,6 @@ const DollarRiskStopTab = () => {
   const [vega, setVega] = useState('')
   const [underlyingPrice, setUnderlyingPrice] = useState('')
   const [premium, setPremium] = useState('')
-  const [expectedMove, setExpectedMove] = useState('')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
@@ -4884,25 +4883,8 @@ const DollarRiskStopTab = () => {
   const v = parseFloat(vega)
   const S = parseFloat(underlyingPrice)
   const P = parseFloat(premium)
-  const dS = parseFloat(expectedMove)
-
-  const canForward = [R, d, g, P, dS].every(x => !isNaN(x)) && P > 0 && R > 0
-  let forward = null
-  if (canForward) {
-    const dOption = d * dS + 0.5 * g * dS * dS
-    const newPremium = Math.max(0, P + dOption)
-    const plPerContract = dOption * 100
-    const totalPL = plPerContract * n
-    const breached = totalPL < 0 && Math.abs(totalPL) >= R
-    forward = {
-      newPremium,
-      plPerContract,
-      totalPL,
-      breached,
-      thetaDailyDollar: !isNaN(th) ? th * 100 * n : null,
-      vegaPerPctDollar: !isNaN(v) ? v * 100 * n : null,
-    }
-  }
+  const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
+  const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
 
   const canReverse = [R, d, g, S].every(x => !isNaN(x)) && R > 0
   let stopLevel = null
@@ -4934,7 +4916,7 @@ const DollarRiskStopTab = () => {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-1">Dollar Risk Stop Loss</h2>
-      <p className="text-slate-400 text-sm mb-6">Check if an expected move breaches your risk limit, and find the exact underlying price where your max loss is hit.</p>
+      <p className="text-slate-400 text-sm mb-6">Find the exact underlying price where your max dollar risk is breached, back-calculated from your greeks.</p>
 
       {openTrades.length > 0 && (
         <div className="mb-4">
@@ -4995,12 +4977,6 @@ const DollarRiskStopTab = () => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Expected Move in Underlying ($)</label>
-          <input type="number" step="0.01" value={expectedMove} onChange={e => setExpectedMove(e.target.value)}
-            placeholder="e.g. -5.00 (drop) or +8.00 (rise)"
-            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
@@ -5031,32 +5007,6 @@ const DollarRiskStopTab = () => {
         </div>
       </div>
 
-      {forward && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mb-4">
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mb-4 ${forward.breached ? 'bg-red-900/30 border border-red-700/50 text-red-400' : 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-400'}`}>
-            {forward.breached ? '✗ STOP LOSS HIT' : '✓ SAFE'}
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">New Option Price</p>
-              <p className="text-lg font-semibold text-slate-100">${forward.newPremium.toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">P&L per Contract</p>
-              <p className={`text-lg font-semibold ${forward.plPerContract >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {fmtDollar(forward.plPerContract)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Total P&L ({n}×)</p>
-              <p className={`text-lg font-semibold ${forward.totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {fmtDollar(forward.totalPL)}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {stopLevel && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mb-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Stop Loss Level</p>
@@ -5080,23 +5030,23 @@ const DollarRiskStopTab = () => {
         </div>
       )}
 
-      {(forward?.thetaDailyDollar != null || forward?.vegaPerPctDollar != null) && (
+      {(thetaDailyDollar != null || vegaPerPctDollar != null) && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Greek Callouts</p>
           <div className="space-y-2">
-            {forward.thetaDailyDollar != null && (
+            {thetaDailyDollar != null && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-400">Theta decay (per day)</span>
-                <span className={`text-sm font-semibold font-mono ${forward.thetaDailyDollar < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {fmtDollar(forward.thetaDailyDollar)}
+                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {fmtDollar(thetaDailyDollar)}
                 </span>
               </div>
             )}
-            {forward.vegaPerPctDollar != null && (
+            {vegaPerPctDollar != null && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-400">Vega impact (per 1% IV move)</span>
-                <span className={`text-sm font-semibold font-mono ${forward.vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {fmtDollar(forward.vegaPerPctDollar)}
+                <span className={`text-sm font-semibold font-mono ${vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(vegaPerPctDollar)}
                 </span>
               </div>
             )}
