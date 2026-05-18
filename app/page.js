@@ -3871,32 +3871,75 @@ const calcOptionLeg = (P, d, g, targetStock, S, n) => {
   return { dStock, dOption, estPrice, pctChange, totalDollar }
 }
 
-const GreeksCalcTab = () => {
+const OptionsAnalyzerTab = ({ isInline = false }) => {
   const [stockPrice, setStockPrice] = useState('')
   const [premium, setPremium] = useState('')
+  const [contracts, setContracts] = useState('1')
+  const [daysToHold, setDaysToHold] = useState('1')
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
   const [theta, setTheta] = useState('')
+  const [vega, setVega] = useState('')
   const [expiry, setExpiry] = useState('')
   const [daysHeld, setDaysHeld] = useState('')
   const [stopPrice, setStopPrice] = useState('')
   const [tpPrice, setTpPrice] = useState('')
-  const [contracts, setContracts] = useState('')
-  const [result, setResult] = useState(null)
-  const [pasteState, setPasteState] = useState('idle')
+  const [targetStockPrice, setTargetStockPrice] = useState('')
+  const [maxRisk, setMaxRisk] = useState('300')
+  const [expectedMove, setExpectedMove] = useState('')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
+  const [pasteState, setPasteState] = useState('idle')
+
+  const extractFromImage = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setPasteState('loading')
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      const [header, base64] = ev.target.result.split(',')
+      const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
+      try {
+        const res = await fetch('/api/extract-greeks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64, mediaType })
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
+        if (data.premium != null) setPremium(String(data.premium))
+        if (data.delta != null) setDelta(String(data.delta))
+        if (data.gamma != null) setGamma(String(data.gamma))
+        if (data.theta != null) setTheta(String(data.theta))
+        if (data.vega != null) setVega(String(data.vega))
+        setPasteState('success')
+        setTimeout(() => setPasteState('idle'), 4000)
+      } catch {
+        setPasteState('error')
+        setTimeout(() => setPasteState('idle'), 4000)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   useEffect(() => {
-    supabase
-      .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, sl_stock_price, tp_stock_price, expiry_date')
+    const handlePaste = async e => {
+      const imageItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'))
+      if (imageItem) extractFromImage(imageItem.getAsFile())
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
+  useEffect(() => {
+    supabase.from('options_trades')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, vega, entry_stock_price, sl_stock_price, tp_stock_price, expiry_date')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
   }, [])
 
-  const handleImportGreeks = (id) => {
+  const handleImport = (id) => {
     setSelectedImport(id)
     const t = openTrades.find(o => String(o.id) === id)
     if (!t) return
@@ -3905,93 +3948,50 @@ const GreeksCalcTab = () => {
     if (t.delta != null) setDelta(String(t.delta))
     if (t.gamma != null) setGamma(String(t.gamma))
     if (t.theta != null) setTheta(String(t.theta))
+    if (t.vega != null) setVega(String(t.vega))
     if (t.contracts != null) setContracts(String(t.contracts))
     if (t.expiry_date) setExpiry(t.expiry_date.split('T')[0])
     if (t.sl_stock_price != null) setStopPrice(String(t.sl_stock_price))
     if (t.tp_stock_price != null) setTpPrice(String(t.tp_stock_price))
   }
 
-  useEffect(() => {
-    const handlePaste = async e => {
-      const items = e.clipboardData?.items
-      if (!items) return
-      const imageItem = Array.from(items).find(i => i.type.startsWith('image/'))
-      if (!imageItem) return
-      const file = imageItem.getAsFile()
-      if (!file) return
-      setPasteState('loading')
-      const reader = new FileReader()
-      reader.onload = async ev => {
-        const dataUrl = ev.target.result
-        const [header, base64] = dataUrl.split(',')
-        const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
-        try {
-          const res = await fetch('/api/extract-greeks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64, mediaType })
-          })
-          const data = await res.json()
-          if (data.error) throw new Error(data.error)
-          if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
-          if (data.premium != null) setPremium(String(data.premium))
-          if (data.delta != null) setDelta(String(data.delta))
-          if (data.gamma != null) setGamma(String(data.gamma))
-          if (data.theta != null) setTheta(String(data.theta))
-          setPasteState('success')
-          setTimeout(() => setPasteState('idle'), 4000)
-        } catch {
-          setPasteState('error')
-          setTimeout(() => setPasteState('idle'), 4000)
-        }
-      }
-      reader.readAsDataURL(file)
-    }
-    document.addEventListener('paste', handlePaste)
-    return () => document.removeEventListener('paste', handlePaste)
-  }, [])
-
-  useEffect(() => {
-    const S = parseFloat(stockPrice)
-    const P = parseFloat(premium)
-    const d = parseFloat(delta)
-    const g = parseFloat(gamma)
-    const n = parseInt(contracts)
-    const sl = parseFloat(stopPrice)
-    const tp = parseFloat(tpPrice)
-
-    if ([S, P, d, g, n].some(isNaN) || n <= 0) { setResult(null); return }
-    if (isNaN(sl) && isNaN(tp)) { setResult(null); return }
-
-    const stop = !isNaN(sl) ? calcOptionLeg(P, d, g, sl, S, n) : null
-    const takeProfit = !isNaN(tp) ? calcOptionLeg(P, d, g, tp, S, n) : null
-    const rr = stop && takeProfit && stop.totalDollar !== 0
-      ? Math.abs(takeProfit.totalDollar / stop.totalDollar)
-      : null
-
-    setResult({ stop, takeProfit, rr, n })
-  }, [stockPrice, premium, delta, gamma, stopPrice, tpPrice, contracts])
+  const handleReset = () => {
+    setStockPrice(''); setPremium(''); setContracts('1'); setDaysToHold('1')
+    setDelta(''); setGamma(''); setTheta(''); setVega('')
+    setExpiry(''); setDaysHeld(''); setStopPrice(''); setTpPrice('')
+    setTargetStockPrice(''); setMaxRisk('300'); setExpectedMove('')
+    setPasteState('idle'); setSelectedImport('')
+  }
 
   const S = parseFloat(stockPrice)
   const P = parseFloat(premium)
   const d = parseFloat(delta)
   const g = parseFloat(gamma)
   const th = parseFloat(theta)
-  const n = parseInt(contracts)
+  const v = parseFloat(vega)
+  const n = parseInt(contracts) || 1
+  const holdDays = parseInt(daysToHold) || 1
+  const canBase = [S, P, d, g].every(x => !isNaN(x)) && n > 0
+
   const daysToExpiry = expiry ? Math.ceil((new Date(expiry) - new Date()) / 86400000) : null
-  const days = parseFloat(daysHeld) || daysToExpiry || 0
-  const thetaActive = !isNaN(th) && days > 0
-  const scenarioRows = (!isNaN(S) && !isNaN(P) && !isNaN(d) && !isNaN(g) && !isNaN(n) && n > 0)
+  const scenarioDays = parseFloat(daysHeld) || daysToExpiry || 0
+  const thetaActive = !isNaN(th) && scenarioDays > 0
+  const scenarioRows = canBase
     ? SCENARIO_PCTS.map(pct => {
         const targetStock = S * (1 + pct / 100)
         const { estPrice, totalDollar } = calcOptionLeg(P, d, g, targetStock, S, n)
-        const thetaImpact = thetaActive ? th * days * n * 100 : 0
+        const thetaImpact = thetaActive ? th * scenarioDays * n * 100 : 0
         return { pct, targetStock, estPrice: Math.max(0, estPrice), totalDollar, totalDollarWithTheta: totalDollar + thetaImpact }
       })
     : null
 
   const slVal = parseFloat(stopPrice)
   const tpVal = parseFloat(tpPrice)
+  const slResult = canBase && !isNaN(slVal) ? calcOptionLeg(P, d, g, slVal, S, n) : null
+  const tpResult = canBase && !isNaN(tpVal) ? calcOptionLeg(P, d, g, tpVal, S, n) : null
+  const rr = slResult && tpResult && slResult.totalDollar !== 0
+    ? Math.abs(tpResult.totalDollar / slResult.totalDollar)
+    : null
   const closestSlIdx = scenarioRows && !isNaN(slVal)
     ? scenarioRows.reduce((best, row, i) => Math.abs(row.targetStock - slVal) < Math.abs(scenarioRows[best].targetStock - slVal) ? i : best, 0)
     : null
@@ -3999,15 +3999,56 @@ const GreeksCalcTab = () => {
     ? scenarioRows.reduce((best, row, i) => Math.abs(row.targetStock - tpVal) < Math.abs(scenarioRows[best].targetStock - tpVal) ? i : best, 0)
     : null
 
+  const T = parseFloat(targetStockPrice)
+  const canBuyStop = canBase && !isNaN(T) && P > 0
+  const buystopResult = canBuyStop ? calcOptionLeg(P, d, g, T, S, n) : null
+  const isUpside = canBuyStop && T > S
+  const atMarket = canBuyStop && T === S
+  const worthless = buystopResult && buystopResult.estPrice <= 0
+
+  const R = parseFloat(maxRisk)
+  const canReverse = canBase && !isNaN(R) && R > 0
+  let stopLevel = null
+  if (canReverse) {
+    const maxLossPerShare = R / (n * 100)
+    const dir = d > 0 ? -1 : 1
+    let lo = 0, hi = 1000
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2
+      const actualDS = dir * mid
+      const loss = Math.abs(d * actualDS + 0.5 * g * actualDS * actualDS)
+      if (loss < maxLossPerShare) lo = mid
+      else hi = mid
+    }
+    const magnitude = (lo + hi) / 2
+    stopLevel = { dS: dir * magnitude, stopStockPrice: S + dir * magnitude, isCall: d > 0 }
+  }
+
+  const dS = parseFloat(expectedMove)
+  const canForward = canReverse && !isNaN(dS)
+  let fwd = null
+  if (canForward) {
+    const calc = calcOptionLeg(P, d, g, S + dS, S, n)
+    fwd = { ...calc, pnlPerContract: calc.dOption * 100, breached: Math.abs(calc.totalDollar) >= R }
+  }
+
+  const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
+  const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
+
+  const fmtDollar = (val, sign = true) => {
+    const abs = Math.abs(val).toFixed(2)
+    if (!sign) return `$${abs}`
+    return val >= 0 ? `+$${abs}` : `-$${abs}`
+  }
+  const formatDollar = val => `${val >= 0 ? '+' : ''}$${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${val < 0 ? ' loss' : ' gain'}`
+  const formatPct = val => val !== null ? `${val >= 0 ? '+' : ''}${val.toFixed(1)}%` : 'N/A'
+
   const ResultRow = ({ label, value, large, color }) => (
     <div className={`flex justify-between items-center p-3 rounded-lg ${large ? 'bg-zinc-900' : 'bg-zinc-900/50'}`}>
       <span className={`text-sm ${large ? 'text-slate-300' : 'text-slate-400'}`}>{label}</span>
       <span className={`font-bold ${large ? 'text-xl' : ''} ${color}`}>{value}</span>
     </div>
   )
-
-  const formatDollar = v => `${v >= 0 ? '+' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${v < 0 ? ' loss' : ' gain'}`
-  const formatPct = v => v !== null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : 'N/A'
 
   const presetBtn = (pct, setter, currentVal) => {
     const computed = !isNaN(S) ? parseFloat((S * (1 + pct / 100)).toFixed(2)) : null
@@ -4024,55 +4065,24 @@ const GreeksCalcTab = () => {
     )
   }
 
-  const handleDrop = async e => {
-    e.preventDefault()
-    const file = e.dataTransfer?.files?.[0]
-    if (!file || !file.type.startsWith('image/')) return
-    setPasteState('loading')
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      const dataUrl = ev.target.result
-      const [header, base64] = dataUrl.split(',')
-      const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
-      try {
-        const res = await fetch('/api/extract-greeks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, mediaType })
-        })
-        const data = await res.json()
-        if (data.error) throw new Error(data.error)
-        if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
-        if (data.premium != null) setPremium(String(data.premium))
-        if (data.delta != null) setDelta(String(data.delta))
-        if (data.gamma != null) setGamma(String(data.gamma))
-        if (data.theta != null) setTheta(String(data.theta))
-        setPasteState('success')
-        setTimeout(() => setPasteState('idle'), 4000)
-      } catch {
-        setPasteState('error')
-        setTimeout(() => setPasteState('idle'), 4000)
-      }
-    }
-    reader.readAsDataURL(file)
-  }
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-slate-500 text-sm">Enter details or paste a broker screenshot to auto-fill.</p>
-        <button onClick={() => { setStockPrice(''); setPremium(''); setDelta(''); setGamma(''); setTheta(''); setExpiry(''); setDaysHeld(''); setStopPrice(''); setTpPrice(''); setContracts(''); setResult(null); setPasteState('idle'); setSelectedImport('') }} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
-      </div>
+      {!isInline && (
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-slate-500 text-sm">Enter details or paste a broker screenshot to auto-fill.</p>
+          <button onClick={handleReset} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
+        </div>
+      )}
 
       {openTrades.length > 0 && (
         <div className="mb-4">
           <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
-          <select value={selectedImport} onChange={e => handleImportGreeks(e.target.value)}
+          <select value={selectedImport} onChange={e => handleImport(e.target.value)}
             className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
             <option value="">— select a trade —</option>
             {openTrades.map(t => (
               <option key={t.id} value={String(t.id)}>
-                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ' (no Greeks)'}
+                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ''}
               </option>
             ))}
           </select>
@@ -4080,9 +4090,9 @@ const GreeksCalcTab = () => {
       )}
 
       <div
-        onDrop={handleDrop}
+        onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
         onDragOver={e => e.preventDefault()}
-        className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
+        className={`mb-5 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
           pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
           pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
           pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
@@ -4095,159 +4105,367 @@ const GreeksCalcTab = () => {
         {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
       </div>
 
-      <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-5 mb-6">
-          <div className="grid grid-cols-2 gap-3">
-            <InputField label="Stock Price ($)" type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)} placeholder="e.g. 150.00" />
-            <InputField label="Option Premium ($)" type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 3.50" />
-            <InputField label="Delta" type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)} placeholder="-0.45 for puts" />
-            <InputField label="Gamma" type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)} placeholder="e.g. 0.03" />
-            <InputField label="Theta (Θ)" type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)} placeholder="-0.05 (daily decay)" />
-            <InputField label="Expiry Date" type="date" value={expiry} onChange={e => setExpiry(e.target.value)} placeholder="" />
-            <InputField label="Days Held (override)" type="number" step="1" value={daysHeld} onChange={e => setDaysHeld(e.target.value)} placeholder="leave blank to use expiry" />
-            <div>
-              <InputField label="Stop Loss Price ($)" type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" />
-              <div className="flex gap-1 mt-1.5 flex-wrap">
-                {PRESET_SL.map(pct => presetBtn(pct, setStopPrice, stopPrice))}
-              </div>
-            </div>
-            <div>
-              <InputField label="Take Profit Price ($)" type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)} placeholder="e.g. 158.00" />
-              <div className="flex gap-1 mt-1.5 flex-wrap">
-                {PRESET_TP.map(pct => presetBtn(pct, setTpPrice, tpPrice))}
-              </div>
-            </div>
-            <InputField label="Contracts" type="number" step="1" value={contracts} onChange={e => setContracts(e.target.value)} placeholder="e.g. 2" />
+      <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
+            <input type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)}
+              placeholder="e.g. 450.00"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Option Premium ($)</label>
+            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
+              placeholder="e.g. 3.50"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
+            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
+              placeholder="e.g. 0.45 or -0.45"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
+            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
+              placeholder="e.g. 0.05"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)}
+              placeholder="e.g. -0.08"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Vega (V) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.001" value={vega} onChange={e => setVega(e.target.value)}
+              placeholder="e.g. 0.12"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Contracts</label>
+            <input type="number" step="1" min="1" value={contracts} onChange={e => setContracts(e.target.value)}
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Days to Hold</label>
+            <input type="number" step="1" min="1" value={daysToHold} onChange={e => setDaysToHold(e.target.value)}
+              placeholder="e.g. 3"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
 
-        {scenarioRows && (
-          <div className="bg-zinc-950 border border-zinc-900 rounded-lg mb-6 overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-900">
-              <p className="text-sm font-semibold text-slate-300">Scenario Table</p>
-              <p className="text-xs text-slate-500 mt-0.5">Click → SL or → TP to set a price level from any row.</p>
+        {!isInline && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Expiry Date <span className="text-slate-600">optional</span></label>
+                <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
+                  className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Days Held Override <span className="text-slate-600">optional</span></label>
+                <input type="number" step="1" value={daysHeld} onChange={e => setDaysHeld(e.target.value)}
+                  placeholder="leave blank to use expiry"
+                  className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-zinc-900">
-                    <th className="text-left px-4 py-2 text-xs text-slate-500 font-medium">Move</th>
-                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Stock Price</th>
-                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Option Price</th>
-                    <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">{thetaActive ? `P&L (Δ+Θ×${days}d)` : 'P&L'}</th>
-                    <th className="px-4 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scenarioRows.map((row, i) => {
-                    const isZero = row.pct === 0
-                    const isSl = i === closestSlIdx
-                    const isTp = i === closestTpIdx
-                    const borderClass = isSl ? 'border-l-2 border-l-red-500' : isTp ? 'border-l-2 border-l-emerald-500' : 'border-l-2 border-l-transparent'
-                    const bgClass = isZero ? 'bg-zinc-900/60' : 'hover:bg-zinc-900/30'
-                    return (
-                      <tr key={row.pct} className={`${bgClass} ${borderClass} transition-colors`}>
-                        <td className="px-4 py-2">
-                          <span className={`font-mono text-xs font-semibold ${row.pct < 0 ? 'text-red-400' : row.pct > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {row.pct > 0 ? `+${row.pct}%` : row.pct === 0 ? '0% (now)' : `${row.pct}%`}
-                          </span>
-                          {isSl && <span className="ml-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded px-1">SL</span>}
-                          {isTp && <span className="ml-2 text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded px-1">TP</span>}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono text-slate-300">${row.targetStock.toFixed(2)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-slate-300">${row.estPrice.toFixed(2)}</td>
-                        <td className={`px-4 py-2 text-right font-mono font-semibold ${(thetaActive ? row.totalDollarWithTheta : row.totalDollar) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {(thetaActive ? row.totalDollarWithTheta : row.totalDollar) >= 0 ? '+' : ''}${Math.abs(thetaActive ? row.totalDollarWithTheta : row.totalDollar).toFixed(0)}
-                        </td>
-                        <td className="px-3 py-2">
-                          {!isZero && (
-                            <div className="flex gap-1 justify-end">
-                              {row.pct < 0 && (
-                                <button onClick={() => setStopPrice(row.targetStock.toFixed(2))} className="text-xs px-1.5 py-0.5 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap">→ SL</button>
-                              )}
-                              {row.pct > 0 && (
-                                <button onClick={() => setTpPrice(row.targetStock.toFixed(2))} className="text-xs px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 transition-colors whitespace-nowrap">→ TP</button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Stop Loss Price ($)</label>
+                <input type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)}
+                  placeholder="e.g. 445.00"
+                  className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+                <div className="flex gap-1 mt-1.5 flex-wrap">
+                  {PRESET_SL.map(pct => presetBtn(pct, setStopPrice, stopPrice))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Take Profit Price ($)</label>
+                <input type="number" step="0.01" value={tpPrice} onChange={e => setTpPrice(e.target.value)}
+                  placeholder="e.g. 458.00"
+                  className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+                <div className="flex gap-1 mt-1.5 flex-wrap">
+                  {PRESET_TP.map(pct => presetBtn(pct, setTpPrice, tpPrice))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {!isInline && scenarioRows && (
+        <div className="bg-zinc-950 border border-zinc-900 rounded-lg mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-zinc-900">
+            <p className="text-sm font-semibold text-slate-300">Scenario Table</p>
+            <p className="text-xs text-slate-500 mt-0.5">Click → SL or → TP to set a price level from any row.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-900">
+                  <th className="text-left px-4 py-2 text-xs text-slate-500 font-medium">Move</th>
+                  <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Stock Price</th>
+                  <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">Option Price</th>
+                  <th className="text-right px-4 py-2 text-xs text-slate-500 font-medium">{thetaActive ? `P&L (Δ+Θ×${scenarioDays}d)` : 'P&L'}</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {scenarioRows.map((row, i) => {
+                  const isZero = row.pct === 0
+                  const isSl = i === closestSlIdx
+                  const isTp = i === closestTpIdx
+                  const borderClass = isSl ? 'border-l-2 border-l-red-500' : isTp ? 'border-l-2 border-l-emerald-500' : 'border-l-2 border-l-transparent'
+                  const bgClass = isZero ? 'bg-zinc-900/60' : 'hover:bg-zinc-900/30'
+                  return (
+                    <tr key={row.pct} className={`${bgClass} ${borderClass} transition-colors`}>
+                      <td className="px-4 py-2">
+                        <span className={`font-mono text-xs font-semibold ${row.pct < 0 ? 'text-red-400' : row.pct > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          {row.pct > 0 ? `+${row.pct}%` : row.pct === 0 ? '0% (now)' : `${row.pct}%`}
+                        </span>
+                        {isSl && <span className="ml-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded px-1">SL</span>}
+                        {isTp && <span className="ml-2 text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded px-1">TP</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono text-slate-300">${row.targetStock.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-slate-300">${row.estPrice.toFixed(2)}</td>
+                      <td className={`px-4 py-2 text-right font-mono font-semibold ${(thetaActive ? row.totalDollarWithTheta : row.totalDollar) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {(thetaActive ? row.totalDollarWithTheta : row.totalDollar) >= 0 ? '+' : ''}${Math.abs(thetaActive ? row.totalDollarWithTheta : row.totalDollar).toFixed(0)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {!isZero && (
+                          <div className="flex gap-1 justify-end">
+                            {row.pct < 0 && (
+                              <button onClick={() => setStopPrice(row.targetStock.toFixed(2))} className="text-xs px-1.5 py-0.5 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap">→ SL</button>
+                            )}
+                            {row.pct > 0 && (
+                              <button onClick={() => setTpPrice(row.targetStock.toFixed(2))} className="text-xs px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 transition-colors whitespace-nowrap">→ TP</button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!isInline && rr !== null && (
+        <div className={`rounded-lg p-4 mb-4 flex items-center justify-between border ${rr >= 1.5 ? 'bg-emerald-900/20 border-emerald-600' : 'bg-amber-900/20 border-amber-600'}`}>
+          <div>
+            <p className="text-xs uppercase tracking-widest text-slate-400">Risk / Reward</p>
+            <p className={`text-4xl font-bold ${rr >= 1.5 ? 'text-emerald-400' : 'text-amber-400'}`}>1 : {rr.toFixed(2)}</p>
+            {rr < 1.5 && <p className="text-xs text-amber-400 mt-1">Below 1.5:1 minimum — consider adjusting targets.</p>}
+          </div>
+          <div className="text-right text-sm text-slate-400 space-y-1">
+            {slResult && <p>Risk: <span className="text-red-400 font-semibold">{formatDollar(slResult.totalDollar)}</span></p>}
+            {tpResult && <p>Reward: <span className="text-emerald-400 font-semibold">{formatDollar(tpResult.totalDollar)}</span></p>}
+          </div>
+        </div>
+      )}
+
+      {!isInline && (slResult || tpResult) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {slResult && (
+            <div className="bg-zinc-950 border border-red-500/30 rounded-lg p-4 space-y-2">
+              <h2 className="text-sm font-bold text-red-400 uppercase tracking-wide mb-3">Stop Loss</h2>
+              <ResultRow label="ΔStock" value={`${slResult.dStock >= 0 ? '+' : ''}${slResult.dStock.toFixed(2)}`} color={slResult.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+              <ResultRow label="Option Price at SL" large value={<>{`$${Math.max(slResult.estPrice, 0).toFixed(2)}`}{slResult.estPrice < 0 && <span className="text-xs font-normal text-red-400 ml-1">(floored)</span>}</>} color="text-white" />
+              <ResultRow label="% Change" value={formatPct(slResult.pctChange)} color={slResult.pctChange !== null && slResult.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+              <ResultRow label={`Total (${n}× 100)`} large value={formatDollar(slResult.totalDollar)} color={slResult.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+            </div>
+          )}
+          {tpResult && (
+            <div className="bg-zinc-950 border border-emerald-500/30 rounded-lg p-4 space-y-2">
+              <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wide mb-3">Take Profit</h2>
+              <ResultRow label="ΔStock" value={`${tpResult.dStock >= 0 ? '+' : ''}${tpResult.dStock.toFixed(2)}`} color={tpResult.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+              <ResultRow label="Option Price at TP" large value={`$${Math.max(tpResult.estPrice, 0).toFixed(2)}`} color="text-white" />
+              <ResultRow label="% Change" value={formatPct(tpResult.pctChange)} color={tpResult.pctChange !== null && tpResult.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+              <ResultRow label={`Total (${n}× 100)`} large value={formatDollar(tpResult.totalDollar)} color={tpResult.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isInline && thetaActive && (
+        <div className="bg-zinc-950 border border-amber-500/30 rounded-lg p-4 mb-4">
+          <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wide mb-3">Theta Decay</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
+              <span className="text-xs text-slate-400 mb-1">Daily (Θ × N × 100)</span>
+              <span className="font-bold text-amber-400">{(th * n * 100) >= 0 ? '+' : ''}${(th * n * 100).toFixed(2)}</span>
+            </div>
+            <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
+              <span className="text-xs text-slate-400 mb-1">{daysToExpiry !== null && !parseFloat(daysHeld) ? 'Days to Expiry' : 'Days Held'}</span>
+              <span className="font-bold text-white">{scenarioDays}</span>
+            </div>
+            <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
+              <span className="text-xs text-slate-400 mb-1">Total Decay</span>
+              <span className="font-bold text-red-400">{(th * scenarioDays * n * 100) >= 0 ? '+' : ''}${(th * scenarioDays * n * 100).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isInline && canBase && <div className="border-t border-zinc-800 my-6" />}
+
+      <div className="mb-6">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Buy Stop</p>
+        <p className="text-slate-500 text-xs mb-4">Enter when the stock confirms your direction — use this price as your buy-stop limit order.</p>
+        <div className="mb-4">
+          <label className="block text-xs text-slate-400 mb-1">Target Stock Price ($)</label>
+          <input type="number" step="0.01" value={targetStockPrice} onChange={e => setTargetStockPrice(e.target.value)}
+            placeholder="e.g. 455.00"
+            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+        </div>
+        {canBuyStop && atMarket && (
+          <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-xl text-slate-400 text-sm text-center">
+            Target equals current price — enter at market.
+          </div>
+        )}
+        {canBuyStop && !atMarket && worthless && (
+          <div className="p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-red-400 text-sm text-center">
+            Option likely worthless at that level — target is too far from current price.
+          </div>
+        )}
+        {canBuyStop && !atMarket && !worthless && buystopResult && (
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Buy Stop Order Price</p>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full border ${isUpside ? 'text-emerald-400 border-emerald-700 bg-emerald-900/20' : 'text-amber-400 border-amber-700 bg-amber-900/20'}`}>
+                {isUpside ? 'Waiting for upside ↑' : 'Waiting for downside ↓'}
+              </span>
+            </div>
+            <p className="text-4xl font-bold text-white mb-1">${Math.max(0, buystopResult.estPrice).toFixed(2)}</p>
+            <p className="text-slate-500 text-xs mb-4">per contract · set as your buy stop limit</p>
+            <div className="grid grid-cols-3 gap-3 text-sm border-t border-zinc-800 pt-3">
+              <div>
+                <p className="text-xs text-slate-500 mb-1">vs entering now</p>
+                <p className={`font-semibold text-sm ${buystopResult.dOption >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {buystopResult.dOption >= 0 ? '+' : ''}${(buystopResult.dOption * 100).toFixed(2)}/ct
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Total cost ({n} ct)</p>
+                <p className="text-white font-semibold text-sm">${(Math.max(0, buystopResult.estPrice) * n * 100).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Premium change</p>
+                <p className={`font-semibold text-sm ${(buystopResult.pctChange ?? 0) >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {buystopResult.pctChange != null ? `${buystopResult.pctChange >= 0 ? '+' : ''}${buystopResult.pctChange.toFixed(1)}%` : '—'}
+                </p>
+              </div>
             </div>
           </div>
         )}
+      </div>
 
-        {result && result.rr !== null && (
-          <div className={`rounded-lg p-4 mb-4 flex items-center justify-between border ${result.rr >= 1.5 ? 'bg-emerald-900/20 border-emerald-600' : 'bg-amber-900/20 border-amber-600'}`}>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400">Risk / Reward</p>
-              <p className={`text-4xl font-bold ${result.rr >= 1.5 ? 'text-emerald-400' : 'text-amber-400'}`}>1 : {result.rr.toFixed(2)}</p>
-              {result.rr < 1.5 && <p className="text-xs text-amber-400 mt-1">Below 1.5:1 minimum — consider adjusting targets.</p>}
+      <div className="mb-6">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Risk Stop</p>
+        <p className="text-slate-500 text-xs mb-4">Find the underlying price where your max dollar risk is breached, back-calculated from your Greeks.</p>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Max Dollar Risk ($)</label>
+            <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)}
+              placeholder="e.g. 300"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Expected Move ($) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.01" value={expectedMove} onChange={e => setExpectedMove(e.target.value)}
+              placeholder="e.g. -5.00"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        {fwd && (
+          <div className={`rounded-xl border p-5 mb-4 ${fwd.breached ? 'border-red-700/50 bg-red-900/10' : 'border-emerald-700/50 bg-emerald-900/10'}`}>
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`text-lg font-bold tracking-wide ${fwd.breached ? 'text-red-400' : 'text-emerald-400'}`}>
+                {fwd.breached ? '✗ STOP LOSS HIT' : '✓ SAFE'}
+              </span>
+              <span className="text-xs text-slate-500">at expected move of {dS > 0 ? '+' : ''}{dS.toFixed(2)}</span>
             </div>
-            <div className="text-right text-sm text-slate-400 space-y-1">
-              {result.stop && <p>Risk: <span className="text-red-400 font-semibold">{formatDollar(result.stop.totalDollar)}</span></p>}
-              {result.takeProfit && <p>Reward: <span className="text-emerald-400 font-semibold">{formatDollar(result.takeProfit.totalDollar)}</span></p>}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Est. Option Price</p>
+                <p className="text-xl font-bold text-slate-100">${Math.max(0, fwd.estPrice).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">P&L / Contract</p>
+                <p className={`text-xl font-bold ${fwd.pnlPerContract >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(fwd.pnlPerContract)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Total P&L</p>
+                <p className={`text-xl font-bold ${fwd.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(fwd.totalDollar)}
+                </p>
+              </div>
             </div>
           </div>
         )}
+        {stopLevel && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Stop Loss Level</p>
+            <div className="flex items-end justify-between mb-2">
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Underlying stop price</p>
+                <p className={`text-3xl font-bold ${stopLevel.isCall ? 'text-red-400' : 'text-amber-400'}`}>
+                  ${stopLevel.stopStockPrice.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500 mb-0.5">Adverse move</p>
+                <p className="text-lg font-semibold text-slate-300">{fmtDollar(stopLevel.dS)}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              {stopLevel.isCall
+                ? `Exit if the stock falls to ~$${stopLevel.stopStockPrice.toFixed(2)} — calls lose value on drops ↓`
+                : `Exit if the stock rises to ~$${stopLevel.stopStockPrice.toFixed(2)} — puts lose value on rises ↑`}
+            </p>
+          </div>
+        )}
+      </div>
 
-        {result && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {result.stop && (
-              <div className="bg-zinc-950 border border-red-500/30 rounded-lg p-4 space-y-2">
-                <h2 className="text-sm font-bold text-red-400 uppercase tracking-wide mb-3">Stop Loss</h2>
-                <ResultRow label="ΔStock" value={`${result.stop.dStock >= 0 ? '+' : ''}${result.stop.dStock.toFixed(2)}`} color={result.stop.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-                <ResultRow label="Option Price at SL" large value={<>{`$${Math.max(result.stop.estPrice, 0).toFixed(2)}`}{result.stop.estPrice < 0 && <span className="text-xs font-normal text-red-400 ml-1">(floored)</span>}</>} color="text-white" />
-                <ResultRow label="% Change" value={formatPct(result.stop.pctChange)} color={result.stop.pctChange !== null && result.stop.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-                <ResultRow label={`Total (${result.n}× 100)`} large value={formatDollar(result.stop.totalDollar)} color={result.stop.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+      {(thetaDailyDollar != null || vegaPerPctDollar != null) && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Greek Callouts</p>
+          <div className="space-y-2">
+            {thetaDailyDollar != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Theta decay ({holdDays} day{holdDays !== 1 ? 's' : ''})</span>
+                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar * holdDays < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {fmtDollar(thetaDailyDollar * holdDays)}
+                </span>
               </div>
             )}
-            {result.takeProfit && (
-              <div className="bg-zinc-950 border border-emerald-500/30 rounded-lg p-4 space-y-2">
-                <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wide mb-3">Take Profit</h2>
-                <ResultRow label="ΔStock" value={`${result.takeProfit.dStock >= 0 ? '+' : ''}${result.takeProfit.dStock.toFixed(2)}`} color={result.takeProfit.dStock >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-                <ResultRow label="Option Price at TP" large value={`$${Math.max(result.takeProfit.estPrice, 0).toFixed(2)}`} color="text-white" />
-                <ResultRow label="% Change" value={formatPct(result.takeProfit.pctChange)} color={result.takeProfit.pctChange !== null && result.takeProfit.pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-                <ResultRow label={`Total (${result.n}× 100)`} large value={formatDollar(result.takeProfit.totalDollar)} color={result.takeProfit.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+            {vegaPerPctDollar != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Vega impact (per 1% IV move)</span>
+                <span className={`text-sm font-semibold font-mono ${vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(vegaPerPctDollar)}
+                </span>
               </div>
             )}
           </div>
-        )}
-
-        {thetaActive && (
-          <div className="bg-zinc-950 border border-amber-500/30 rounded-lg p-4 mb-4">
-            <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wide mb-3">Theta Decay</h2>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
-                <span className="text-xs text-slate-400 mb-1">Daily (Θ × N × 100)</span>
-                <span className="font-bold text-amber-400">{(th * n * 100) >= 0 ? '+' : ''}${(th * n * 100).toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
-                <span className="text-xs text-slate-400 mb-1">{daysToExpiry !== null && !parseFloat(daysHeld) ? 'Days to Expiry' : 'Days Held'}</span>
-                <span className="font-bold text-white">{days}</span>
-              </div>
-              <div className="flex flex-col items-center bg-zinc-900/50 rounded-lg p-3">
-                <span className="text-xs text-slate-400 mb-1">Total Decay</span>
-                <span className="font-bold text-red-400">{(th * days * n * 100) >= 0 ? '+' : ''}${(th * days * n * 100).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {result && (
-          <p className="text-xs text-slate-500">{thetaActive ? `ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock² + Θ × ${days}d. Approximation only — IV changes not included.` : 'ΔOption ≈ Δ × ΔStock + ½ × Γ × ΔStock². Approximation only — theta decay and IV changes not included.'}</p>
-        )}
-
-        {!result && !scenarioRows && (
-          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-8 text-center text-slate-500 text-sm">
-            Fill in the fields above. Enter a stop, take profit, or both.
-          </div>
-        )}
+        </div>
+      )}
     </div>
   )
 }
+
 
 const TrailingStopsTab = () => {
   const [stops, setStops] = useState(() => {
@@ -4612,582 +4830,6 @@ const ForexToolsView = ({ config, onBack }) => (
   </div>
 )
 
-const BuyStopCalculatorTab = () => {
-  const [stockPrice, setStockPrice] = useState('')
-  const [premium, setPremium] = useState('')
-  const [delta, setDelta] = useState('')
-  const [gamma, setGamma] = useState('')
-  const [theta, setTheta] = useState('')
-  const [vega, setVega] = useState('')
-  const [targetStockPrice, setTargetStockPrice] = useState('')
-  const [contracts, setContracts] = useState('1')
-  const [daysToHold, setDaysToHold] = useState('1')
-  const [openTrades, setOpenTrades] = useState([])
-  const [selectedImport, setSelectedImport] = useState('')
-  const [pasteState, setPasteState] = useState('idle')
-
-  const extractFromImage = async (file) => {
-    if (!file || !file.type.startsWith('image/')) return
-    setPasteState('loading')
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      const [header, base64] = ev.target.result.split(',')
-      const mediaType = header.match(/data:(.*);/)?.[1] || 'image/png'
-      try {
-        const res = await fetch('/api/extract-greeks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, mediaType })
-        })
-        const data = await res.json()
-        if (data.error) throw new Error(data.error)
-        if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
-        if (data.premium != null) setPremium(String(data.premium))
-        if (data.delta != null) setDelta(String(data.delta))
-        if (data.gamma != null) setGamma(String(data.gamma))
-        if (data.theta != null) setTheta(String(data.theta))
-        if (data.vega != null) setVega(String(data.vega))
-        setPasteState('success')
-        setTimeout(() => setPasteState('idle'), 4000)
-      } catch {
-        setPasteState('error')
-        setTimeout(() => setPasteState('idle'), 4000)
-      }
-    }
-    reader.readAsDataURL(file)
-  }
-
-  useEffect(() => {
-    const handlePaste = async e => {
-      const imageItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'))
-      if (imageItem) extractFromImage(imageItem.getAsFile())
-    }
-    document.addEventListener('paste', handlePaste)
-    return () => document.removeEventListener('paste', handlePaste)
-  }, [])
-
-  useEffect(() => {
-    supabase
-      .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, theta, vega, entry_stock_price')
-      .eq('status', 'open')
-      .order('entry_date', { ascending: false })
-      .then(({ data }) => { if (data) setOpenTrades(data) })
-  }, [])
-
-  const handleImport = (id) => {
-    setSelectedImport(id)
-    const t = openTrades.find(o => String(o.id) === id)
-    if (!t) return
-    if (t.entry_stock_price != null) setStockPrice(String(t.entry_stock_price))
-    if (t.premium != null) setPremium(String(t.premium))
-    if (t.delta != null) setDelta(String(t.delta))
-    if (t.gamma != null) setGamma(String(t.gamma))
-    if (t.theta != null) setTheta(String(t.theta))
-    if (t.vega != null) setVega(String(t.vega))
-    if (t.contracts != null) setContracts(String(t.contracts))
-  }
-
-  const S = parseFloat(stockPrice)
-  const P = parseFloat(premium)
-  const d = parseFloat(delta)
-  const g = parseFloat(gamma)
-  const th = parseFloat(theta)
-  const v = parseFloat(vega)
-  const T = parseFloat(targetStockPrice)
-  const n = parseInt(contracts) || 1
-  const days = parseInt(daysToHold) || 1
-  const canCalc = [S, P, d, g, T].every(x => !isNaN(x)) && P > 0
-  const result = canCalc ? calcOptionLeg(P, d, g, T, S, n) : null
-  const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
-  const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
-
-  const isUpside = canCalc && T > S
-  const atMarket = canCalc && T === S
-  const worthless = result && result.estPrice <= 0
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-1">Buy Stop Calculator</h2>
-      <p className="text-slate-400 text-sm mb-6">Find the option contract price to use as your buy stop — enter only when the stock confirms your direction.</p>
-
-      {openTrades.length > 0 && (
-        <div className="mb-5">
-          <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
-          <select value={selectedImport} onChange={e => handleImport(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
-            <option value="">— select a trade —</option>
-            {openTrades.map(t => (
-              <option key={t.id} value={String(t.id)}>
-                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div
-        onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
-        onDragOver={e => e.preventDefault()}
-        className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
-          pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
-          pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
-          pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
-          'border-zinc-900 text-slate-600 hover:border-zinc-800 hover:text-slate-500'
-        }`}
-      >
-        {pasteState === 'loading' && 'Extracting Greeks from screenshot...'}
-        {pasteState === 'success' && '✓ Auto-filled — review values and adjust if needed'}
-        {pasteState === 'error' && 'Could not extract — please fill in fields manually'}
-        {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
-      </div>
-
-      <div className="space-y-4 mb-6">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
-            <input type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)}
-              placeholder="e.g. 152.50"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Target Stock Price ($)</label>
-            <input type="number" step="0.01" value={targetStockPrice} onChange={e => setTargetStockPrice(e.target.value)}
-              placeholder="e.g. 155.00"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Premium ($)</label>
-            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
-              placeholder="e.g. 3.20"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Contracts</label>
-            <input type="number" step="1" min="1" value={contracts} onChange={e => setContracts(e.target.value)}
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
-            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
-              placeholder="e.g. 0.45 or -0.45"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
-            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
-              placeholder="e.g. 0.03"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">optional</span></label>
-            <input type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)}
-              placeholder="e.g. -0.08"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Vega (V) <span className="text-slate-600">optional</span></label>
-            <input type="number" step="0.001" value={vega} onChange={e => setVega(e.target.value)}
-              placeholder="e.g. 0.12"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Days to Hold <span className="text-slate-600">optional</span></label>
-            <input type="number" step="1" min="1" value={daysToHold} onChange={e => setDaysToHold(e.target.value)}
-              placeholder="e.g. 3"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-      </div>
-
-      {canCalc && atMarket && (
-        <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-xl text-slate-400 text-sm text-center">
-          Target equals current price — enter at market.
-        </div>
-      )}
-
-      {canCalc && !atMarket && worthless && (
-        <div className="p-4 bg-red-900/20 border border-red-800/50 rounded-xl text-red-400 text-sm text-center">
-          Option likely worthless at that level — target is too far from current price.
-        </div>
-      )}
-
-      {canCalc && !atMarket && !worthless && result && (
-        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Buy Stop Order Price</p>
-            <span className={`text-xs font-medium px-2 py-1 rounded-full border ${isUpside ? 'text-emerald-400 border-emerald-700 bg-emerald-900/20' : 'text-amber-400 border-amber-700 bg-amber-900/20'}`}>
-              {isUpside ? 'Waiting for upside impulse ↑' : 'Waiting for downside impulse ↓'}
-            </span>
-          </div>
-
-          <p className="text-5xl font-bold text-white mb-1">${Math.max(0, result.estPrice).toFixed(2)}</p>
-          <p className="text-slate-500 text-sm mb-5">per contract · set as your buy stop limit</p>
-
-          <div className="grid grid-cols-3 gap-3 text-sm border-t border-zinc-800 pt-4">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">vs entering now</p>
-              <p className={`font-semibold ${result.dOption >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                {result.dOption >= 0 ? '+' : ''}${(result.dOption * 100).toFixed(2)}/contract
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Total cost ({n} contracts)</p>
-              <p className="text-white font-semibold">${(Math.max(0, result.estPrice) * n * 100).toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Premium change</p>
-              <p className={`font-semibold ${(result.pctChange ?? 0) >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                {result.pctChange != null ? `${result.pctChange >= 0 ? '+' : ''}${result.pctChange.toFixed(1)}%` : '—'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-zinc-900 rounded-lg border border-zinc-800 text-xs text-slate-400 leading-relaxed">
-            ⚡ Entering at <span className="text-white">${T.toFixed(2)}</span> instead of <span className="text-white">${S.toFixed(2)}</span> costs <span className="text-white">${Math.abs(result.dOption * 100).toFixed(2)}</span> {result.dOption >= 0 ? 'more' : 'less'} per contract — but you avoid theta decay while the market is still corrective.
-          </div>
-        </div>
-      )}
-
-      {(thetaDailyDollar != null || vegaPerPctDollar != null) && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mt-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Greek Callouts</p>
-          <div className="space-y-2">
-            {thetaDailyDollar != null && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Theta decay ({days} day{days !== 1 ? 's' : ''})</span>
-                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar * days < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {thetaDailyDollar * days >= 0 ? '+' : '-'}${Math.abs(thetaDailyDollar * days).toFixed(2)}
-                </span>
-              </div>
-            )}
-            {vegaPerPctDollar != null && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Vega impact (per 1% IV move)</span>
-                <span className={`text-sm font-semibold font-mono ${vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {vegaPerPctDollar >= 0 ? '+' : '-'}${Math.abs(vegaPerPctDollar).toFixed(2)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const DollarRiskStopTab = () => {
-  const [maxRisk, setMaxRisk] = useState('300')
-  const [contracts, setContracts] = useState('1')
-  const [delta, setDelta] = useState('')
-  const [gamma, setGamma] = useState('')
-  const [theta, setTheta] = useState('')
-  const [vega, setVega] = useState('')
-  const [underlyingPrice, setUnderlyingPrice] = useState('')
-  const [premium, setPremium] = useState('')
-  const [expectedMove, setExpectedMove] = useState('')
-  const [daysToHold, setDaysToHold] = useState('1')
-  const [openTrades, setOpenTrades] = useState([])
-  const [selectedImport, setSelectedImport] = useState('')
-  const [pasteState, setPasteState] = useState('idle')
-
-  const extractFromImage = async (file) => {
-    if (!file) return
-    setPasteState('loading')
-    try {
-      const reader = new FileReader()
-      const base64 = await new Promise((res, rej) => {
-        reader.onload = () => res(reader.result.split(',')[1])
-        reader.onerror = rej
-        reader.readAsDataURL(file)
-      })
-      const resp = await fetch('/api/extract-greeks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mediaType: file.type })
-      })
-      const data = await resp.json()
-      if (data.stockPrice != null) setUnderlyingPrice(String(data.stockPrice))
-      if (data.premium != null) setPremium(String(data.premium))
-      if (data.delta != null) setDelta(String(data.delta))
-      if (data.gamma != null) setGamma(String(data.gamma))
-      if (data.theta != null) setTheta(String(data.theta))
-      if (data.vega != null) setVega(String(data.vega))
-      setPasteState('success')
-    } catch {
-      setPasteState('error')
-    }
-  }
-
-  useEffect(() => {
-    const handlePaste = async e => {
-      const imageItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'))
-      if (imageItem) extractFromImage(imageItem.getAsFile())
-    }
-    document.addEventListener('paste', handlePaste)
-    return () => document.removeEventListener('paste', handlePaste)
-  }, [])
-
-  useEffect(() => {
-    supabase.from('options_trades').select('id, ticker, premium, contracts, delta, gamma, theta, vega, entry_stock_price').eq('status', 'open').order('entry_date', { ascending: false })
-      .then(({ data }) => { if (data) setOpenTrades(data) })
-  }, [])
-
-  const handleImport = (id) => {
-    setSelectedImport(id)
-    const t = openTrades.find(o => String(o.id) === id)
-    if (!t) return
-    if (t.entry_stock_price != null) setUnderlyingPrice(String(t.entry_stock_price))
-    if (t.premium != null) setPremium(String(t.premium))
-    if (t.delta != null) setDelta(String(t.delta))
-    if (t.gamma != null) setGamma(String(t.gamma))
-    if (t.theta != null) setTheta(String(t.theta))
-    if (t.vega != null) setVega(String(t.vega))
-    if (t.contracts != null) setContracts(String(t.contracts))
-  }
-
-  const R = parseFloat(maxRisk)
-  const n = parseInt(contracts) || 1
-  const d = parseFloat(delta)
-  const g = parseFloat(gamma)
-  const th = parseFloat(theta)
-  const v = parseFloat(vega)
-  const S = parseFloat(underlyingPrice)
-  const P = parseFloat(premium)
-  const days = parseInt(daysToHold) || 1
-  const thetaDailyDollar = !isNaN(th) ? th * 100 * n : null
-  const vegaPerPctDollar = !isNaN(v) ? v * 100 * n : null
-
-  const canReverse = [R, d, g, S].every(x => !isNaN(x)) && R > 0
-  let stopLevel = null
-  if (canReverse) {
-    const maxLossPerShare = R / (n * 100)
-    const dir = d > 0 ? -1 : 1
-    let lo = 0, hi = 1000
-    for (let i = 0; i < 60; i++) {
-      const mid = (lo + hi) / 2
-      const actualDS = dir * mid
-      const loss = Math.abs(d * actualDS + 0.5 * g * actualDS * actualDS)
-      if (loss < maxLossPerShare) lo = mid
-      else hi = mid
-    }
-    const magnitude = (lo + hi) / 2
-    stopLevel = {
-      dS: dir * magnitude,
-      stopStockPrice: S + dir * magnitude,
-      isCall: d > 0,
-    }
-  }
-
-  const dS = parseFloat(expectedMove)
-  const canForward = [d, g, S, P, R].every(x => !isNaN(x)) && !isNaN(dS) && R > 0
-  let fwd = null
-  if (canForward) {
-    const calc = calcOptionLeg(P, d, g, S + dS, S, n)
-    fwd = { ...calc, pnlPerContract: calc.dOption * 100, breached: Math.abs(calc.totalDollar) >= R }
-  }
-
-  const fmtDollar = (v, sign = true) => {
-    const abs = Math.abs(v).toFixed(2)
-    if (!sign) return `$${abs}`
-    return v >= 0 ? `+$${abs}` : `-$${abs}`
-  }
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-1">Dollar Risk Stop Loss</h2>
-      <p className="text-slate-400 text-sm mb-6">Find the exact underlying price where your max dollar risk is breached, back-calculated from your greeks.</p>
-
-      {openTrades.length > 0 && (
-        <div className="mb-4">
-          <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
-          <select value={selectedImport} onChange={e => handleImport(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
-            <option value="">— select a trade —</option>
-            {openTrades.map(t => (
-              <option key={t.id} value={String(t.id)}>
-                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div
-        onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
-        onDragOver={e => e.preventDefault()}
-        className={`mb-5 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
-          pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
-          pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
-          pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
-          'border-zinc-900 text-slate-600 hover:border-zinc-800 hover:text-slate-500'
-        }`}
-      >
-        {pasteState === 'loading' && 'Extracting Greeks from screenshot...'}
-        {pasteState === 'success' && '✓ Auto-filled — review values and adjust if needed'}
-        {pasteState === 'error' && 'Could not extract — please fill in fields manually'}
-        {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
-      </div>
-
-      <div className="space-y-4 mb-6">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Max Dollar Risk ($)</label>
-            <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)}
-              placeholder="e.g. 300"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Contracts</label>
-            <input type="number" step="1" min="1" value={contracts} onChange={e => setContracts(e.target.value)}
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Underlying Price ($)</label>
-            <input type="number" step="0.01" value={underlyingPrice} onChange={e => setUnderlyingPrice(e.target.value)}
-              placeholder="e.g. 450.00"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Option Premium ($)</label>
-            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
-              placeholder="e.g. 3.50"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Expected Move in Underlying ($) <span className="text-slate-600">optional</span></label>
-          <input type="number" step="0.01" value={expectedMove} onChange={e => setExpectedMove(e.target.value)}
-            placeholder="e.g. -5.00 — negative for a drop, positive for a rise"
-            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
-            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
-              placeholder="e.g. 0.45 or -0.45"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
-            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
-              placeholder="e.g. 0.05"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">optional</span></label>
-            <input type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)}
-              placeholder="e.g. -0.08"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Vega (V) <span className="text-slate-600">optional</span></label>
-            <input type="number" step="0.001" value={vega} onChange={e => setVega(e.target.value)}
-              placeholder="e.g. 0.12"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Days to Hold <span className="text-slate-600">optional</span></label>
-            <input type="number" step="1" min="1" value={daysToHold} onChange={e => setDaysToHold(e.target.value)}
-              placeholder="e.g. 3"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-      </div>
-
-      {fwd && (
-        <div className={`rounded-xl border p-5 mb-4 ${fwd.breached ? 'border-red-700/50 bg-red-900/10' : 'border-emerald-700/50 bg-emerald-900/10'}`}>
-          <div className="flex items-center gap-2 mb-4">
-            <span className={`text-lg font-bold tracking-wide ${fwd.breached ? 'text-red-400' : 'text-emerald-400'}`}>
-              {fwd.breached ? '✗ STOP LOSS HIT' : '✓ SAFE'}
-            </span>
-            <span className="text-xs text-slate-500">at expected move of {dS > 0 ? '+' : ''}{dS.toFixed(2)}</span>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Est. Option Price</p>
-              <p className="text-xl font-bold text-slate-100">${Math.max(0, fwd.estPrice).toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">P&L / Contract</p>
-              <p className={`text-xl font-bold ${fwd.pnlPerContract >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {fmtDollar(fwd.pnlPerContract)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Total P&L</p>
-              <p className={`text-xl font-bold ${fwd.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {fmtDollar(fwd.totalDollar)}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {stopLevel && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mb-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Stop Loss Level</p>
-          <div className="flex items-end justify-between mb-2">
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Underlying stop price</p>
-              <p className={`text-3xl font-bold ${stopLevel.isCall ? 'text-red-400' : 'text-amber-400'}`}>
-                ${stopLevel.stopStockPrice.toFixed(2)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-500 mb-0.5">Adverse move</p>
-              <p className="text-lg font-semibold text-slate-300">{fmtDollar(stopLevel.dS)}</p>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500">
-            {stopLevel.isCall
-              ? `Exit if the stock falls to ~$${stopLevel.stopStockPrice.toFixed(2)} — calls lose value on drops ↓`
-              : `Exit if the stock rises to ~$${stopLevel.stopStockPrice.toFixed(2)} — puts lose value on rises ↑`}
-          </p>
-        </div>
-      )}
-
-      {(thetaDailyDollar != null || vegaPerPctDollar != null) && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Greek Callouts</p>
-          <div className="space-y-2">
-            {thetaDailyDollar != null && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Theta decay ({days} day{days !== 1 ? 's' : ''})</span>
-                <span className={`text-sm font-semibold font-mono ${thetaDailyDollar * days < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {fmtDollar(thetaDailyDollar * days)}
-                </span>
-              </div>
-            )}
-            {vegaPerPctDollar != null && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Vega impact (per 1% IV move)</span>
-                <span className={`text-sm font-semibold font-mono ${vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {fmtDollar(vegaPerPctDollar)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 const StopMarketOrderView = ({ onBack }) => {
   const [ticker, setTicker] = useState('')
   const [optionType, setOptionType] = useState('call')
@@ -5506,11 +5148,11 @@ const StopMarketOrdersListView = ({ onBack }) => {
 }
 
 const InlineCalculatorPanel = () => {
-  const [activeTab, setActiveTab] = useState('buystop')
+  const [activeTab, setActiveTab] = useState('analyzer')
   return (
     <div className="h-full flex flex-col">
       <div className="border-b border-zinc-900 px-4 py-3 flex gap-1 flex-wrap shrink-0">
-        {[['buystop', 'Buy Stop'], ['dollarstop', '$ Risk Stop'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
+        {[['analyzer', 'Options Analyzer'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-800 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
             {label}
@@ -5518,22 +5160,20 @@ const InlineCalculatorPanel = () => {
         ))}
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-4 text-sm">
-        {activeTab === 'buystop' ? <BuyStopCalculatorTab /> :
-         activeTab === 'dollarstop' ? <DollarRiskStopTab /> :
-         <TrailingStopsTab />}
+        {activeTab === 'analyzer' ? <OptionsAnalyzerTab isInline={true} /> : <TrailingStopsTab />}
       </div>
     </div>
   )
 }
 
 const OptionsToolsView = ({ onBack }) => {
-  const [activeTab, setActiveTab] = useState('calculator')
+  const [activeTab, setActiveTab] = useState('analyzer')
   return (
     <div className="min-h-screen bg-black text-slate-100">
       <div className="border-b border-zinc-900 px-6 py-4 flex items-center gap-6">
         <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
         <div className="flex gap-1">
-          {[['calculator', 'Greeks Calculator'], ['trailing', 'Trailing Stops'], ['buystop', 'Buy Stop'], ['dollarstop', '$ Risk Stop']].map(([key, label]) => (
+          {[['analyzer', 'Options Analyzer'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
             <button key={key} onClick={() => setActiveTab(key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-900 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
               {label}
@@ -5542,7 +5182,7 @@ const OptionsToolsView = ({ onBack }) => {
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-6 py-6">
-        {activeTab === 'calculator' ? <GreeksCalcTab /> : activeTab === 'trailing' ? <TrailingStopsTab /> : activeTab === 'buystop' ? <BuyStopCalculatorTab /> : <DollarRiskStopTab />}
+        {activeTab === 'analyzer' ? <OptionsAnalyzerTab /> : <TrailingStopsTab />}
       </div>
     </div>
   )
