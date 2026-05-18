@@ -3385,22 +3385,18 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
         )}
 
         {checklistSnapshot && (
-          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-6 mb-6 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-widest text-slate-500">Checklist Snapshot</p>
-                <h2 className="text-xl font-semibold text-white">Gate approved — zone {checklistSnapshot.zone || 'N/A'}</h2>
-                <p className="text-xs text-slate-500">Captured at {new Date(checklistSnapshot.recordedAt).toLocaleString()}</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleChecklistReset}
-                className="px-4 py-2 rounded-lg border border-zinc-800 text-slate-200 hover:bg-zinc-900 transition-colors"
-              >
-                Redo Checklist
-              </button>
+          <div className="flex items-center justify-between bg-emerald-900/20 border border-emerald-800/40 rounded-lg px-4 py-3 mb-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-emerald-400 text-sm font-semibold">✓ Checklist complete</span>
+              {checklistSnapshot.zone && (
+                <span className="text-xs text-slate-400">Zone: {checklistSnapshot.zone}</span>
+              )}
+              <span className="text-xs text-slate-600">{new Date(checklistSnapshot.recordedAt).toLocaleTimeString()}</span>
             </div>
-            <ChecklistAnswersList snapshot={checklistSnapshot} />
+            <button type="button" onClick={handleChecklistReset}
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors shrink-0">
+              Redo Checklist
+            </button>
           </div>
         )}
 
