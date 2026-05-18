@@ -4810,12 +4810,15 @@ const BuyStopCalculatorTab = () => {
 }
 
 const DollarRiskStopTab = () => {
-  const [stockPrice, setStockPrice] = useState('')
-  const [premium, setPremium] = useState('')
+  const [maxRisk, setMaxRisk] = useState('300')
+  const [contracts, setContracts] = useState('1')
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
-  const [contracts, setContracts] = useState('1')
-  const [maxRisk, setMaxRisk] = useState('300')
+  const [theta, setTheta] = useState('')
+  const [vega, setVega] = useState('')
+  const [underlyingPrice, setUnderlyingPrice] = useState('')
+  const [premium, setPremium] = useState('')
+  const [expectedMove, setExpectedMove] = useState('')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
@@ -4836,10 +4839,11 @@ const DollarRiskStopTab = () => {
         body: JSON.stringify({ imageBase64: base64, mediaType: file.type })
       })
       const data = await resp.json()
-      if (data.stockPrice != null) setStockPrice(String(data.stockPrice))
+      if (data.stockPrice != null) setUnderlyingPrice(String(data.stockPrice))
       if (data.premium != null) setPremium(String(data.premium))
       if (data.delta != null) setDelta(String(data.delta))
       if (data.gamma != null) setGamma(String(data.gamma))
+      if (data.theta != null) setTheta(String(data.theta))
       setPasteState('success')
     } catch {
       setPasteState('error')
@@ -4856,7 +4860,7 @@ const DollarRiskStopTab = () => {
   }, [])
 
   useEffect(() => {
-    supabase.from('options_trades').select('id, ticker, premium, contracts, delta, gamma, entry_stock_price').eq('status', 'open').order('entry_date', { ascending: false })
+    supabase.from('options_trades').select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price').eq('status', 'open').order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
   }, [])
 
@@ -4864,61 +4868,73 @@ const DollarRiskStopTab = () => {
     setSelectedImport(id)
     const t = openTrades.find(o => String(o.id) === id)
     if (!t) return
-    if (t.entry_stock_price != null) setStockPrice(String(t.entry_stock_price))
+    if (t.entry_stock_price != null) setUnderlyingPrice(String(t.entry_stock_price))
     if (t.premium != null) setPremium(String(t.premium))
     if (t.delta != null) setDelta(String(t.delta))
     if (t.gamma != null) setGamma(String(t.gamma))
+    if (t.theta != null) setTheta(String(t.theta))
     if (t.contracts != null) setContracts(String(t.contracts))
   }
 
-  const S = parseFloat(stockPrice)
-  const P = parseFloat(premium)
+  const R = parseFloat(maxRisk)
+  const n = parseInt(contracts) || 1
   const d = parseFloat(delta)
   const g = parseFloat(gamma)
-  const n = parseInt(contracts) || 1
-  const R = parseFloat(maxRisk)
+  const th = parseFloat(theta)
+  const v = parseFloat(vega)
+  const S = parseFloat(underlyingPrice)
+  const P = parseFloat(premium)
+  const dS = parseFloat(expectedMove)
 
-  const canCalc = [S, P, d, g, R].every(v => !isNaN(v)) && P > 0 && R > 0
-
-  let result = null
-  if (canCalc) {
-    const maxLossPerShare = R / (n * 100)
-    const stopOptionPrice = P - maxLossPerShare
-    if (stopOptionPrice <= 0) {
-      result = { worthless: true }
-    } else {
-      let stockStopPrice = null
-      let noSolution = false
-      if (Math.abs(g) < 0.0001) {
-        stockStopPrice = S + (-maxLossPerShare / d)
-      } else {
-        const disc = d * d - 2 * g * maxLossPerShare
-        if (disc < 0) {
-          noSolution = true
-        } else {
-          const dS = d > 0 ? (-d - Math.sqrt(disc)) / g : (-d + Math.sqrt(disc)) / g
-          stockStopPrice = S + dS
-        }
-      }
-      if (noSolution) {
-        result = { noSolution: true }
-      } else {
-        result = {
-          stopOptionPrice,
-          stockStopPrice,
-          maxLossPerShare,
-          totalLoss: R,
-          pctDrop: ((stopOptionPrice - P) / P) * 100,
-          isCall: d > 0
-        }
-      }
+  const canForward = [R, d, g, P, dS].every(x => !isNaN(x)) && P > 0 && R > 0
+  let forward = null
+  if (canForward) {
+    const dOption = d * dS + 0.5 * g * dS * dS
+    const newPremium = Math.max(0, P + dOption)
+    const plPerContract = dOption * 100
+    const totalPL = plPerContract * n
+    const breached = totalPL < 0 && Math.abs(totalPL) >= R
+    forward = {
+      newPremium,
+      plPerContract,
+      totalPL,
+      breached,
+      thetaDailyDollar: !isNaN(th) ? th * 100 * n : null,
+      vegaPerPctDollar: !isNaN(v) ? v * 100 * n : null,
     }
+  }
+
+  const canReverse = [R, d, g, S].every(x => !isNaN(x)) && R > 0
+  let stopLevel = null
+  if (canReverse) {
+    const maxLossPerShare = R / (n * 100)
+    const dir = d > 0 ? -1 : 1
+    let lo = 0, hi = 1000
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2
+      const actualDS = dir * mid
+      const loss = Math.abs(d * actualDS + 0.5 * g * actualDS * actualDS)
+      if (loss < maxLossPerShare) lo = mid
+      else hi = mid
+    }
+    const magnitude = (lo + hi) / 2
+    stopLevel = {
+      dS: dir * magnitude,
+      stopStockPrice: S + dir * magnitude,
+      isCall: d > 0,
+    }
+  }
+
+  const fmtDollar = (v, sign = true) => {
+    const abs = Math.abs(v).toFixed(2)
+    if (!sign) return `$${abs}`
+    return v >= 0 ? `+$${abs}` : `-$${abs}`
   }
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-1">Dollar Risk Stop Loss</h2>
-      <p className="text-slate-400 text-sm mb-6">Enter your max dollar risk to find the option stop price and the stock price level that triggers it.</p>
+      <p className="text-slate-400 text-sm mb-6">Check if an expected move breaches your risk limit, and find the exact underlying price where your max loss is hit.</p>
 
       {openTrades.length > 0 && (
         <div className="mb-4">
@@ -4938,7 +4954,7 @@ const DollarRiskStopTab = () => {
       <div
         onDrop={e => { e.preventDefault(); extractFromImage(e.dataTransfer?.files?.[0]) }}
         onDragOver={e => e.preventDefault()}
-        className={`mb-4 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
+        className={`mb-5 rounded-lg border-2 border-dashed px-4 py-3 text-center text-sm transition-colors cursor-default ${
           pasteState === 'loading' ? 'border-zinc-700 bg-zinc-900/30 text-slate-400' :
           pasteState === 'success' ? 'border-emerald-700/50 bg-emerald-900/10 text-emerald-400' :
           pasteState === 'error' ? 'border-red-700/50 bg-red-900/10 text-red-400' :
@@ -4952,37 +4968,11 @@ const DollarRiskStopTab = () => {
       </div>
 
       <div className="space-y-4 mb-6">
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Max Dollar Risk ($)</label>
-          <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)}
-            placeholder="e.g. 300"
-            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
-            <input type="number" step="0.01" value={stockPrice} onChange={e => setStockPrice(e.target.value)}
-              placeholder="e.g. 152.50"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Premium ($)</label>
-            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
-              placeholder="e.g. 3.20"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
-            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
-              placeholder="e.g. 0.45"
-              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
-            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
-              placeholder="e.g. 0.03"
+            <label className="block text-xs text-slate-400 mb-1">Max Dollar Risk ($)</label>
+            <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)}
+              placeholder="e.g. 300"
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
           </div>
           <div>
@@ -4991,53 +4981,125 @@ const DollarRiskStopTab = () => {
               className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Underlying Price ($)</label>
+            <input type="number" step="0.01" value={underlyingPrice} onChange={e => setUnderlyingPrice(e.target.value)}
+              placeholder="e.g. 450.00"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Option Premium ($)</label>
+            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)}
+              placeholder="e.g. 3.50"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Expected Move in Underlying ($)</label>
+          <input type="number" step="0.01" value={expectedMove} onChange={e => setExpectedMove(e.target.value)}
+            placeholder="e.g. -5.00 (drop) or +8.00 (rise)"
+            className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
+            <input type="number" step="0.001" value={delta} onChange={e => setDelta(e.target.value)}
+              placeholder="e.g. 0.45 or -0.45"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
+            <input type="number" step="0.001" value={gamma} onChange={e => setGamma(e.target.value)}
+              placeholder="e.g. 0.05"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)}
+              placeholder="e.g. -0.08"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Vega (V) <span className="text-slate-600">optional</span></label>
+            <input type="number" step="0.001" value={vega} onChange={e => setVega(e.target.value)}
+              placeholder="e.g. 0.12"
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
       </div>
 
-      {result?.worthless && (
-        <div className="rounded-lg border border-amber-700/40 bg-amber-900/10 p-4 text-sm text-amber-400">
-          Max risk exceeds total option value — the option would expire worthless before your stop is hit. Reduce your max risk or increase contracts.
+      {forward && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mb-4">
+          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mb-4 ${forward.breached ? 'bg-red-900/30 border border-red-700/50 text-red-400' : 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-400'}`}>
+            {forward.breached ? '✗ STOP LOSS HIT' : '✓ SAFE'}
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">New Option Price</p>
+              <p className="text-lg font-semibold text-slate-100">${forward.newPremium.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">P&L per Contract</p>
+              <p className={`text-lg font-semibold ${forward.plPerContract >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtDollar(forward.plPerContract)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Total P&L ({n}×)</p>
+              <p className={`text-lg font-semibold ${forward.totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fmtDollar(forward.totalPL)}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {result?.noSolution && (
-        <div className="rounded-lg border border-red-700/40 bg-red-900/10 p-4 text-sm text-red-400">
-          Could not back-calculate a stock stop level — try reducing max risk.
+      {stopLevel && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 mb-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Stop Loss Level</p>
+          <div className="flex items-end justify-between mb-2">
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Underlying stop price</p>
+              <p className={`text-3xl font-bold ${stopLevel.isCall ? 'text-red-400' : 'text-amber-400'}`}>
+                ${stopLevel.stopStockPrice.toFixed(2)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-500 mb-0.5">Adverse move</p>
+              <p className="text-lg font-semibold text-slate-300">{fmtDollar(stopLevel.dS)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            {stopLevel.isCall
+              ? `Exit if the stock falls to ~$${stopLevel.stopStockPrice.toFixed(2)} — calls lose value on drops ↓`
+              : `Exit if the stock rises to ~$${stopLevel.stopStockPrice.toFixed(2)} — puts lose value on rises ↑`}
+          </p>
         </div>
       )}
 
-      {result && !result.worthless && !result.noSolution && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 space-y-4">
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Stop Loss Option Price</p>
-            <p className="text-4xl font-bold text-red-400">${result.stopOptionPrice.toFixed(2)}</p>
-            <p className="text-slate-500 text-xs mt-1">Sell if premium drops to this level</p>
-          </div>
-
-          <div className="border-t border-zinc-800 pt-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Stock Back-Check</p>
-            <p className={`text-2xl font-semibold ${result.isCall ? 'text-red-400' : 'text-amber-400'}`}>
-              ${result.stockStopPrice.toFixed(2)}
-            </p>
-            <p className="text-slate-500 text-xs mt-1">
-              {result.isCall
-                ? `If the stock falls to ~$${result.stockStopPrice.toFixed(2)}, exit the option (calls lose value on stock drops ↓)`
-                : `If the stock rises to ~$${result.stockStopPrice.toFixed(2)}, exit the option (puts lose value on stock rises ↑)`}
-            </p>
-          </div>
-
-          <div className="border-t border-zinc-800 pt-4 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Max Loss</p>
-              <p className="text-sm font-medium text-slate-200">${result.totalLoss.toFixed(0)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Per Contract</p>
-              <p className="text-sm font-medium text-slate-200">${(result.maxLossPerShare * 100).toFixed(0)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Premium Drop</p>
-              <p className="text-sm font-medium text-red-400">{result.pctDrop.toFixed(1)}%</p>
-            </div>
+      {(forward?.thetaDailyDollar != null || forward?.vegaPerPctDollar != null) && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Greek Callouts</p>
+          <div className="space-y-2">
+            {forward.thetaDailyDollar != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Theta decay (per day)</span>
+                <span className={`text-sm font-semibold font-mono ${forward.thetaDailyDollar < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {fmtDollar(forward.thetaDailyDollar)}
+                </span>
+              </div>
+            )}
+            {forward.vegaPerPctDollar != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">Vega impact (per 1% IV move)</span>
+                <span className={`text-sm font-semibold font-mono ${forward.vegaPerPctDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtDollar(forward.vegaPerPctDollar)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
