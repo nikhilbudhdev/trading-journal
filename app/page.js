@@ -3090,7 +3090,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           if (data.error) throw new Error(data.error)
           setFormData(prev => ({
             ...prev,
-            ...(data.stockPrice != null ? { strike: String(data.stockPrice) } : {}),
+            ...(data.strike != null ? { strike: String(data.strike) } : {}),
+            ...(data.stockPrice != null ? { entryStockPrice: String(data.stockPrice) } : {}),
             ...(data.premium != null ? { premium: String(data.premium) } : {}),
             ...(data.delta != null ? { delta: String(data.delta) } : {}),
             ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
@@ -3419,7 +3420,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                   if (data.error) throw new Error(data.error)
                   setFormData(prev => ({
                     ...prev,
-                    ...(data.stockPrice != null ? { strike: String(data.stockPrice) } : {}),
+                    ...(data.strike != null ? { strike: String(data.strike) } : {}),
+                    ...(data.stockPrice != null ? { entryStockPrice: String(data.stockPrice) } : {}),
                     ...(data.premium != null ? { premium: String(data.premium) } : {}),
                     ...(data.delta != null ? { delta: String(data.delta) } : {}),
                     ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
@@ -3440,7 +3442,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             }`}
           >
             {pasteFormState === 'loading' && 'Extracting from screenshot...'}
-            {pasteFormState === 'success' && '✓ Auto-filled strike, premium, delta, gamma & theta — review and adjust'}
+            {pasteFormState === 'success' && '✓ Auto-filled strike, stock price, premium & Greeks — review and adjust'}
             {pasteFormState === 'error' && 'Could not extract — fill in fields manually'}
             {pasteFormState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
           </div>

@@ -23,7 +23,7 @@ export async function POST(req) {
             },
             {
               type: 'text',
-              text: 'Extract option Greeks from this broker screenshot. Return ONLY a valid JSON object with exactly these keys (numeric values only, null if the field is not clearly visible): {"stockPrice": null, "premium": null, "delta": null, "gamma": null, "theta": null}. For premium, use the mid price if bid/ask is shown. Delta for puts is typically negative (e.g. -0.45). Theta is typically negative (e.g. -0.05). Do not include any explanation or extra text — just the JSON.',
+              text: 'Extract option data from this broker screenshot. Return ONLY a valid JSON object with exactly these keys (numeric values only, null if not clearly visible): {"stockPrice": null, "strike": null, "premium": null, "delta": null, "gamma": null, "theta": null}. Definitions: stockPrice = the current underlying stock/index price (e.g. SPY at 450.23); strike = the option strike price (e.g. the 450 in "450 Call" or "450 Put") — this is DIFFERENT from stockPrice; premium = the option price/mid-price (use mid if bid/ask shown); delta = sensitivity to underlying move (negative for puts, e.g. -0.45); gamma = rate of delta change (always positive); theta = daily time decay (always negative, e.g. -0.05). Do not include any explanation or extra text — just the JSON.',
             },
           ],
         },
