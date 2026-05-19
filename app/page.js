@@ -5091,6 +5091,7 @@ const StopMarketOrdersListView = ({ onBack }) => {
       delta: order.delta,
       gamma: order.gamma,
       notes: order.notes,
+      position_side: 'long',
       status: 'open',
       entry_date: new Date().toISOString(),
     })
