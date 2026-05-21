@@ -3040,7 +3040,7 @@ const ViewMissedTrades = ({ setCurrentView, config, embedded = false }) => {
   )
 }
 
-const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage, config, sidePanel }) => {
+const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, setIsSubmitting, message, setMessage, config, sidePanel, onTradeLogged }) => {
   const {
     tables,
     tradeColumns,
@@ -3104,6 +3104,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             ...(data.delta != null ? { delta: String(data.delta) } : {}),
             ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
             ...(data.theta != null ? { theta: String(data.theta) } : {}),
+            ...(data.vega != null ? { vega: String(data.vega) } : {}),
           }))
           setPasteFormState('success')
           setTimeout(() => setPasteFormState('idle'), 4000)
@@ -3304,6 +3305,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       setFormData({ ...config.formDefaults })
       setChecklistSnapshot(null)
       setChecklistComplete(false)
+      if (onTradeLogged) onTradeLogged()
     } catch (err) {
       setMessage(`Error: ${err.message}`)
     }
@@ -3432,6 +3434,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                     ...(data.delta != null ? { delta: String(data.delta) } : {}),
                     ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
                     ...(data.theta != null ? { theta: String(data.theta) } : {}),
+                    ...(data.vega != null ? { vega: String(data.vega) } : {}),
                   }))
                   setPasteFormState('success')
                   setTimeout(() => setPasteFormState('idle'), 4000)
@@ -4189,15 +4192,20 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
             </div>
           </div>
         </div>
-        {!isInline && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Expiry Date <span className="text-slate-600">optional</span></label>
-              <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
-                className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
-            </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Expiry Date <span className="text-slate-600">optional</span></label>
+            <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
+              className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-slate-100 text-sm focus:border-zinc-600 focus:outline-none" />
+            {daysToExpiry !== null && (
+              <p className="text-xs mt-1.5 text-slate-400">
+                <span className={`font-semibold ${daysToExpiry <= 7 ? 'text-red-400' : daysToExpiry <= 21 ? 'text-amber-400' : 'text-slate-300'}`}>{daysToExpiry} DTE</span>
+                {' — set "Days to Hold" or use '}
+                <button onClick={() => setDaysToHold(String(daysToExpiry))} className="underline hover:text-white transition-colors">To Exp</button>
+              </p>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── SECTION 2: THETA DECAY ────────────────────────────────────── */}
@@ -4509,20 +4517,24 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
 
 
 const TrailingStopsTab = () => {
-  const [stops, setStops] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('trailing_stops') || '[]') } catch { return [] }
-  })
-  const [form, setForm] = useState({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', theta: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
-  const [updateInputs, setUpdateInputs] = useState({})
-  const [showForm, setShowForm] = useState(true)
-  const [formError, setFormError] = useState('')
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
+  const [form, setForm] = useState({
+    ticker: '',
+    entryPrice: '',
+    entryDate: '',
+    premium: '',
+    delta: '',
+    gamma: '',
+    theta: '',
+    contracts: '',
+  })
+  const [stopPrice, setStopPrice] = useState('')
 
   useEffect(() => {
     supabase
       .from('options_trades')
-      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, sl_stock_price, tp_stock_price')
+      .select('id, ticker, premium, contracts, delta, gamma, theta, entry_stock_price, entry_date')
       .eq('status', 'open')
       .order('entry_date', { ascending: false })
       .then(({ data }) => { if (data) setOpenTrades(data) })
@@ -4532,218 +4544,165 @@ const TrailingStopsTab = () => {
     setSelectedImport(id)
     const t = openTrades.find(o => String(o.id) === id)
     if (!t) return
-    setForm(f => ({
-      ...f,
+    setForm({
       ticker: t.ticker || '',
       entryPrice: t.entry_stock_price != null ? String(t.entry_stock_price) : '',
-      currentPrice: t.entry_stock_price != null ? String(t.entry_stock_price) : '',
+      entryDate: t.entry_date ? t.entry_date.split('T')[0] : '',
       premium: t.premium != null ? String(t.premium) : '',
       contracts: t.contracts != null ? String(t.contracts) : '',
       delta: t.delta != null ? String(t.delta) : '',
       gamma: t.gamma != null ? String(t.gamma) : '',
       theta: t.theta != null ? String(t.theta) : '',
-    }))
+    })
+    setStopPrice('')
   }
 
-  const persistStops = newStops => {
-    setStops(newStops)
-    localStorage.setItem('trailing_stops', JSON.stringify(newStops))
-  }
-
-  const computeStop = stop => {
-    const { entryPrice, currentPrice, highPrice, trailingType, trailingDistance, premium, delta, gamma, contracts } = stop
-    const high = Math.max(highPrice, currentPrice)
-    const dist = trailingType === 'percent' ? high * (trailingDistance / 100) : trailingDistance
-    const stopLevel = high - dist
-    const isTriggered = currentPrice <= stopLevel
-    const distToStop = currentPrice - stopLevel
-    const { estPrice, totalDollar } = calcOptionLeg(premium, delta, gamma, stopLevel, entryPrice, contracts)
-    return { high, stopLevel, isTriggered, distToStop, estPrice: Math.max(0, estPrice), totalDollar }
-  }
-
-  const handleAdd = () => {
-    const S = parseFloat(form.entryPrice), cur = parseFloat(form.currentPrice)
-    const P = parseFloat(form.premium), d = parseFloat(form.delta)
-    const g = parseFloat(form.gamma), n = parseInt(form.contracts)
-    const dist = parseFloat(form.trailingDistance)
-    if ([S, cur, P, d, g, n, dist].some(isNaN) || n <= 0 || dist <= 0) {
-      setFormError('Please fill in all fields with valid numbers.')
-      return
-    }
-    setFormError('')
-    persistStops([...stops, {
-      id: Date.now().toString(),
-      ticker: form.ticker.toUpperCase() || '—',
-      entryPrice: S, currentPrice: cur, highPrice: Math.max(S, cur),
-      premium: P, delta: d, gamma: g, contracts: n,
-      trailingType: form.trailingType, trailingDistance: dist,
-      createdAt: Date.now()
-    }])
-    setForm({ ticker: '', entryPrice: '', currentPrice: '', premium: '', delta: '', gamma: '', contracts: '', trailingType: 'percent', trailingDistance: '' })
+  const handleReset = () => {
+    setForm({ ticker: '', entryPrice: '', entryDate: '', premium: '', delta: '', gamma: '', theta: '', contracts: '' })
+    setStopPrice('')
     setSelectedImport('')
-    setShowForm(false)
   }
 
-  const handleUpdatePrice = id => {
-    const raw = updateInputs[id]
-    const price = parseFloat(raw)
-    if (isNaN(price) || price <= 0) return
-    persistStops(stops.map(s => s.id !== id ? s : { ...s, currentPrice: price, highPrice: Math.max(s.highPrice, price) }))
-    setUpdateInputs(prev => ({ ...prev, [id]: '' }))
-  }
+  const S = parseFloat(form.entryPrice)
+  const P = parseFloat(form.premium)
+  const d = parseFloat(form.delta)
+  const g = parseFloat(form.gamma)
+  const th = parseFloat(form.theta)
+  const n = parseInt(form.contracts) || 1
+  const stopSP = parseFloat(stopPrice)
 
-  const ff = v => `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const todayObj = new Date()
+  todayObj.setHours(0, 0, 0, 0)
+  const entryDateObj = form.entryDate ? new Date(form.entryDate) : null
+  const daysHeld = entryDateObj ? Math.max(0, Math.round((todayObj - entryDateObj) / 86400000)) : null
+
+  const canCalc = [S, P, d, g].every(x => !isNaN(x)) && n > 0 && !isNaN(stopSP)
+  const priceResult = canCalc ? calcOptionLeg(P, d, g, stopSP, S, n) : null
+  const thetaCostPerShare = (!isNaN(th) && daysHeld !== null) ? th * daysHeld : 0
+  const thetaCostDollar = thetaCostPerShare * n * 100
+  const estPriceAllIn = priceResult ? Math.max(0, priceResult.estPrice + thetaCostPerShare) : null
+  const totalDollarAllIn = priceResult ? priceResult.totalDollar + thetaCostDollar : null
+
+  const inputCls = 'w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-600'
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-slate-500 text-sm">Track trailing stops on the underlying. High watermark updates automatically.</p>
-        <button onClick={() => setShowForm(f => !f)} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">{showForm ? 'Hide form' : '+ Add stop'}</button>
+        <p className="text-slate-500 text-sm">Enter your trade details to see what your option will be worth at a given stop price.</p>
+        <button onClick={handleReset} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Reset</button>
       </div>
 
-        {showForm && (
-          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-5 mb-6">
-            <p className="text-sm font-semibold text-slate-300 mb-4">New Trailing Stop</p>
-            {openTrades.length > 0 && (
-              <div className="mb-4">
-                <label className="block text-xs text-slate-400 mb-1">Import from open trade (optional)</label>
-                <select value={selectedImport} onChange={e => handleImportTrade(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
-                  <option value="">— select a trade —</option>
-                  {openTrades.map(t => (
-                    <option key={t.id} value={String(t.id)}>
-                      {t.ticker} — {t.contracts} contract{t.contracts !== 1 ? 's' : ''} @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ' (no Greeks saved)'}
-                    </option>
-                  ))}
-                </select>
-                {selectedImport && (
-                  <p className="text-xs text-slate-500 mt-1">Current Stock Price pre-filled with your entry price — update it to today&apos;s price</p>
-                )}
+      {openTrades.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-xs text-slate-400 mb-1">Import from open trade</label>
+          <select value={selectedImport} onChange={e => handleImportTrade(e.target.value)}
+            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-600">
+            <option value="">— select a trade —</option>
+            {openTrades.map(t => (
+              <option key={t.id} value={String(t.id)}>
+                {t.ticker} — {t.contracts}× @ ${t.premium}{t.delta != null ? ` (Δ ${t.delta})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Entry Stock Price ($)</label>
+          <input type="number" step="0.01" value={form.entryPrice}
+            onChange={e => setForm(f => ({ ...f, entryPrice: e.target.value }))}
+            placeholder="e.g. 450.00" className={inputCls} />
+          {!form.entryPrice && <p className="text-xs text-amber-500 mt-1">Required — enter your stock entry price</p>}
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Entry Date</label>
+          <input type="date" value={form.entryDate}
+            onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))}
+            className={inputCls} />
+          {!form.entryDate && <p className="text-xs text-slate-600 mt-1">Optional — needed for theta</p>}
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Option Premium ($)</label>
+          <input type="number" step="0.01" value={form.premium}
+            onChange={e => setForm(f => ({ ...f, premium: e.target.value }))}
+            placeholder="e.g. 3.50" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Contracts</label>
+          <input type="number" step="1" min="1" value={form.contracts}
+            onChange={e => setForm(f => ({ ...f, contracts: e.target.value }))}
+            placeholder="e.g. 2" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Delta (Δ)</label>
+          <input type="number" step="0.001" value={form.delta}
+            onChange={e => setForm(f => ({ ...f, delta: e.target.value }))}
+            placeholder="e.g. 0.45 or -0.45" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Gamma (Γ)</label>
+          <input type="number" step="0.001" value={form.gamma}
+            onChange={e => setForm(f => ({ ...f, gamma: e.target.value }))}
+            placeholder="e.g. 0.03" className={inputCls} />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">daily decay — optional</span></label>
+          <input type="number" step="0.001" value={form.theta}
+            onChange={e => setForm(f => ({ ...f, theta: e.target.value }))}
+            placeholder="e.g. -0.05" className={inputCls} />
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <label className="block text-xs text-slate-400 mb-1">Stop Loss Stock Price ($)</label>
+        <input type="number" step="0.01" value={stopPrice}
+          onChange={e => setStopPrice(e.target.value)}
+          placeholder="Stock price where you want to place your stop"
+          className={inputCls} />
+      </div>
+
+      {daysHeld !== null && (
+        <p className="text-xs text-slate-500 mt-2">
+          Held for <span className="text-slate-300 font-semibold">{daysHeld} day{daysHeld !== 1 ? 's' : ''}</span>
+          {' '}({form.entryDate} → today)
+        </p>
+      )}
+
+      {canCalc && estPriceAllIn !== null && (
+        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-5 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Option Value at Stop</p>
+            <span className="text-xs px-2 py-1 rounded-full border border-zinc-700 text-slate-400">
+              stock @ ${parseFloat(stopPrice).toFixed(2)}
+            </span>
+          </div>
+          <p className="text-4xl font-bold text-white mb-1">${estPriceAllIn.toFixed(2)}</p>
+          <p className="text-slate-500 text-xs mb-4">per contract · set as your broker stop limit</p>
+          <div className={`grid gap-3 text-sm border-t border-zinc-800 pt-3 ${thetaCostDollar !== 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Price move P&L</p>
+              <p className={`font-semibold ${priceResult.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {priceResult.totalDollar >= 0 ? '+' : ''}${Math.abs(priceResult.totalDollar).toFixed(2)}
+              </p>
+            </div>
+            {thetaCostDollar !== 0 && (
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Theta ({daysHeld}d)</p>
+                <p className="font-semibold text-red-400">{thetaCostDollar >= 0 ? '+' : ''}${Math.abs(thetaCostDollar).toFixed(2)}</p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs text-slate-400 mb-1">Ticker (optional)</label>
-                <input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="e.g. AAPL" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Entry Stock Price ($)</label>
-                <input type="number" step="0.01" value={form.entryPrice} onChange={e => setForm(f => ({ ...f, entryPrice: e.target.value }))} placeholder="e.g. 150.00" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
-                <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm(f => ({ ...f, currentPrice: e.target.value }))} placeholder="e.g. 153.00" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Option Premium ($)</label>
-                <input type="number" step="0.01" value={form.premium} onChange={e => setForm(f => ({ ...f, premium: e.target.value }))} placeholder="e.g. 3.50" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Contracts</label>
-                <input type="number" step="1" value={form.contracts} onChange={e => setForm(f => ({ ...f, contracts: e.target.value }))} placeholder="e.g. 2" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Delta</label>
-                <input type="number" step="0.001" value={form.delta} onChange={e => setForm(f => ({ ...f, delta: e.target.value }))} placeholder="-0.45 for puts" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Gamma</label>
-                <input type="number" step="0.001" value={form.gamma} onChange={e => setForm(f => ({ ...f, gamma: e.target.value }))} placeholder="e.g. 0.03" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Theta (optional)</label>
-                <input type="number" step="0.001" value={form.theta} onChange={e => setForm(f => ({ ...f, theta: e.target.value }))} placeholder="-0.05 (daily decay)" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Trailing Type</label>
-                <select value={form.trailingType} onChange={e => setForm(f => ({ ...f, trailingType: e.target.value }))} className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-500">
-                  <option value="percent">Percentage (%)</option>
-                  <option value="dollar">Dollar ($)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Trailing Distance {form.trailingType === 'percent' ? '(%)' : '($)'}</label>
-                <input type="number" step="0.1" value={form.trailingDistance} onChange={e => setForm(f => ({ ...f, trailingDistance: e.target.value }))} placeholder={form.trailingType === 'percent' ? 'e.g. 3' : 'e.g. 5.00'} className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500" />
-              </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">All-in P&L ({n} ct)</p>
+              <p className={`font-semibold ${totalDollarAllIn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {totalDollarAllIn >= 0 ? '+' : ''}${Math.abs(totalDollarAllIn).toFixed(2)}
+              </p>
             </div>
-            {formError && <p className="text-red-400 text-xs mt-3">{formError}</p>}
-            <button onClick={handleAdd} className="mt-4 w-full py-2.5 bg-white hover:bg-zinc-100 text-black rounded font-semibold text-sm transition-colors">Add Trailing Stop</button>
           </div>
-        )}
-
-        {stops.length === 0 && !showForm && (
-          <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-8 text-center text-slate-500 text-sm">No trailing stops yet. Click &quot;+ Add stop&quot; to create one.</div>
-        )}
-
-        <div className="space-y-4">
-          {stops.map(stop => {
-            const { high, stopLevel, isTriggered, distToStop, estPrice, totalDollar } = computeStop(stop)
-            const pctTrail = stop.trailingType === 'percent' ? `${stop.trailingDistance}%` : ff(stop.trailingDistance)
-            return (
-              <div key={stop.id} className={`bg-zinc-950 rounded-lg border ${isTriggered ? 'border-red-500' : 'border-zinc-900'} overflow-hidden`}>
-                <div className={`flex items-center justify-between px-4 py-3 ${isTriggered ? 'bg-red-500/10' : 'bg-zinc-900/40'}`}>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-100">{stop.ticker}</span>
-                    <span className="text-xs text-slate-500">trailing {pctTrail} · {stop.contracts} contract{stop.contracts !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isTriggered
-                      ? <span className="text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded animate-pulse">STOP HIT</span>
-                      : <span className="text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded">Active</span>
-                    }
-                    <button onClick={() => persistStops(stops.filter(s => s.id !== stop.id))} className="text-slate-500 hover:text-red-400 transition-colors text-xs ml-2">✕</button>
-                  </div>
-                </div>
-
-                <div className="px-4 py-4 grid grid-cols-3 gap-4 border-b border-zinc-900">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">High Watermark</p>
-                    <p className="text-lg font-bold text-slate-100">{ff(high)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Stop Level</p>
-                    <p className={`text-lg font-bold ${isTriggered ? 'text-red-400' : 'text-amber-400'}`}>{ff(stopLevel)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Current Price</p>
-                    <p className="text-lg font-bold text-slate-100">{ff(stop.currentPrice)}</p>
-                  </div>
-                </div>
-
-                <div className="px-4 py-3 grid grid-cols-2 gap-4 border-b border-zinc-900 bg-zinc-900/20">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Distance to Stop</p>
-                    <p className={`font-semibold text-sm ${distToStop <= 0 ? 'text-red-400' : distToStop < 2 ? 'text-amber-400' : 'text-slate-300'}`}>
-                      {distToStop >= 0 ? `${ff(distToStop)} above` : `${ff(Math.abs(distToStop))} below`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Est. Option P&L at Stop</p>
-                    <p className={`font-semibold text-sm ${totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {totalDollar >= 0 ? '+' : ''}{ff(totalDollar)} ({ff(estPrice)} / contract)
-                    </p>
-                  </div>
-                </div>
-
-                <div className="px-4 py-3 flex items-center gap-2">
-                  <input
-                    type="number" step="0.01"
-                    value={updateInputs[stop.id] || ''}
-                    onChange={e => setUpdateInputs(prev => ({ ...prev, [stop.id]: e.target.value }))}
-                    placeholder="New stock price..."
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-zinc-500"
-                    onKeyDown={e => e.key === 'Enter' && handleUpdatePrice(stop.id)}
-                  />
-                  <button onClick={() => handleUpdatePrice(stop.id)} className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors whitespace-nowrap">Update Price</button>
-                </div>
-              </div>
-            )
-          })}
         </div>
-
-      {stops.length > 0 && (
-        <p className="text-xs text-slate-600 mt-6">Option P&L estimated using delta-gamma approximation. Theta decay and IV changes not included.</p>
       )}
+
+      <p className="text-xs text-slate-700 mt-5">Option price estimated using delta-gamma approximation + theta decay. IV changes not included.</p>
     </div>
   )
 }
@@ -4880,6 +4839,8 @@ const StopMarketOrderView = ({ onBack }) => {
   const [premium, setPremium] = useState('')
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
+  const [theta, setTheta] = useState('')
+  const [vega, setVega] = useState('')
   const [stopOptionPrice, setStopOptionPrice] = useState('')
   const [targetUnderlyingPrice, setTargetUnderlyingPrice] = useState('')
   const [maxRisk, setMaxRisk] = useState('300')
@@ -4908,6 +4869,8 @@ const StopMarketOrderView = ({ onBack }) => {
       if (data.premium != null) setPremium(String(data.premium))
       if (data.delta != null) setDelta(String(data.delta))
       if (data.gamma != null) setGamma(String(data.gamma))
+      if (data.theta != null) setTheta(String(data.theta))
+      if (data.vega != null) setVega(String(data.vega))
       setPasteState('success')
     } catch {
       setPasteState('error')
@@ -4937,6 +4900,8 @@ const StopMarketOrderView = ({ onBack }) => {
       premium: premium ? parseFloat(premium) : null,
       delta: delta ? parseFloat(delta) : null,
       gamma: gamma ? parseFloat(gamma) : null,
+      theta: theta ? parseFloat(theta) : null,
+      vega: vega ? parseFloat(vega) : null,
       stop_option_price: stopOptionPrice ? parseFloat(stopOptionPrice) : null,
       target_underlying_price: targetUnderlyingPrice ? parseFloat(targetUnderlyingPrice) : null,
       max_risk: maxRisk ? parseFloat(maxRisk) : null,
@@ -4948,8 +4913,8 @@ const StopMarketOrderView = ({ onBack }) => {
     } else {
       setMessage('Stop market order logged as pending.')
       setTicker(''); setStrike(''); setExpiry(''); setContracts('1')
-      setPremium(''); setDelta(''); setGamma(''); setStopOptionPrice('')
-      setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
+      setPremium(''); setDelta(''); setGamma(''); setTheta(''); setVega('')
+      setStopOptionPrice(''); setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
       setOptionType('call'); setPasteState('idle')
     }
     setSubmitting(false)
@@ -5035,6 +5000,18 @@ const StopMarketOrderView = ({ onBack }) => {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
+            <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">daily decay</span></label>
+            <input type="number" step="0.001" value={theta} onChange={e => setTheta(e.target.value)} placeholder="e.g. -0.05"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Vega (ν) <span className="text-slate-600">per IV pt</span></label>
+            <input type="number" step="0.001" value={vega} onChange={e => setVega(e.target.value)} placeholder="e.g. 0.12"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
             <label className="block text-xs text-slate-400 mb-1">Stop Option Price ($)</label>
             <input type="number" step="0.01" value={stopOptionPrice} onChange={e => setStopOptionPrice(e.target.value)} placeholder="Buy stop at this premium"
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
@@ -5064,7 +5041,7 @@ const StopMarketOrderView = ({ onBack }) => {
   )
 }
 
-const StopMarketOrdersListView = ({ onBack }) => {
+const StopMarketOrdersListView = ({ onBack, onExecute }) => {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionMsg, setActionMsg] = useState('')
@@ -5078,27 +5055,8 @@ const StopMarketOrdersListView = ({ onBack }) => {
 
   useEffect(() => { loadOrders() }, [])
 
-  const handleExecute = async (order) => {
-    setActionMsg('')
-    const { error: insertErr } = await supabase.from('options_trades').insert({
-      ticker: order.ticker,
-      option_type: order.option_type,
-      strike_price: order.strike_price,
-      expiry_date: order.expiry_date,
-      contracts: order.contracts,
-      premium: order.stop_option_price,
-      entry_stock_price: order.target_underlying_price,
-      delta: order.delta,
-      gamma: order.gamma,
-      notes: order.notes,
-      position_side: 'long',
-      status: 'open',
-      entry_date: new Date().toISOString(),
-    })
-    if (insertErr) return setActionMsg(`Error promoting trade: ${insertErr.message}`)
-    await supabase.from('stop_market_orders').update({ status: 'executed', executed_at: new Date().toISOString() }).eq('id', order.id)
-    setActionMsg(`${order.ticker} stop order executed — trade is now tracked as open.`)
-    loadOrders()
+  const handleExecute = (order) => {
+    if (onExecute) onExecute(order)
   }
 
   const handleCancel = async (order) => {
@@ -5897,6 +5855,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState({ ...config.formDefaults })
   const [dashStats, setDashStats] = useState(null)
+  const [pendingStopOrderId, setPendingStopOrderId] = useState(null)
   const features = config.features || {}
   const supportsMissedTrades = features.missedTrades && config.tables?.missed
   const supportsTradingPlan = features.tradingPlan !== false && config.tables?.plan
@@ -6006,6 +5965,12 @@ const TradingEnvironment = ({ config, onBack }) => {
         setMessage={setMessage}
         config={config}
         sidePanel={supportsGreeksCalculator ? <InlineCalculatorPanel /> : undefined}
+        onTradeLogged={pendingStopOrderId ? async () => {
+          await supabase.from('stop_market_orders')
+            .update({ status: 'executed', executed_at: new Date().toISOString() })
+            .eq('id', pendingStopOrderId)
+          setPendingStopOrderId(null)
+        } : undefined}
       />
     )
   }
@@ -6024,7 +5989,32 @@ const TradingEnvironment = ({ config, onBack }) => {
   }
 
   if (currentView === 'stop-market-list' && supportsGreeksCalculator) {
-    return <StopMarketOrdersListView onBack={() => setCurrentView('menu')} />
+    return <StopMarketOrdersListView
+      onBack={() => setCurrentView('menu')}
+      onExecute={(order) => {
+        setFormData({
+          instrument: order.ticker || '',
+          optionType: order.option_type || 'call',
+          direction: 'long',
+          strike: order.strike_price != null ? String(order.strike_price) : '',
+          expiry: order.expiry_date || '',
+          contracts: order.contracts != null ? String(order.contracts) : '',
+          premium: order.stop_option_price != null ? String(order.stop_option_price) : '',
+          entryStockPrice: order.target_underlying_price != null ? String(order.target_underlying_price) : '',
+          delta: order.delta != null ? String(order.delta) : '',
+          gamma: order.gamma != null ? String(order.gamma) : '',
+          theta: order.theta != null ? String(order.theta) : '',
+          vega: order.vega != null ? String(order.vega) : '',
+          slStockPrice: '',
+          tpStockPrice: '',
+          entryUrl: '',
+          forecastUrl: '',
+          notes: order.notes || '',
+        })
+        setPendingStopOrderId(order.id)
+        setCurrentView('new-trade')
+      }}
+    />
   }
 
   if (currentView === 'update-trade') {
