@@ -3668,15 +3668,29 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             const rr = slCalc && tpCalc && slCalc.totalDollar !== 0 ? Math.abs(tpCalc.totalDollar / slCalc.totalDollar) : null
             const fmtDollar = v => `${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}${v < 0 ? ' loss' : ' gain'}`
             const fmtPct = v => v !== null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : null
+            const isLong = formData.direction === 'long'
+            const isCall = formData.optionType === 'call'
+            const deltaSignWrong = !isNaN(_d) && ((isCall && _d < 0) || (!isCall && _d > 0))
+            const thetaSignWrong = isLong && !isNaN(_th) && _th > 0
             return (
               <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-4 mb-4">
                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Pre-Trade P&amp;L Estimate</p>
+                {deltaSignWrong && (
+                  <div className="mb-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40 text-red-400 text-xs">
+                    ⚠ Delta sign looks wrong for a {isCall ? 'call' : 'put'} — {isCall ? 'calls have positive' : 'puts have negative'} delta. Your SL/TP results will be inverted. Check your delta value.
+                  </div>
+                )}
+                {thetaSignWrong && (
+                  <div className="mb-3 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-400 text-xs">
+                    ⚠ Theta should be negative for long options (e.g. -0.05) — a positive value means time works in your favor, which is incorrect.
+                  </div>
+                )}
                 {hasTheta && daysToExpiry !== null && (
                   <div className="mb-3 p-3 rounded-lg bg-zinc-900 border border-amber-500/20">
                     <p className="text-xs text-amber-400 font-medium mb-1">Theta Decay</p>
                     <div className="flex gap-4 text-xs text-slate-300">
-                      <span>Daily: <span className="text-amber-400 font-mono">${(_th * _n * 100).toFixed(2)}</span></span>
-                      <span>To expiry ({daysToExpiry}d): <span className="text-red-400 font-mono">${(_th * daysToExpiry * _n * 100).toFixed(2)}</span></span>
+                      <span>Daily cost: <span className="text-amber-400 font-mono">-${Math.abs(_th * _n * 100).toFixed(2)}</span></span>
+                      <span>To expiry ({daysToExpiry}d): <span className="text-red-400 font-mono">-${Math.abs(_th * daysToExpiry * _n * 100).toFixed(2)}</span></span>
                     </div>
                   </div>
                 )}
