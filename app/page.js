@@ -4647,10 +4647,11 @@ const TrailingStopsTab = () => {
             placeholder="e.g. 0.03" className={inputCls} />
         </div>
         <div className="col-span-2">
-          <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">daily decay — optional</span></label>
+          <label className="block text-xs text-slate-400 mb-1">Theta (Θ) <span className="text-slate-600">daily decay</span></label>
           <input type="number" step="0.001" value={form.theta}
             onChange={e => setForm(f => ({ ...f, theta: e.target.value }))}
             placeholder="e.g. -0.05" className={inputCls} />
+          {!form.theta && <p className="text-xs text-amber-500 mt-1">Required — enter theta so time decay is included</p>}
         </div>
       </div>
 
