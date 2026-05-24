@@ -54,18 +54,19 @@ const LONG_SHORT_OPTIONS = [
   { value: 'short', label: 'Short (Sell)' }
 ]
 
-const getLastWeekBounds = () => {
+const getWeekBounds = (offset = 0) => {
   const today = new Date()
   const day = today.getDay() // 0=Sun, 1=Mon … 6=Sat
   const daysToLastMon = day === 0 ? 13 : day + 6
-  const lastMon = new Date(today)
-  lastMon.setDate(today.getDate() - daysToLastMon)
-  lastMon.setHours(0, 0, 0, 0)
-  const lastFri = new Date(lastMon)
-  lastFri.setDate(lastMon.getDate() + 4)
-  lastFri.setHours(23, 59, 59, 999)
-  return { from: lastMon, to: lastFri }
+  const mon = new Date(today)
+  mon.setDate(today.getDate() - daysToLastMon + offset * 7)
+  mon.setHours(0, 0, 0, 0)
+  const fri = new Date(mon)
+  fri.setDate(mon.getDate() + 4)
+  fri.setHours(23, 59, 59, 999)
+  return { from: mon, to: fri }
 }
+const getLastWeekBounds = () => getWeekBounds(0)
 
 const TRADE_CHECKLIST_SECTIONS = [
   {
@@ -4530,6 +4531,65 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
 }
 
 
+const TrailingStopBanner = ({ onGoToStops }) => {
+  const [alerts, setAlerts] = useState([])
+  const [dismissed, setDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('trailing_dismissed') || '{}') } catch { return {} }
+  })
+
+  useEffect(() => {
+    supabase
+      .from('options_trades')
+      .select('id, ticker, trailing_stop_price, trailing_stop_set_date, contracts')
+      .eq('status', 'open')
+      .not('trailing_stop_price', 'is', null)
+      .then(({ data }) => { if (data) setAlerts(data) })
+  }, [])
+
+  const today = new Date().toISOString().split('T')[0]
+
+  const dismiss = (id) => {
+    const key = `${id}_${today}`
+    const next = { ...dismissed, [key]: true }
+    setDismissed(next)
+    localStorage.setItem('trailing_dismissed', JSON.stringify(next))
+  }
+
+  const expired = alerts.filter(a => {
+    if (!a.trailing_stop_set_date) return false
+    const setDate = a.trailing_stop_set_date.split('T')[0]
+    return setDate < today && !dismissed[`${a.id}_${today}`]
+  })
+
+  if (expired.length === 0) return null
+
+  return (
+    <div className="mb-6 space-y-2">
+      {expired.map(a => (
+        <div key={a.id} className="flex items-start justify-between gap-4 p-4 bg-amber-900/20 border border-amber-700/40 rounded-xl">
+          <div>
+            <p className="text-sm font-semibold text-amber-400">
+              Trailing Stop Expired — {a.ticker}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Your trailing stop at <span className="text-white font-mono">${a.trailing_stop_price}</span> from {a.trailing_stop_set_date} has expired.
+              Re-enter it in your broker, or close the trade if your stop was hit.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => { dismiss(a.id); onGoToStops?.() }}
+              className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded font-medium transition-colors whitespace-nowrap">
+              Re-enter Stop
+            </button>
+            <button onClick={() => dismiss(a.id)}
+              className="px-2 py-1.5 text-xs text-slate-400 hover:text-white transition-colors">&#x2715;</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const TrailingStopsTab = () => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
@@ -4544,6 +4604,7 @@ const TrailingStopsTab = () => {
     contracts: '',
   })
   const [stopPrice, setStopPrice] = useState('')
+  const [logMsg, setLogMsg] = useState('')
 
   useEffect(() => {
     supabase
@@ -4575,6 +4636,18 @@ const TrailingStopsTab = () => {
     setForm({ ticker: '', entryPrice: '', entryDate: '', premium: '', delta: '', gamma: '', theta: '', contracts: '' })
     setStopPrice('')
     setSelectedImport('')
+    setLogMsg('')
+  }
+
+  const handleLogStop = async () => {
+    if (!selectedImport || !canCalc) return
+    const today = new Date().toISOString().split('T')[0]
+    const { error } = await supabase
+      .from('options_trades')
+      .update({ trailing_stop_price: stopSP, trailing_stop_set_date: today })
+      .eq('id', selectedImport)
+    setLogMsg(error ? `Error: ${error.message}` : `Trailing stop at $${stopSP.toFixed(2)} logged for today.`)
+    setTimeout(() => setLogMsg(''), 4000)
   }
 
   const S = parseFloat(form.entryPrice)
@@ -4714,6 +4787,18 @@ const TrailingStopsTab = () => {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {selectedImport && canCalc && (
+        <div className="mt-4">
+          <button onClick={handleLogStop}
+            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-semibold text-sm transition-colors">
+            Log This Stop to Trade
+          </button>
+          {logMsg && (
+            <p className={`text-xs mt-2 text-center ${logMsg.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{logMsg}</p>
+          )}
         </div>
       )}
 
@@ -5578,12 +5663,16 @@ const FuturesPositionSizer = ({ config, onBack }) => {
 
 const WeeklyReviewView = ({ config, onBack }) => {
   const { tables, tradeColumns } = config
-  const { from, to } = useMemo(() => getLastWeekBounds(), [])
+
+  const [weekOffset, setWeekOffset] = useState(0)
+  const { from, to } = useMemo(() => getWeekBounds(weekOffset), [weekOffset])
 
   const weekLabel = useMemo(() => {
     const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     return `${fmt(from)} – ${fmt(to)}`
   }, [from, to])
+
+  const weekRelLabel = weekOffset === 0 ? 'Last week' : weekOffset === 1 ? 'This week' : `${Math.abs(weekOffset)} weeks ago`
 
   const [trades, setTrades] = useState([])
   const [notes, setNotes] = useState({})
@@ -5594,6 +5683,7 @@ const WeeklyReviewView = ({ config, onBack }) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      setSaved({})
       const { data } = await supabase
         .from(tables.trades)
         .select('*')
@@ -5609,7 +5699,7 @@ const WeeklyReviewView = ({ config, onBack }) => {
       setLoading(false)
     }
     load()
-  }, [tables.trades, tradeColumns.status, tradeColumns.exitDate, tradeColumns.id])
+  }, [tables.trades, tradeColumns.status, tradeColumns.exitDate, tradeColumns.id, from, to])
 
   const handleSave = async (id) => {
     setSaving(s => ({ ...s, [id]: true }))
@@ -5638,7 +5728,17 @@ const WeeklyReviewView = ({ config, onBack }) => {
         <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold mb-1">Weekly Review</h1>
-            <p className="text-slate-400 text-sm">{weekLabel}</p>
+            <div className="flex items-center gap-3 mt-1">
+              <button onClick={() => setWeekOffset(o => o - 1)}
+                className="px-2 py-1 text-slate-500 hover:text-white transition-colors text-lg leading-none">&#8592;</button>
+              <div className="text-center">
+                <p className="text-slate-400 text-sm">{weekLabel}</p>
+                <p className="text-xs text-slate-600">{weekRelLabel}</p>
+              </div>
+              <button onClick={() => setWeekOffset(o => o + 1)}
+                disabled={weekOffset >= 1}
+                className="px-2 py-1 text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none">&#8594;</button>
+            </div>
           </div>
           {trades.length > 0 && (
             <span className={`px-3 py-1.5 rounded-full text-sm font-medium border ${allDone ? 'bg-emerald-900/30 text-emerald-400 border-emerald-700' : 'bg-amber-900/20 text-amber-400 border-amber-700/50'}`}>
@@ -5655,7 +5755,7 @@ const WeeklyReviewView = ({ config, onBack }) => {
 
         {trades.length === 0 ? (
           <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-8 text-center">
-            <p className="text-slate-400">No closed trades last week. Nothing to review.</p>
+            <p className="text-slate-400">No closed trades that week. Nothing to review.</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -5928,6 +6028,10 @@ const TradingEnvironment = ({ config, onBack }) => {
         </div>
 
         <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+          {supportsGreeksCalculator && (
+            <TrailingStopBanner onGoToStops={() => setCurrentView('options-tools')} />
+          )}
+
           {dashStats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {statCards.map(({ label, value, color }) => (
