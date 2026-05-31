@@ -794,7 +794,10 @@ const MODE_CONFIG = {
       analytics: false,
       tradingPlan: true
     },
-    accounts: [],
+    accounts: [
+      { value: 'non-registered', label: 'Non-Registered' },
+      { value: 'tfsa', label: 'TFSA' },
+    ],
     checklist: {
       tables: {
         logs: 'options_checklist_logs',
@@ -833,7 +836,9 @@ const MODE_CONFIG = {
       entryDate: 'entry_date',
       exitDate: 'exit_date',
       exitUrl: 'exit_url',
-      id: 'id'
+      id: 'id',
+      account: 'account_type',
+      playType: 'play_type',
     },
     balanceColumns: {
       id: 'id',
@@ -842,7 +847,7 @@ const MODE_CONFIG = {
       reason: 'change_reason',
       tradeId: 'trade_id',
       createdAt: 'created_at',
-      currency: null
+      currency: 'account_type',
     },
     missedColumns: {
       id: 'id',
@@ -920,7 +925,9 @@ const MODE_CONFIG = {
       missedDataButton: 'Review Missed Options',
       missedPattern: 'Setup Spotted',
       partialExitButton: 'Log Partial Exit',
-      manageTagsButton: 'Manage Tags'
+      manageTagsButton: 'Manage Tags',
+      accountLabel: 'Account',
+      playTypeLabel: 'Play Type',
     },
     optionTypeOptions: [
       { value: 'call', label: 'Call' },
@@ -929,6 +936,10 @@ const MODE_CONFIG = {
     directionOptions: [
       { value: 'long', label: 'Long (Buy)' },
       { value: 'short', label: 'Short (Sell)' }
+    ],
+    playTypeOptions: [
+      { value: 'short-term', label: 'Short Term' },
+      { value: 'leap', label: 'LEAP' },
     ],
     formDefaults: {
       instrument: '',
@@ -947,7 +958,9 @@ const MODE_CONFIG = {
       vega: '',
       entryUrl: '',
       forecastUrl: '',
-      notes: ''
+      notes: '',
+      account: 'non-registered',
+      playType: '',
     },
     riskFraction: 0.005,
     stopSizeStep: null,
@@ -2346,6 +2359,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const dollarPerTickColumn = tradeColumns.dollarPerTick
   const stopLossTicksColumn = tradeColumns.stopLossTicks
   const targetTicksColumn = tradeColumns.targetTicks
+  const playTypeColumn = tradeColumns.playType
   const hasMultipleAccounts = accounts.length > 0 && config.balanceColumns.currency
   const showAnalytics = config.features?.analytics !== false
 
@@ -2356,6 +2370,11 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const [dateTo, setDateTo] = useState('')
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState('desc')
+  const [filterAccount, setFilterAccount] = useState('')
+  const [filterPlayType, setFilterPlayType] = useState('')
+  const [filterTicker, setFilterTicker] = useState('')
+  const [filterDirection, setFilterDirection] = useState('')
+  const [filterOptionType, setFilterOptionType] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
   const [currentBalance, setCurrentBalance] = useState(0)
   const [checklistLogs, setChecklistLogs] = useState({})
@@ -2505,6 +2524,11 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
     let result = [...trades]
     if (dateFrom) result = result.filter(t => t[entryDateColumn] && t[entryDateColumn].slice(0, 10) >= dateFrom)
     if (dateTo) result = result.filter(t => t[entryDateColumn] && t[entryDateColumn].slice(0, 10) <= dateTo)
+    if (filterAccount && accountField) result = result.filter(t => t[accountField] === filterAccount)
+    if (filterPlayType && playTypeColumn) result = result.filter(t => t[playTypeColumn] === filterPlayType)
+    if (filterTicker) result = result.filter(t => (t[instrumentColumn] || '').toLowerCase().includes(filterTicker.toLowerCase()))
+    if (filterDirection && directionColumn) result = result.filter(t => t[directionColumn] === filterDirection)
+    if (filterOptionType && optionTypeColumn) result = result.filter(t => t[optionTypeColumn] === filterOptionType)
     if (sortCol) {
       result.sort((a, b) => {
         const av = sortCol === pnlColumn ? parseFloat(a[sortCol] ?? 0) : (a[sortCol] ?? '')
@@ -2592,15 +2616,56 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
 
         {activeTab === 'trades' && (
           <>
-            <div className="flex flex-wrap gap-3 mb-4 items-center">
-              <button onClick={() => setFilter('all')} className={`px-3 py-1 rounded border text-sm ${filter === 'all' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'}`}>All</button>
-              <button onClick={() => setFilter('open')} className={`px-3 py-1 rounded border text-sm ${filter === 'open' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'}`}>Open</button>
-              <button onClick={() => setFilter('closed')} className={`px-3 py-1 rounded border text-sm ${filter === 'closed' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-900 text-slate-300 border-zinc-800 hover:border-zinc-700'}`}>Closed</button>
-              <div className="flex items-center gap-2 ml-auto">
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
-                <span className="text-slate-500 text-sm">to</span>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
-                {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-slate-400 hover:text-slate-200 text-sm px-2">✕</button>}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4 space-y-3">
+              <div className="flex flex-wrap gap-3 items-center">
+                <button onClick={() => setFilter('all')} className={`px-3 py-1 rounded border text-sm ${filter === 'all' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-zinc-600'}`}>All</button>
+                <button onClick={() => setFilter('open')} className={`px-3 py-1 rounded border text-sm ${filter === 'open' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-zinc-600'}`}>Open</button>
+                <button onClick={() => setFilter('closed')} className={`px-3 py-1 rounded border text-sm ${filter === 'closed' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-zinc-600'}`}>Closed</button>
+                <div className="flex items-center gap-2 ml-auto">
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
+                  <span className="text-slate-500 text-sm">to</span>
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
+                  {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-slate-400 hover:text-slate-200 text-sm px-2">&#x2715;</button>}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 items-center">
+                <input type="text" placeholder="Filter by ticker..." value={filterTicker} onChange={e => setFilterTicker(e.target.value)}
+                  className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500 w-36" />
+                {hasMultipleAccounts && accountField && (
+                  <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)}
+                    className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500">
+                    <option value="">All Accounts</option>
+                    {accounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                  </select>
+                )}
+                {playTypeColumn && (
+                  <select value={filterPlayType} onChange={e => setFilterPlayType(e.target.value)}
+                    className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500">
+                    <option value="">All Play Types</option>
+                    <option value="short-term">Short Term</option>
+                    <option value="leap">LEAP</option>
+                  </select>
+                )}
+                {directionColumn && (
+                  <select value={filterDirection} onChange={e => setFilterDirection(e.target.value)}
+                    className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500">
+                    <option value="">All Directions</option>
+                    <option value="long">Long</option>
+                    <option value="short">Short</option>
+                  </select>
+                )}
+                {optionTypeColumn && (
+                  <select value={filterOptionType} onChange={e => setFilterOptionType(e.target.value)}
+                    className="px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500">
+                    <option value="">All Types</option>
+                    <option value="call">Call</option>
+                    <option value="put">Put</option>
+                  </select>
+                )}
+                {(filterAccount || filterPlayType || filterTicker || filterDirection || filterOptionType) && (
+                  <button onClick={() => { setFilterAccount(''); setFilterPlayType(''); setFilterTicker(''); setFilterDirection(''); setFilterOptionType('') }}
+                    className="text-xs text-slate-500 hover:text-slate-300 ml-auto transition-colors">Clear filters</button>
+                )}
               </div>
             </div>
             {loading ? (
@@ -2618,6 +2683,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         </th>
                       ))}
                       {accountField && <th className="p-3 text-left text-slate-300">Account</th>}
+                      {playTypeColumn && <th className="p-3 text-left text-slate-300">Play Type</th>}
                       {directionColumn && <th className="p-3 text-left text-slate-300">{labels.directionLabel || 'Direction'}</th>}
                       {optionTypeColumn && <th className="p-3 text-left text-slate-300">{labels.optionTypeLabel || 'Option Type'}</th>}
                       {strikeColumn && <th className="p-3 text-left text-slate-300">{labels.strikeLabel || 'Strike'}</th>}
@@ -2655,6 +2721,7 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                         <td className="p-3 text-slate-300">{trade[entryDateColumn] ? new Date(trade[entryDateColumn]).toLocaleDateString() : '-'}</td>
                         <td className="p-3 font-semibold text-slate-100">{trade[instrumentColumn]}</td>
                         {accountField && <td className="p-3 text-slate-300">{trade[accountField] || '-'}</td>}
+                        {playTypeColumn && <td className="p-3 text-slate-300">{trade[playTypeColumn] ? (trade[playTypeColumn] === 'leap' ? 'LEAP' : 'Short Term') : '-'}</td>}
                         {directionColumn && <td className="p-3 text-slate-300">{(trade[directionColumn] || '').toString().toUpperCase()}</td>}
                         {optionTypeColumn && <td className="p-3 text-slate-300">{(trade[optionTypeColumn] || '').toString().toUpperCase()}</td>}
                         {strikeColumn && <td className="p-3 text-slate-300">{trade[strikeColumn] ?? '-'}</td>}
@@ -3283,6 +3350,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.zone, formData.zone || null)
       assignValue(tradeColumns.pattern, formData.pattern || null)
       assignValue(tradeColumns.notes, formData.notes || null)
+      assignValue(tradeColumns.playType, formData.playType || null)
       assignValue(tradeColumns.status, 'open')
       assignValue(accountField, formData.account || accounts[0]?.value || null)
 
@@ -3487,6 +3555,15 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
               onChange={(e) => handleInputChange('direction', e.target.value)}
               options={config.directionOptions || LONG_SHORT_OPTIONS}
               required
+            />
+          )}
+
+          {tradeColumns.playType && config.playTypeOptions && (
+            <SelectField
+              label={labels.playTypeLabel || 'Play Type'}
+              value={formData.playType}
+              onChange={(e) => handleInputChange('playType', e.target.value)}
+              options={[{ value: '', label: 'Select type...' }, ...config.playTypeOptions]}
             />
           )}
 
@@ -4945,6 +5022,7 @@ const StopMarketOrderView = ({ onBack }) => {
   const [targetUnderlyingPrice, setTargetUnderlyingPrice] = useState('')
   const [maxRisk, setMaxRisk] = useState('300')
   const [notes, setNotes] = useState('')
+  const [playType, setPlayType] = useState('')
   const [pasteState, setPasteState] = useState('idle')
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -5006,6 +5084,7 @@ const StopMarketOrderView = ({ onBack }) => {
       target_underlying_price: targetUnderlyingPrice ? parseFloat(targetUnderlyingPrice) : null,
       max_risk: maxRisk ? parseFloat(maxRisk) : null,
       notes: notes.trim() || null,
+      play_type: playType || null,
       status: 'pending',
     })
     if (error) {
@@ -5015,7 +5094,7 @@ const StopMarketOrderView = ({ onBack }) => {
       setTicker(''); setStrike(''); setExpiry(''); setContracts('1')
       setPremium(''); setDelta(''); setGamma(''); setTheta(''); setVega('')
       setStopOptionPrice(''); setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
-      setOptionType('call'); setPasteState('idle')
+      setOptionType('call'); setPlayType(''); setPasteState('idle')
     }
     setSubmitting(false)
   }
@@ -5049,7 +5128,7 @@ const StopMarketOrderView = ({ onBack }) => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-xs text-slate-400 mb-1">Ticker</label>
             <input value={ticker} onChange={e => setTicker(e.target.value)} placeholder="e.g. AAPL"
@@ -5061,6 +5140,15 @@ const StopMarketOrderView = ({ onBack }) => {
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none">
               <option value="call">Call</option>
               <option value="put">Put</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Play Type</label>
+            <select value={playType} onChange={e => setPlayType(e.target.value)}
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none">
+              <option value="">Select type...</option>
+              <option value="short-term">Short Term</option>
+              <option value="leap">LEAP</option>
             </select>
           </div>
         </div>
