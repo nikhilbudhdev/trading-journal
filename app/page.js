@@ -796,7 +796,8 @@ const MODE_CONFIG = {
     },
     accounts: [
       { value: 'non-registered', label: 'Non-Registered' },
-      { value: 'tfsa', label: 'TFSA' },
+      { value: 'tfsa', label: 'TFSA (Alpha Generation)' },
+      { value: 'rrsp', label: 'RRSP' },
     ],
     checklist: {
       tables: {
