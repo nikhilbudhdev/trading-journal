@@ -3142,6 +3142,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const [checklistSnapshot, setChecklistSnapshot] = useState(null)
   const [pasteFormState, setPasteFormState] = useState('idle')
   const [reviewPending, setReviewPending] = useState(null)
+  const [duplicateAccounts, setDuplicateAccounts] = useState([])
 
   useEffect(() => {
     if (!tradeColumns.premium) return
@@ -3371,10 +3372,16 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
         }
       }
 
+      if (duplicateAccounts.length > 0 && accountField) {
+        const dupePayloads = duplicateAccounts.map(accountValue => ({ ...payload, [accountField]: accountValue }))
+        await supabase.from(tradesTable).insert(dupePayloads)
+      }
+
       setMessage('Trade added successfully!')
       setFormData({ ...config.formDefaults })
       setChecklistSnapshot(null)
       setChecklistComplete(false)
+      setDuplicateAccounts([])
       if (onTradeLogged) onTradeLogged()
     } catch (err) {
       setMessage(`Error: ${err.message}`)
@@ -3800,6 +3807,27 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
               </div>
             )
           })()}
+
+          {hasMultipleAccounts && (
+            <div className="pt-3 border-t border-zinc-800">
+              <p className="text-xs text-slate-500 mb-2">Also log to</p>
+              <div className="flex flex-wrap gap-4">
+                {accounts
+                  .filter(a => a.value !== (formData.account || accounts[0]?.value))
+                  .map(a => (
+                    <label key={a.value} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={duplicateAccounts.includes(a.value)}
+                        onChange={e => setDuplicateAccounts(prev => e.target.checked ? [...prev, a.value] : prev.filter(v => v !== a.value))}
+                        className="rounded border-zinc-600 bg-zinc-800 accent-emerald-500"
+                      />
+                      {a.label}
+                    </label>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <button type="submit" disabled={isSubmitting || exceedsLimit} className={`w-full p-4 rounded-lg font-semibold transition-colors ${isSubmitting || exceedsLimit ? 'bg-zinc-700 text-white cursor-not-allowed' : classes.primaryAction}`}>
             {exceedsLimit ? `Risk Exceeds ${(riskFraction * 100).toFixed(1)}% Limit` : isSubmitting ? 'Adding Trade...' : 'Add Trade'}
