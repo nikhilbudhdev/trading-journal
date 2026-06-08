@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
 
 const MenuButton = ({ onClick, children, className = '' }) => (
   <button
@@ -5383,6 +5383,453 @@ const InlineCalculatorPanel = () => {
   )
 }
 
+const defaultTrancheSettings = {
+  startMonth: '2026-06',
+  startNav: 10,
+  startAccountValue: 50000,
+  defaultParentContrib: 1200,
+  defaultSelfContrib: 600,
+  taxRate: 0.4,
+  projRate: 0.08,
+}
+
+const trancheCad = (n) =>
+  new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 2 }).format(isFinite(n) ? n : 0)
+const trancheNum = (n, d = 2) =>
+  (isFinite(n) ? n : 0).toLocaleString('en-CA', { minimumFractionDigits: d, maximumFractionDigits: d })
+const tranchePct = (n) => `${(isFinite(n) ? n * 100 : 0).toFixed(2)}%`
+
+function nextTrancheMonthLabel(months, settings) {
+  const last = months[months.length - 1]
+  const ref = last ? last.label : settings.startMonth
+  const [y, m] = ref.split('-').map(Number)
+  if (!y || !m) return settings.startMonth
+  if (!last) return settings.startMonth
+  const d = new Date(y, m - 1 + 1, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+const ParentTrancheTrackerTab = () => {
+  const [loaded, setLoaded] = useState(false)
+  const [settings, setSettings] = useState(defaultTrancheSettings)
+  const [settingsId, setSettingsId] = useState(null)
+  const [months, setMonths] = useState([])
+  const [showSetup, setShowSetup] = useState(false)
+  const [draft, setDraft] = useState(null)
+
+  useEffect(() => {
+    (async () => {
+      const [{ data: settingsRows }, { data: monthRows }] = await Promise.all([
+        supabase.from('parent_tranche_settings').select('*').limit(1),
+        supabase.from('parent_tranche_months').select('*').order('created_at', { ascending: true }),
+      ])
+
+      let row = settingsRows?.[0]
+      if (!row) {
+        const insertPayload = {
+          start_month: defaultTrancheSettings.startMonth,
+          start_nav: defaultTrancheSettings.startNav,
+          start_account_value: defaultTrancheSettings.startAccountValue,
+          default_parent_contrib: defaultTrancheSettings.defaultParentContrib,
+          default_self_contrib: defaultTrancheSettings.defaultSelfContrib,
+          tax_rate: defaultTrancheSettings.taxRate,
+          proj_rate: defaultTrancheSettings.projRate,
+        }
+        const { data: inserted } = await supabase.from('parent_tranche_settings').insert([insertPayload]).select().single()
+        row = inserted
+      }
+      if (row) {
+        setSettingsId(row.id)
+        setSettings({
+          startMonth: row.start_month,
+          startNav: row.start_nav,
+          startAccountValue: row.start_account_value,
+          defaultParentContrib: row.default_parent_contrib,
+          defaultSelfContrib: row.default_self_contrib,
+          taxRate: row.tax_rate,
+          projRate: row.proj_rate,
+        })
+      }
+
+      if (monthRows) {
+        setMonths(monthRows.map(r => ({
+          id: r.id,
+          label: r.label,
+          valuePreFlows: r.value_pre_flows,
+          parentContrib: r.parent_contrib,
+          selfContrib: r.self_contrib,
+          selfExtraction: r.self_extraction,
+          parentTaxRedemption: r.parent_tax_redemption,
+        })))
+      }
+
+      setLoaded(true)
+    })()
+  }, [])
+
+  useEffect(() => {
+    if (!loaded || !settingsId) return
+    supabase.from('parent_tranche_settings').update({
+      start_month: settings.startMonth,
+      start_nav: settings.startNav,
+      start_account_value: settings.startAccountValue,
+      default_parent_contrib: settings.defaultParentContrib,
+      default_self_contrib: settings.defaultSelfContrib,
+      tax_rate: settings.taxRate,
+      proj_rate: settings.projRate,
+      updated_at: new Date().toISOString(),
+    }).eq('id', settingsId)
+  }, [settings, loaded, settingsId])
+
+  const ledger = useMemo(() => {
+    const startNav = parseFloat(settings.startNav) || 10
+    const startVal = parseFloat(settings.startAccountValue) || 0
+    let nav = startNav
+    let selfUnits = startNav > 0 ? startVal / startNav : 0
+    let parentUnits = 0
+    let pContrib = 0, pTax = 0, sContrib = 0, sExtract = 0
+    const rows = []
+    months.forEach((m) => {
+      const pre = parseFloat(m.valuePreFlows)
+      const before = selfUnits + parentUnits
+      if (before > 0 && isFinite(pre)) nav = pre / before
+      const se = parseFloat(m.selfExtraction) || 0
+      const pt = parseFloat(m.parentTaxRedemption) || 0
+      const sc = parseFloat(m.selfContrib) || 0
+      const pc = parseFloat(m.parentContrib) || 0
+      if (se && nav > 0) { selfUnits -= se / nav; sExtract += se }
+      if (pt && nav > 0) { parentUnits -= pt / nav; pTax += pt }
+      if (sc && nav > 0) { selfUnits += sc / nav; sContrib += sc }
+      if (pc && nav > 0) { parentUnits += pc / nav; pContrib += pc }
+      const pVal = parentUnits * nav
+      const sVal = selfUnits * nav
+      rows.push({
+        ...m, nav, parentUnits, parentValue: pVal, parentContributed: pContrib, parentTaxPaid: pTax,
+        parentNetGain: pVal - pContrib, parentGrossGain: pVal - pContrib + pTax,
+        selfUnits, selfValue: sVal, selfContributed: sContrib, selfExtracted: sExtract,
+        accountValue: pVal + sVal, parentPct: (pVal + sVal) > 0 ? pVal / (pVal + sVal) : 0,
+      })
+    })
+    const last = rows[rows.length - 1] || {
+      nav: startNav, parentUnits: 0, parentValue: 0, parentContributed: 0, parentTaxPaid: 0,
+      parentNetGain: 0, parentGrossGain: 0, selfUnits, selfValue: startVal, selfContributed: 0,
+      selfExtracted: 0, accountValue: startVal, parentPct: 0,
+    }
+    return { rows, last, startNav, startVal }
+  }, [settings, months])
+
+  const L = ledger.last
+  const untaxedGain = Math.max(0, L.parentGrossGain - L.parentTaxPaid)
+  const suggestedTax = untaxedGain * (parseFloat(settings.taxRate) || 0)
+
+  const projection = useMemo(() => {
+    const elapsed = months.length
+    const remaining = Math.max(0, 120 - elapsed)
+    const r = parseFloat(settings.projRate) || 0
+    const rm = Math.pow(1 + r, 1 / 12) - 1
+    const P = parseFloat(settings.defaultParentContrib) || 0
+    const grow = L.parentValue * Math.pow(1 + r, remaining / 12)
+    const contribFV = rm > 0 ? P * ((Math.pow(1 + rm, remaining) - 1) / rm) : P * remaining
+    const total = grow + contribFV
+    const totalContributedAtEnd = L.parentContributed + P * remaining
+    return { remaining, total, totalContributedAtEnd, gain: total - totalContributedAtEnd }
+  }, [months.length, settings, L.parentValue, L.parentContributed])
+
+  const chartData = ledger.rows.map((r) => ({
+    label: r.label,
+    'Parents value': Math.round(r.parentValue),
+    'Parents contributed': Math.round(r.parentContributed),
+    'Account total': Math.round(r.accountValue),
+  }))
+
+  function openDraft() {
+    setDraft({
+      label: nextTrancheMonthLabel(months, settings),
+      valuePreFlows: L.accountValue ? Math.round(L.accountValue) : settings.startAccountValue,
+      parentContrib: settings.defaultParentContrib,
+      selfContrib: settings.defaultSelfContrib,
+      selfExtraction: 0,
+      parentTaxRedemption: 0,
+    })
+  }
+
+  async function commitDraft() {
+    const { data, error } = await supabase.from('parent_tranche_months').insert([{
+      label: draft.label,
+      value_pre_flows: draft.valuePreFlows,
+      parent_contrib: draft.parentContrib,
+      self_contrib: draft.selfContrib,
+      self_extraction: draft.selfExtraction,
+      parent_tax_redemption: draft.parentTaxRedemption,
+    }]).select().single()
+    if (!error && data) {
+      setMonths(prev => [...prev, {
+        id: data.id,
+        label: data.label,
+        valuePreFlows: data.value_pre_flows,
+        parentContrib: data.parent_contrib,
+        selfContrib: data.self_contrib,
+        selfExtraction: data.self_extraction,
+        parentTaxRedemption: data.parent_tax_redemption,
+      }])
+    }
+    setDraft(null)
+  }
+
+  async function removeRow(id) {
+    await supabase.from('parent_tranche_months').delete().eq('id', id)
+    setMonths(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function resetAll() {
+    if (typeof window === 'undefined' || !window.confirm('Clear all entries and reset settings?')) return
+    const ids = months.map(m => m.id)
+    if (ids.length > 0) await supabase.from('parent_tranche_months').delete().in('id', ids)
+    if (settingsId) {
+      await supabase.from('parent_tranche_settings').update({
+        start_month: defaultTrancheSettings.startMonth,
+        start_nav: defaultTrancheSettings.startNav,
+        start_account_value: defaultTrancheSettings.startAccountValue,
+        default_parent_contrib: defaultTrancheSettings.defaultParentContrib,
+        default_self_contrib: defaultTrancheSettings.defaultSelfContrib,
+        tax_rate: defaultTrancheSettings.taxRate,
+        proj_rate: defaultTrancheSettings.projRate,
+        updated_at: new Date().toISOString(),
+      }).eq('id', settingsId)
+    }
+    setMonths([])
+    setSettings(defaultTrancheSettings)
+  }
+
+  const gainColor = L.parentNetGain >= 0 ? 'text-emerald-400' : 'text-red-400'
+  const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-zinc-600"
+  const labelClass = "block text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5"
+  const cardClass = "bg-zinc-950 border border-zinc-800 rounded-lg p-4"
+  const ghostBtn = "bg-zinc-900 hover:bg-zinc-800 text-slate-300 border border-zinc-800 rounded px-3 py-1.5 text-sm transition-colors"
+  const primaryBtn = "bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-2 text-sm font-medium transition-colors"
+
+  if (!loaded) {
+    return <div className="py-16 text-center text-slate-500 text-sm">Loading ledger…</div>
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-between items-end flex-wrap gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[.2em] text-amber-600 font-bold">Non-registered · unit accounting</p>
+          <h2 className="text-2xl font-semibold mt-1">Parents&apos; Tranche Ledger</h2>
+          <p className="text-sm text-slate-400 mt-1">Pro-rata gains &amp; losses · lump-sum payout at year 10</p>
+        </div>
+        <div className="flex gap-2">
+          <button className={ghostBtn} onClick={() => setShowSetup(s => !s)}>Setup</button>
+          <button className={ghostBtn} onClick={resetAll}>Reset</button>
+        </div>
+      </div>
+
+      {showSetup && (
+        <div className={`${cardClass} bg-zinc-900`}>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+            {[
+              ['Start month', 'startMonth', 'text'],
+              ['Starting account value', 'startAccountValue', 'number'],
+              ['Starting NAV', 'startNav', 'number'],
+              ['Default parent / mo', 'defaultParentContrib', 'number'],
+              ['Default self / mo', 'defaultSelfContrib', 'number'],
+              ['Tax rate (0–1)', 'taxRate', 'number'],
+              ['Projection rate (0–1)', 'projRate', 'number'],
+            ].map(([lab, key, type]) => (
+              <div key={key}>
+                <label className={labelClass}>{lab}</label>
+                <input
+                  className={`${inputClass} font-mono`}
+                  type={type}
+                  step="any"
+                  value={settings[key]}
+                  onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+            Starting account value &amp; NAV define your existing capital at inception (all yours). The first row then
+            applies that month&apos;s contributions. NAV is arbitrary — $10 is just a clean baseline.
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+        <div className={cardClass}>
+          <p className="text-[11px] uppercase tracking-wide text-amber-400 font-bold">Parents&apos; value</p>
+          <p className="text-2xl font-semibold mt-2 font-mono">{trancheCad(L.parentValue)}</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono">{trancheNum(L.parentUnits, 2)} units @ {trancheCad(L.nav)}</p>
+        </div>
+        <div className={cardClass}>
+          <p className="text-[11px] uppercase tracking-wide text-slate-400 font-bold">Contributed</p>
+          <p className="text-2xl font-semibold mt-2 font-mono">{trancheCad(L.parentContributed)}</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono">tax redeemed {trancheCad(L.parentTaxPaid)}</p>
+        </div>
+        <div className={cardClass}>
+          <p className="text-[11px] uppercase tracking-wide text-slate-400 font-bold">Net gain (after tax)</p>
+          <p className={`text-2xl font-semibold mt-2 font-mono ${gainColor}`}>
+            {L.parentNetGain >= 0 ? '+' : ''}{trancheCad(L.parentNetGain)}
+          </p>
+          <p className={`text-xs mt-1 font-mono ${gainColor}`}>
+            {L.parentContributed > 0 ? tranchePct(L.parentNetGain / L.parentContributed) : '—'}
+          </p>
+        </div>
+        <div className={cardClass}>
+          <p className="text-[11px] uppercase tracking-wide text-sky-400 font-bold">Account total</p>
+          <p className="text-2xl font-semibold mt-2 font-mono">{trancheCad(L.accountValue)}</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono">parents {tranchePct(L.parentPct)} · you {tranchePct(1 - L.parentPct)}</p>
+        </div>
+      </div>
+
+      {!draft ? (
+        <button className={primaryBtn} onClick={openDraft}>+ Add month</button>
+      ) : (
+        <div className={`${cardClass} border-amber-700/50`}>
+          <p className="text-base font-semibold mb-3">New month entry</p>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+            {[
+              ['Month', 'label', 'text'],
+              ['Acct value (after trading, pre-flows)', 'valuePreFlows', 'number'],
+              ['Parent contribution', 'parentContrib', 'number'],
+              ['Your contribution', 'selfContrib', 'number'],
+              ['Your extraction', 'selfExtraction', 'number'],
+              ['Parent tax redemption', 'parentTaxRedemption', 'number'],
+            ].map(([lab, key, type]) => (
+              <div key={key}>
+                <label className={labelClass}>{lab}</label>
+                <input
+                  className={`${inputClass} font-mono`}
+                  type={type}
+                  step="any"
+                  value={draft[key]}
+                  onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mt-4">
+            <button className={primaryBtn} onClick={commitDraft}>Save entry</button>
+            <button className={ghostBtn} onClick={() => setDraft(null)}>Cancel</button>
+            {suggestedTax > 0 && (
+              <span className="text-xs text-slate-500">
+                year-end tax est. ≈ {trancheCad(suggestedTax)} ({tranchePct(parseFloat(settings.taxRate) || 0)} of untaxed gain)
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={`${cardClass} p-0 overflow-hidden`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" style={{ minWidth: 760 }}>
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="p-3 text-left text-slate-400 text-xs uppercase tracking-wide">Month</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">NAV</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Parent units</th>
+                <th className="p-3 text-right text-amber-400 text-xs uppercase tracking-wide">Parent value</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Contributed</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Net gain</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Your value</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Account</th>
+                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">P %</th>
+                <th className="p-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.rows.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-slate-500 text-sm">No entries yet — add a month to start.</td>
+                </tr>
+              )}
+              {ledger.rows.map(r => (
+                <tr key={r.id} className="border-b border-zinc-800 hover:bg-zinc-900/50">
+                  <td className="p-3 text-left font-medium text-slate-200">{r.label}</td>
+                  <td className="p-3 text-right font-mono text-slate-300">{trancheCad(r.nav)}</td>
+                  <td className="p-3 text-right font-mono text-slate-400">{trancheNum(r.parentUnits, 2)}</td>
+                  <td className="p-3 text-right font-mono text-amber-400 font-semibold">{trancheCad(r.parentValue)}</td>
+                  <td className="p-3 text-right font-mono text-slate-400">{trancheCad(r.parentContributed)}</td>
+                  <td className={`p-3 text-right font-mono ${r.parentNetGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {r.parentNetGain >= 0 ? '+' : ''}{trancheCad(r.parentNetGain)}
+                  </td>
+                  <td className="p-3 text-right font-mono text-sky-400">{trancheCad(r.selfValue)}</td>
+                  <td className="p-3 text-right font-mono text-slate-300">{trancheCad(r.accountValue)}</td>
+                  <td className="p-3 text-right font-mono text-slate-400">{tranchePct(r.parentPct)}</td>
+                  <td className="p-3 text-right">
+                    <button onClick={() => removeRow(r.id)} className="text-slate-500 hover:text-red-400 transition-colors" title="Remove">✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)' }}>
+        <div className={cardClass}>
+          <p className="text-base font-semibold mb-3">Parents&apos; tranche over time</p>
+          {chartData.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-10">Add entries to see the curve.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={chartData} margin={{ top: 6, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} stroke="#27272a" />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} stroke="#27272a" width={52}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#e2e8f0' }} formatter={(v) => trancheCad(v)} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="Parents value" stroke="#fbbf24" strokeWidth={2.4} dot={false} />
+                <Line type="monotone" dataKey="Parents contributed" stroke="#94a3b8" strokeWidth={1.4} strokeDasharray="4 4" dot={false} />
+                <Line type="monotone" dataKey="Account total" stroke="#38bdf8" strokeWidth={1.4} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className={cardClass}>
+          <p className="text-base font-semibold mb-1">Year-10 projection</p>
+          <p className="text-xs text-slate-500 mb-4">
+            Hypothetical — assumes {tranchePct(parseFloat(settings.projRate) || 0)}/yr and continued {trancheCad(parseFloat(settings.defaultParentContrib) || 0)}/mo.
+          </p>
+          <div className="mb-3">
+            <p className={labelClass}>Months remaining</p>
+            <p className="text-lg font-mono">{projection.remaining}</p>
+          </div>
+          <div className="mb-3">
+            <p className={labelClass}>Projected lump sum</p>
+            <p className="text-2xl font-bold font-mono text-amber-400">{trancheCad(projection.total)}</p>
+          </div>
+          <div className="flex gap-6">
+            <div>
+              <p className={labelClass}>Contributed</p>
+              <p className="text-sm font-mono">{trancheCad(projection.totalContributedAtEnd)}</p>
+            </div>
+            <div>
+              <p className={labelClass}>Projected gain</p>
+              <p className="text-sm font-mono text-emerald-400">{trancheCad(projection.gain)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 mt-4 leading-relaxed">
+            Adjust the rate in Setup. Tax handled separately via redemptions, not modeled here.
+          </p>
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-500 leading-relaxed">
+        Each month: enter the account value <em>after that month&apos;s trading but before flows</em> — the tool derives NAV
+        from it. Leave <span className="text-slate-400">parent tax redemption</span> at 0 to absorb their tax yourself,
+        or enter your CPA&apos;s figure each December to keep it self-funding. Not tax advice.
+      </p>
+    </div>
+  )
+}
+
 const OptionsToolsView = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState('analyzer')
   return (
@@ -5390,7 +5837,7 @@ const OptionsToolsView = ({ onBack }) => {
       <div className="border-b border-zinc-900 px-6 py-4 flex items-center gap-6">
         <button onClick={onBack} className="text-slate-400 hover:text-slate-200 text-sm transition-colors">← Back</button>
         <div className="flex gap-1">
-          {[['analyzer', 'Options Analyzer'], ['trailing', 'Trailing Stops']].map(([key, label]) => (
+          {[['analyzer', 'Options Analyzer'], ['trailing', 'Trailing Stops'], ['tranche', 'Tranche Ledger']].map(([key, label]) => (
             <button key={key} onClick={() => setActiveTab(key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === key ? 'bg-zinc-900 text-white' : 'text-slate-500 hover:text-slate-200'}`}>
               {label}
@@ -5398,8 +5845,8 @@ const OptionsToolsView = ({ onBack }) => {
           ))}
         </div>
       </div>
-      <div className="max-w-2xl mx-auto px-6 py-6">
-        {activeTab === 'analyzer' ? <OptionsAnalyzerTab /> : <TrailingStopsTab />}
+      <div className={activeTab === 'tranche' ? 'max-w-6xl mx-auto px-6 py-6' : 'max-w-2xl mx-auto px-6 py-6'}>
+        {activeTab === 'analyzer' ? <OptionsAnalyzerTab /> : activeTab === 'trailing' ? <TrailingStopsTab /> : <ParentTrancheTrackerTab />}
       </div>
     </div>
   )
