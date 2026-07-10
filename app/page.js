@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { solveIV, optionValueAt, forecastEntryPremium as bsForecastPremium } from '../lib/blackScholes'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
 
 const MenuButton = ({ onClick, children, className = '' }) => (
@@ -840,6 +841,10 @@ const MODE_CONFIG = {
       id: 'id',
       account: 'account_type',
       playType: 'play_type',
+      entryOrderType: 'entry_order_type',
+      quotedPremium: 'quoted_premium',
+      entryTriggerStockPrice: 'entry_trigger_stock_price',
+      assumedDaysToEntry: 'assumed_days_to_entry',
     },
     balanceColumns: {
       id: 'id',
@@ -950,6 +955,11 @@ const MODE_CONFIG = {
       expiry: '',
       contracts: '',
       premium: '',
+      quotedPremium: '',
+      entryOrderType: 'market',
+      entryTriggerStockPrice: '',
+      assumedDaysToEntry: '3',
+      assumedDaysToStop: '0',
       entryStockPrice: '',
       slStockPrice: '',
       tpStockPrice: '',
@@ -3170,7 +3180,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             ...prev,
             ...(data.strike != null ? { strike: String(data.strike) } : {}),
             ...(data.stockPrice != null ? { entryStockPrice: String(data.stockPrice) } : {}),
-            ...(data.premium != null ? { premium: String(data.premium) } : {}),
+            ...(data.premium != null ? { quotedPremium: String(data.premium) } : {}),
             ...(data.delta != null ? { delta: String(data.delta) } : {}),
             ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
             ...(data.theta != null ? { theta: String(data.theta) } : {}),
@@ -3329,7 +3339,13 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.strike, formData.strike === '' ? null : (formData.strike ? parseFloat(formData.strike) : null))
       assignValue(tradeColumns.expiry, formData.expiry || null)
       assignValue(tradeColumns.contracts, formData.contracts === '' ? null : (formData.contracts ? parseFloat(formData.contracts) : null))
-      assignValue(tradeColumns.premium, formData.premium === '' ? null : (formData.premium ? parseFloat(formData.premium) : null))
+      // entry premium: user override takes priority; otherwise fall back to quoted premium (market) or leave null (buy_stop — filled after execution)
+      const _submitEntryPrem = formData.premium !== '' && formData.premium ? parseFloat(formData.premium) : (formData.entryOrderType !== 'buy_stop' && formData.quotedPremium ? parseFloat(formData.quotedPremium) : null)
+      assignValue(tradeColumns.premium, _submitEntryPrem)
+      assignValue(tradeColumns.quotedPremium, formData.quotedPremium === '' ? null : (formData.quotedPremium ? parseFloat(formData.quotedPremium) : null))
+      assignValue(tradeColumns.entryOrderType, formData.entryOrderType || 'market')
+      assignValue(tradeColumns.entryTriggerStockPrice, formData.entryTriggerStockPrice === '' ? null : (formData.entryTriggerStockPrice ? parseFloat(formData.entryTriggerStockPrice) : null))
+      assignValue(tradeColumns.assumedDaysToEntry, formData.assumedDaysToEntry === '' ? null : (formData.assumedDaysToEntry ? parseInt(formData.assumedDaysToEntry) : null))
       assignValue(tradeColumns.entryStockPrice, formData.entryStockPrice === '' ? null : (formData.entryStockPrice ? parseFloat(formData.entryStockPrice) : null))
       assignValue(tradeColumns.delta, formData.delta === '' ? null : (formData.delta ? parseFloat(formData.delta) : null))
       assignValue(tradeColumns.gamma, formData.gamma === '' ? null : (formData.gamma ? parseFloat(formData.gamma) : null))
@@ -3435,11 +3451,37 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     )
   }
 
+  // Solve sigma and forecast entry premium for BS-based card
+  const _cardSigma = (() => {
+    const S = parseFloat(formData.entryStockPrice)
+    const qP = parseFloat(formData.quotedPremium || formData.premium)
+    const K = parseFloat(formData.strike)
+    const dte = formData.expiry ? Math.max(0, Math.ceil((new Date(formData.expiry) - new Date()) / 86400000)) : null
+    if (!S || !qP || !K || !dte || dte <= 0) return null
+    return solveIV({ S, K, T: dte / 365, premium: qP, optionType: formData.optionType || 'call' })
+  })()
+
+  const computedEntryPremium = (() => {
+    if (formData.entryOrderType !== 'buy_stop') {
+      return parseFloat(formData.quotedPremium) || parseFloat(formData.premium) || null
+    }
+    if (!_cardSigma) return null
+    const K = parseFloat(formData.strike)
+    const dte = formData.expiry ? Math.max(0, Math.ceil((new Date(formData.expiry) - new Date()) / 86400000)) : null
+    const trigger = parseFloat(formData.entryTriggerStockPrice)
+    const dEntry = parseInt(formData.assumedDaysToEntry) || 3
+    if (!K || !dte || !trigger) return null
+    return bsForecastPremium({ triggerStock: trigger, daysToEntry: dEntry, sigma: _cardSigma, K, daysToExpiry: dte, optionType: formData.optionType || 'call' })
+  })()
+
+  // Use entryPremium (not quotedPremium) for breakeven so buy-stop breakeven is accurate
+  const _effectiveEntryPremium = parseFloat(formData.premium) || computedEntryPremium || parseFloat(formData.quotedPremium) || null
+
   const autoBreakevenStock = (() => {
     const str = parseFloat(formData.strike)
-    const prem = parseFloat(formData.premium)
+    const prem = _effectiveEntryPremium
     const ot = formData.optionType
-    if (isNaN(str) || isNaN(prem) || !ot) return null
+    if (isNaN(str) || !prem || !ot) return null
     return ot === 'call' ? str + prem : str - prem
   })()
 
@@ -3515,7 +3557,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                     ...prev,
                     ...(data.strike != null ? { strike: String(data.strike) } : {}),
                     ...(data.stockPrice != null ? { entryStockPrice: String(data.stockPrice) } : {}),
-                    ...(data.premium != null ? { premium: String(data.premium) } : {}),
+                    ...(data.premium != null ? { quotedPremium: String(data.premium) } : {}),
                     ...(data.delta != null ? { delta: String(data.delta) } : {}),
                     ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
                     ...(data.theta != null ? { theta: String(data.theta) } : {}),
@@ -3600,7 +3642,67 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           )}
 
           {tradeColumns.premium && (
-            <InputField label={labels.premiumLabel || 'Premium ($)'} type="number" step="0.01" value={formData.premium} onChange={(e) => handleInputChange('premium', e.target.value)} placeholder="e.g., 2.45" />
+            <>
+              {/* Entry order type toggle */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2 text-zinc-400">Entry Order Type</label>
+                <div className="flex gap-2">
+                  {['market', 'buy_stop'].map(v => (
+                    <button key={v} type="button"
+                      onClick={() => handleInputChange('entryOrderType', v)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${formData.entryOrderType === v ? 'bg-white text-black border-white' : 'bg-zinc-900 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>
+                      {v === 'market' ? 'Market' : 'Buy Stop'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quoted premium — always shown */}
+              <InputField label="Quoted premium (chain mid)" type="number" step="0.01" value={formData.quotedPremium} onChange={(e) => handleInputChange('quotedPremium', e.target.value)} placeholder="e.g., 2.45" />
+
+              {/* Buy-stop specific fields */}
+              {formData.entryOrderType === 'buy_stop' && (
+                <>
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-zinc-400">Trigger Stock Price ($)</label>
+                      <input type="number" step="0.01" value={formData.entryTriggerStockPrice} onChange={e => handleInputChange('entryTriggerStockPrice', e.target.value)} placeholder="e.g. 155.00"
+                        className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-zinc-400">Days to Entry</label>
+                      <input type="number" step="1" min="0" value={formData.assumedDaysToEntry} onChange={e => handleInputChange('assumedDaysToEntry', e.target.value)} placeholder="3"
+                        className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-zinc-400">Days to Stop/Target</label>
+                      <input type="number" step="1" min="0" value={formData.assumedDaysToStop} onChange={e => handleInputChange('assumedDaysToStop', e.target.value)} placeholder="0"
+                        className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400 text-sm" />
+                    </div>
+                  </div>
+                  <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-300 text-xs">
+                    ⚠ Never place a buy stop on the option&apos;s premium — theta pushes the option price down while the stock climbs, so the stop may never trigger even when the stock hits your level. Set a price alert on the underlying at your trigger and enter manually. Entries are not time-critical the way exits are.
+                  </div>
+                </>
+              )}
+
+              {/* Entry premium: computed or user override */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2 text-zinc-400">
+                  Entry Premium ($)
+                  {formData.entryOrderType === 'buy_stop' && computedEntryPremium && (
+                    <span className="ml-2 text-xs font-normal text-zinc-500">
+                      Forecast: ${computedEntryPremium.toFixed(2)} — overestimate is intentional (constant-IV model; equity vol typically falls on rally)
+                    </span>
+                  )}
+                </label>
+                <input type="number" step="0.01"
+                  value={formData.premium}
+                  onChange={e => handleInputChange('premium', e.target.value)}
+                  placeholder={computedEntryPremium ? `Auto: $${computedEntryPremium.toFixed(2)}` : (formData.quotedPremium ? `= ${formData.quotedPremium}` : 'e.g., 2.90')}
+                  className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
+              </div>
+            </>
           )}
 
           {tradeColumns.entryStockPrice && (
@@ -3754,13 +3856,21 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
           {tradeColumns.premium && (
             <PnLDecisionCard
-              premium={formData.premium}
+              premium={formData.premium || String(computedEntryPremium || '')}
+              quotedPremium={formData.quotedPremium}
+              entryPremium={String(_effectiveEntryPremium || '')}
               delta={formData.delta}
               gamma={formData.gamma}
               contracts={formData.contracts}
               currentStock={formData.entryStockPrice}
               targetStock={formData.tpStockPrice}
               stopStock={formData.slStockPrice}
+              strike={formData.strike}
+              daysToExpiry={formData.expiry ? String(Math.max(0, Math.ceil((new Date(formData.expiry) - new Date()) / 86400000))) : ''}
+              entryOrderType={formData.entryOrderType || 'market'}
+              entryTriggerStockPrice={formData.entryTriggerStockPrice}
+              assumedDaysToEntry={formData.assumedDaysToEntry || '0'}
+              assumedDaysToStop={formData.assumedDaysToStop || '0'}
               breakevenStock={formData.breakevenStock !== undefined && formData.breakevenStock !== '' ? formData.breakevenStock : (autoBreakevenStock !== null ? String(autoBreakevenStock) : '')}
               accountSize={currentBalance}
               optionType={formData.optionType}
@@ -3957,30 +4067,74 @@ const calcOptionLeg = (P, d, g, targetStock, S, n) => {
 const BREAKEVEN_THIN_EDGE_THRESHOLD = 0.5
 
 const PnLDecisionCard = ({
+  // Core inputs
   premium, delta, gamma, contracts,
   currentStock, targetStock, stopStock,
-  breakevenStock, accountSize,
-  optionType, direction
+  breakevenStock, accountSize, optionType, direction,
+  // BS / buy-stop inputs (all optional — fall back to delta-gamma when absent)
+  quotedPremium, entryPremium,
+  strike, daysToExpiry,
+  entryOrderType, entryTriggerStockPrice,
+  assumedDaysToEntry, assumedDaysToStop,
 }) => {
-  const P = parseFloat(premium)
   const d = parseFloat(delta)
   const g = parseFloat(gamma)
   const n = parseInt(contracts)
   const S = parseFloat(currentStock)
 
-  const hasBase = ![P, d, g, n, S].some(isNaN) && n > 0
+  // Effective entry premium (what you actually pay)
+  const P_entry = parseFloat(entryPremium) || parseFloat(premium)
+  // Effective quoted premium (for sigma solve)
+  const P_quoted = parseFloat(quotedPremium) || parseFloat(premium)
+
+  const hasBase = ![d, g, n, S].some(isNaN) && n > 0 && P_entry > 0
   const hasTarget = targetStock !== '' && targetStock !== undefined && targetStock !== null && !isNaN(parseFloat(targetStock))
   const hasStop = stopStock !== '' && stopStock !== undefined && stopStock !== null && !isNaN(parseFloat(stopStock))
   if (!hasBase || (!hasTarget && !hasStop)) return null
 
-  const T = hasTarget ? parseFloat(targetStock) : null
-  const SL = hasStop ? parseFloat(stopStock) : null
+  const T_tgt = hasTarget ? parseFloat(targetStock) : null
+  const T_sl = hasStop ? parseFloat(stopStock) : null
 
-  const tpCalc = T !== null ? calcOptionLeg(P, d, g, T, S, n) : null
-  const slCalc = SL !== null ? calcOptionLeg(P, d, g, SL, S, n) : null
+  // --- Black-Scholes path ---
+  const K = parseFloat(strike)
+  const dte = parseFloat(daysToExpiry)
+  const dEntry = parseFloat(assumedDaysToEntry) || 0
+  const dStop = parseFloat(assumedDaysToStop) || 0
+  const daysToExit = dEntry + dStop
 
-  const profitAtTarget = tpCalc ? tpCalc.totalDollar : null
-  const lossAtStop = slCalc ? slCalc.totalDollar : null
+  let sigma = null
+  const canTryBs = !isNaN(K) && K > 0 && !isNaN(dte) && dte > 0 && S > 0 && P_quoted > 0
+  if (canTryBs) {
+    sigma = solveIV({ S, K, T: dte / 365, premium: P_quoted, optionType: optionType || 'call' })
+  }
+  const canUseBs = sigma !== null && sigma > 0
+
+  // Guard: timeline must not exceed expiry
+  if (canUseBs && daysToExit >= dte) {
+    return (
+      <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">P&L Decision</p>
+        <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-400 text-xs">
+          Assumed timeline ({daysToExit} days) runs past expiry ({dte} days). Shorten days to entry / stop or check the expiry date.
+        </div>
+      </div>
+    )
+  }
+
+  // Compute P&L at a given underlying stock price
+  const computePnL = (targetS) => {
+    if (canUseBs) {
+      const futureVal = optionValueAt({ S: targetS, daysElapsed: daysToExit, sigma, K, daysToExpiry: dte, optionType: optionType || 'call' })
+      const raw = (futureVal - P_entry) * n * 100
+      return Math.max(raw, -P_entry * n * 100) // can't lose more than paid
+    }
+    // Delta-gamma fallback
+    return calcOptionLeg(P_entry, d, g, targetS, S, n).totalDollar
+  }
+
+  const profitAtTarget = T_tgt !== null ? computePnL(T_tgt) : null
+  const lossAtStop = T_sl !== null ? computePnL(T_sl) : null
+  const absLossAtStop = lossAtStop !== null ? Math.abs(lossAtStop) : null
 
   const rr = (profitAtTarget !== null && lossAtStop !== null && lossAtStop !== 0)
     ? Math.abs(profitAtTarget / lossAtStop)
@@ -3988,17 +4142,17 @@ const PnLDecisionCard = ({
 
   const acct = parseFloat(accountSize)
   const maxLoss = acct > 0 ? acct * 0.05 : null
-  const absLossAtStop = lossAtStop !== null ? Math.abs(lossAtStop) : null
   const breaches5pct = maxLoss !== null && absLossAtStop !== null && absLossAtStop > maxLoss
 
+  // Breakeven verdict
   const BE = breakevenStock !== '' && breakevenStock !== undefined && breakevenStock !== null ? parseFloat(breakevenStock) : null
   let beVerdict = null
-  if (BE !== null && !isNaN(BE) && T !== null && S > 0) {
+  if (BE !== null && !isNaN(BE) && T_tgt !== null && S > 0) {
     const moveToBreakeven = Math.abs(BE - S)
-    const moveToTarget = Math.abs(T - S)
+    const moveToTarget = Math.abs(T_tgt - S)
     const breakevenGapPct = (moveToBreakeven / S) * 100
     const breakevenShare = moveToTarget > 0 ? moveToBreakeven / moveToTarget : null
-    const targetClearsBE = optionType === 'call' ? T > BE : T < BE
+    const targetClearsBE = (optionType || 'call') === 'call' ? T_tgt > BE : T_tgt < BE
     const gapLabel = `Breakeven $${BE.toFixed(2)} — a ${breakevenGapPct.toFixed(1)}% move from here`
 
     if (!targetClearsBE) {
@@ -4011,8 +4165,9 @@ const PnLDecisionCard = ({
     }
   }
 
-  const isCall = optionType === 'call'
+  const isCall = (optionType || 'call') === 'call'
   const deltaSignWrong = !isNaN(d) && ((isCall && d < 0) || (!isCall && d > 0))
+  const isBuyStop = entryOrderType === 'buy_stop'
 
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4">
@@ -4024,8 +4179,17 @@ const PnLDecisionCard = ({
         </div>
       )}
 
+      {isBuyStop && P_entry > 0 && parseFloat(quotedPremium) > 0 && (
+        <div className="mb-3 p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-slate-400">
+          Forecast entry: <span className="text-white font-mono">${P_entry.toFixed(2)}</span>
+          {entryTriggerStockPrice && <> at trigger <span className="text-white font-mono">${parseFloat(entryTriggerStockPrice).toFixed(2)}</span></>}
+          {' '}vs <span className="font-mono">${parseFloat(quotedPremium).toFixed(2)}</span> quoted today
+          {canUseBs && <span className="ml-1 text-zinc-600">(+2% ask buffer; actual fill likely cheaper on a rally)</span>}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 mb-3">
-        {tpCalc && (
+        {profitAtTarget !== null && (
           <div className="p-3 rounded-lg border border-emerald-500/30 bg-zinc-900/50">
             <p className="text-xs text-slate-400 mb-1">Profit at target</p>
             <p className={`text-lg font-bold font-mono ${profitAtTarget >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -4033,7 +4197,7 @@ const PnLDecisionCard = ({
             </p>
           </div>
         )}
-        {slCalc && (
+        {absLossAtStop !== null && (
           <div className="p-3 rounded-lg border border-red-500/30 bg-zinc-900/50">
             <p className="text-xs text-slate-400 mb-1">Loss at stop</p>
             <p className="text-lg font-bold font-mono text-red-400">
@@ -4070,7 +4234,10 @@ const PnLDecisionCard = ({
         </div>
       )}
 
-      <p className="text-xs text-zinc-700">Delta-gamma approx. only — does not account for IV changes.</p>
+      <p className="text-xs text-zinc-700">
+        {canUseBs ? 'Black-Scholes pricing — IV held constant; does not model vol smile or skew.' : 'Delta-gamma approx. only — does not account for IV changes.'}
+        {isBuyStop && ' Entry cost is forecast, not quoted.'}
+      </p>
     </div>
   )
 }
@@ -5123,7 +5290,12 @@ const StopMarketOrderView = ({ onBack }) => {
   const [strike, setStrike] = useState('')
   const [expiry, setExpiry] = useState('')
   const [contracts, setContracts] = useState('1')
-  const [premium, setPremium] = useState('')
+  const [quotedPremium, setQuotedPremium] = useState('')
+  const [entryPremiumOverride, setEntryPremiumOverride] = useState('')
+  const [entryOrderType, setEntryOrderType] = useState('buy_stop')
+  const [entryTriggerStockPrice, setEntryTriggerStockPrice] = useState('')
+  const [assumedDaysToEntry, setAssumedDaysToEntry] = useState('3')
+  const [assumedDaysToStop, setAssumedDaysToStop] = useState('0')
   const [delta, setDelta] = useState('')
   const [gamma, setGamma] = useState('')
   const [theta, setTheta] = useState('')
@@ -5172,7 +5344,7 @@ const StopMarketOrderView = ({ onBack }) => {
       const data = await resp.json()
       if (data.strike != null) setStrike(String(data.strike))
       if (data.stockPrice != null) setCurrentStockPrice(String(data.stockPrice))
-      if (data.premium != null) setPremium(String(data.premium))
+      if (data.premium != null) setQuotedPremium(String(data.premium))
       if (data.delta != null) setDelta(String(data.delta))
       if (data.gamma != null) setGamma(String(data.gamma))
       if (data.theta != null) setTheta(String(data.theta))
@@ -5203,7 +5375,11 @@ const StopMarketOrderView = ({ onBack }) => {
       strike_price: strike ? parseFloat(strike) : null,
       expiry_date: expiry || null,
       contracts: contracts ? parseInt(contracts) : null,
-      premium: premium ? parseFloat(premium) : null,
+      premium: entryPremiumOverride ? parseFloat(entryPremiumOverride) : null,
+      quoted_premium: quotedPremium ? parseFloat(quotedPremium) : null,
+      entry_order_type: entryOrderType || 'buy_stop',
+      entry_trigger_stock_price: entryTriggerStockPrice ? parseFloat(entryTriggerStockPrice) : null,
+      assumed_days_to_entry: assumedDaysToEntry ? parseInt(assumedDaysToEntry) : null,
       delta: delta ? parseFloat(delta) : null,
       gamma: gamma ? parseFloat(gamma) : null,
       theta: theta ? parseFloat(theta) : null,
@@ -5220,9 +5396,12 @@ const StopMarketOrderView = ({ onBack }) => {
     } else {
       setMessage('Stop market order logged as pending.')
       setTicker(''); setStrike(''); setExpiry(''); setContracts('1')
-      setPremium(''); setDelta(''); setGamma(''); setTheta(''); setVega('')
+      setQuotedPremium(''); setEntryPremiumOverride('')
+      setDelta(''); setGamma(''); setTheta(''); setVega('')
       setStopOptionPrice(''); setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
       setOptionType('call'); setPlayType(''); setPasteState('idle')
+      setEntryOrderType('buy_stop'); setEntryTriggerStockPrice('')
+      setAssumedDaysToEntry('3'); setAssumedDaysToStop('0')
       setCurrentStockPrice(''); setStopLossStockPrice(''); setBreakevenStockPrice('')
     }
     setSubmitting(false)
@@ -5298,10 +5477,23 @@ const StopMarketOrderView = ({ onBack }) => {
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none" />
           </div>
         </div>
+        {/* Entry order type */}
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Entry Order Type</label>
+          <div className="flex gap-2">
+            {['market', 'buy_stop'].map(v => (
+              <button key={v} type="button"
+                onClick={() => setEntryOrderType(v)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${entryOrderType === v ? 'bg-white text-black border-white' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>
+                {v === 'market' ? 'Market' : 'Buy Stop'}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Current Premium ($)</label>
-            <input type="number" step="0.01" value={premium} onChange={e => setPremium(e.target.value)} placeholder="e.g. 2.80"
+            <label className="block text-xs text-slate-400 mb-1">Quoted Premium / Chain Mid ($)</label>
+            <input type="number" step="0.01" value={quotedPremium} onChange={e => setQuotedPremium(e.target.value)} placeholder="e.g. 2.80"
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
           <div>
@@ -5339,6 +5531,37 @@ const StopMarketOrderView = ({ onBack }) => {
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        {/* Buy-stop specific fields */}
+        {entryOrderType === 'buy_stop' && (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Trigger Stock Price ($)</label>
+                <input type="number" step="0.01" value={entryTriggerStockPrice} onChange={e => setEntryTriggerStockPrice(e.target.value)} placeholder="e.g. 190.00"
+                  className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Days to Entry</label>
+                <input type="number" step="1" min="0" value={assumedDaysToEntry} onChange={e => setAssumedDaysToEntry(e.target.value)} placeholder="3"
+                  className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Days to Stop/Target</label>
+                <input type="number" step="1" min="0" value={assumedDaysToStop} onChange={e => setAssumedDaysToStop(e.target.value)} placeholder="0"
+                  className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-300 text-xs">
+              ⚠ Never place a buy stop on the option&apos;s premium — theta pushes it down while the stock climbs, so the stop may never trigger. Set a price alert on the underlying and enter manually when the level hits.
+            </div>
+          </>
+        )}
+        {/* Entry premium override — shown after execution to record actual fill */}
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Entry Premium Override ($) <span className="text-zinc-600">— fill in after execution; leave blank while pending</span></label>
+          <input type="number" step="0.01" value={entryPremiumOverride} onChange={e => setEntryPremiumOverride(e.target.value)} placeholder="Actual fill price"
+            className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
@@ -5353,8 +5576,8 @@ const StopMarketOrderView = ({ onBack }) => {
           <div>
             <label className="block text-xs text-slate-400 mb-1">Breakeven Stock Price ($)</label>
             <input type="number" step="0.01"
-              value={breakevenStockPrice !== '' ? breakevenStockPrice : (() => { const s = parseFloat(strike); const p = parseFloat(premium); if (isNaN(s) || isNaN(p)) return ''; return (optionType === 'call' ? s + p : s - p).toFixed(2) })()}
-              onChange={e => setBreakevenStockPrice(e.target.value)} placeholder="Auto: strike ± premium"
+              value={breakevenStockPrice !== '' ? breakevenStockPrice : (() => { const s = parseFloat(strike); const p = parseFloat(entryPremiumOverride || quotedPremium); if (isNaN(s) || isNaN(p)) return ''; return (optionType === 'call' ? s + p : s - p).toFixed(2) })()}
+              onChange={e => setBreakevenStockPrice(e.target.value)} placeholder="Auto: strike ± entry premium"
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
@@ -5368,19 +5591,41 @@ const StopMarketOrderView = ({ onBack }) => {
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Why are you placing this stop order? What's your thesis?"
             className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600 resize-none" />
         </div>
-        <PnLDecisionCard
-          premium={premium}
-          delta={delta}
-          gamma={gamma}
-          contracts={contracts}
-          currentStock={currentStockPrice}
-          targetStock={targetUnderlyingPrice}
-          stopStock={stopLossStockPrice}
-          breakevenStock={breakevenStockPrice !== '' ? breakevenStockPrice : (() => { const s = parseFloat(strike); const p = parseFloat(premium); if (isNaN(s) || isNaN(p)) return ''; return String(optionType === 'call' ? s + p : s - p) })()}
-          accountSize={accountSize}
-          optionType={optionType}
-          direction="long"
-        />
+        {(() => {
+          const _K = parseFloat(strike)
+          const _dte = expiry ? Math.max(0, Math.ceil((new Date(expiry) - new Date()) / 86400000)) : null
+          const _sigma = (_K > 0 && _dte > 0 && parseFloat(currentStockPrice) > 0 && parseFloat(quotedPremium) > 0)
+            ? solveIV({ S: parseFloat(currentStockPrice), K: _K, T: _dte / 365, premium: parseFloat(quotedPremium), optionType })
+            : null
+          const _forecastPrem = (_sigma && entryOrderType === 'buy_stop' && parseFloat(entryTriggerStockPrice) > 0 && _dte)
+            ? bsForecastPremium({ triggerStock: parseFloat(entryTriggerStockPrice), daysToEntry: parseInt(assumedDaysToEntry) || 3, sigma: _sigma, K: _K, daysToExpiry: _dte, optionType })
+            : null
+          const _entryPremForCard = entryPremiumOverride ? entryPremiumOverride : (_forecastPrem ? String(_forecastPrem) : quotedPremium)
+          const _beAuto = (() => { const s = parseFloat(strike); const p = parseFloat(_entryPremForCard); if (isNaN(s) || isNaN(p)) return ''; return String(optionType === 'call' ? s + p : s - p) })()
+          return (
+            <PnLDecisionCard
+              premium={_entryPremForCard}
+              quotedPremium={quotedPremium}
+              entryPremium={_entryPremForCard}
+              delta={delta}
+              gamma={gamma}
+              contracts={contracts}
+              currentStock={currentStockPrice}
+              targetStock={targetUnderlyingPrice}
+              stopStock={stopLossStockPrice}
+              strike={strike}
+              daysToExpiry={_dte ? String(_dte) : ''}
+              entryOrderType={entryOrderType}
+              entryTriggerStockPrice={entryTriggerStockPrice}
+              assumedDaysToEntry={assumedDaysToEntry}
+              assumedDaysToStop={assumedDaysToStop}
+              breakevenStock={breakevenStockPrice !== '' ? breakevenStockPrice : _beAuto}
+              accountSize={accountSize}
+              optionType={optionType}
+              direction="long"
+            />
+          )
+        })()}
         <button type="submit" disabled={submitting}
           className={`w-full p-4 rounded-lg font-semibold transition-colors ${submitting ? 'bg-zinc-700 text-white cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}>
           {submitting ? 'Logging...' : 'Log Stop Market Order'}
