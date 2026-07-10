@@ -5301,7 +5301,7 @@ const StopMarketOrderView = ({ onBack }) => {
   const [theta, setTheta] = useState('')
   const [vega, setVega] = useState('')
   const [stopOptionPrice, setStopOptionPrice] = useState('')
-  const [targetUnderlyingPrice, setTargetUnderlyingPrice] = useState('')
+  const [takeProfitStockPrice, setTakeProfitStockPrice] = useState('')
   const [currentStockPrice, setCurrentStockPrice] = useState('')
   const [stopLossStockPrice, setStopLossStockPrice] = useState('')
   const [breakevenStockPrice, setBreakevenStockPrice] = useState('')
@@ -5385,7 +5385,11 @@ const StopMarketOrderView = ({ onBack }) => {
       theta: theta ? parseFloat(theta) : null,
       vega: vega ? parseFloat(vega) : null,
       stop_option_price: stopOptionPrice ? parseFloat(stopOptionPrice) : null,
-      target_underlying_price: targetUnderlyingPrice ? parseFloat(targetUnderlyingPrice) : null,
+      tp_stock_price: takeProfitStockPrice ? parseFloat(takeProfitStockPrice) : null,
+      target_underlying_price: entryTriggerStockPrice ? parseFloat(entryTriggerStockPrice) : null,
+      current_stock_price: currentStockPrice ? parseFloat(currentStockPrice) : null,
+      sl_stock_price: stopLossStockPrice ? parseFloat(stopLossStockPrice) : null,
+      breakeven_stock_price: breakevenStockPrice ? parseFloat(breakevenStockPrice) : null,
       max_risk: maxRisk ? parseFloat(maxRisk) : null,
       notes: notes.trim() || null,
       play_type: playType || null,
@@ -5398,7 +5402,7 @@ const StopMarketOrderView = ({ onBack }) => {
       setTicker(''); setStrike(''); setExpiry(''); setContracts('1')
       setQuotedPremium(''); setEntryPremiumOverride('')
       setDelta(''); setGamma(''); setTheta(''); setVega('')
-      setStopOptionPrice(''); setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
+      setStopOptionPrice(''); setTakeProfitStockPrice(''); setMaxRisk('300'); setNotes('')
       setOptionType('call'); setPlayType(''); setPasteState('idle')
       setEntryOrderType('buy_stop'); setEntryTriggerStockPrice('')
       setAssumedDaysToEntry('3'); setAssumedDaysToStop('0')
@@ -5526,8 +5530,8 @@ const StopMarketOrderView = ({ onBack }) => {
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Target Underlying Price ($)</label>
-            <input type="number" step="0.01" value={targetUnderlyingPrice} onChange={e => setTargetUnderlyingPrice(e.target.value)} placeholder="Stock trigger price"
+            <label className="block text-xs text-slate-400 mb-1">Take-Profit Stock Price ($)</label>
+            <input type="number" step="0.01" value={takeProfitStockPrice} onChange={e => setTakeProfitStockPrice(e.target.value)} placeholder="e.g. 210.00"
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
@@ -5611,7 +5615,7 @@ const StopMarketOrderView = ({ onBack }) => {
               gamma={gamma}
               contracts={contracts}
               currentStock={currentStockPrice}
-              targetStock={targetUnderlyingPrice}
+              targetStock={takeProfitStockPrice}
               stopStock={stopLossStockPrice}
               strike={strike}
               daysToExpiry={_dte ? String(_dte) : ''}
@@ -5723,7 +5727,11 @@ const StopMarketOrdersListView = ({ onBack, onExecute }) => {
                       </div>
                       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-400">
                         {order.stop_option_price && <span>Stop entry: <span className="text-slate-200">${order.stop_option_price}/contract</span></span>}
-                        {order.target_underlying_price && <span>Trigger: <span className="text-slate-200">stock @ ${order.target_underlying_price}</span></span>}
+                        {(order.entry_trigger_stock_price ?? order.target_underlying_price) != null && (
+                          <span>Trigger: <span className="text-slate-200">stock @ ${order.entry_trigger_stock_price ?? order.target_underlying_price}</span></span>
+                        )}
+                        {order.sl_stock_price && <span>Stop-loss: <span className="text-slate-200">stock @ ${order.sl_stock_price}</span></span>}
+                        {order.tp_stock_price && <span>Take-profit: <span className="text-slate-200">stock @ ${order.tp_stock_price}</span></span>}
                         {order.max_risk && <span>Max risk: <span className="text-slate-200">${order.max_risk}</span></span>}
                         <span>Logged: <span className="text-slate-200">{fmtDate(order.created_at)}</span></span>
                         {order.executed_at && <span>Executed: <span className="text-emerald-400">{fmtDate(order.executed_at)}</span></span>}
@@ -7024,7 +7032,6 @@ const TradingEnvironment = ({ config, onBack }) => {
         message={message}
         setMessage={setMessage}
         config={config}
-        sidePanel={supportsGreeksCalculator ? <InlineCalculatorPanel /> : undefined}
         onTradeLogged={pendingStopOrderId ? async () => {
           await supabase.from('stop_market_orders')
             .update({ status: 'executed', executed_at: new Date().toISOString() })
@@ -7036,16 +7043,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   }
 
   if (currentView === 'stop-market-new' && supportsGreeksCalculator) {
-    return (
-      <div className="min-h-screen bg-black text-slate-100 flex">
-        <div className="flex-1 min-w-0 overflow-y-auto p-8">
-          <StopMarketOrderView onBack={() => setCurrentView('menu')} />
-        </div>
-        <div className="w-[440px] shrink-0 border-l border-zinc-900 sticky top-0 h-screen overflow-y-auto bg-zinc-950">
-          <InlineCalculatorPanel />
-        </div>
-      </div>
-    )
+    return <StopMarketOrderView onBack={() => setCurrentView('menu')} />
   }
 
   if (currentView === 'stop-market-list' && supportsGreeksCalculator) {
@@ -7060,7 +7058,7 @@ const TradingEnvironment = ({ config, onBack }) => {
           expiry: order.expiry_date || '',
           contracts: order.contracts != null ? String(order.contracts) : '',
           premium: order.stop_option_price != null ? String(order.stop_option_price) : '',
-          entryStockPrice: order.target_underlying_price != null ? String(order.target_underlying_price) : '',
+          entryStockPrice: (order.entry_trigger_stock_price ?? order.target_underlying_price) != null ? String(order.entry_trigger_stock_price ?? order.target_underlying_price) : '',
           delta: order.delta != null ? String(order.delta) : '',
           gamma: order.gamma != null ? String(order.gamma) : '',
           theta: order.theta != null ? String(order.theta) : '',
