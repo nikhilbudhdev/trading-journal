@@ -3435,6 +3435,14 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     )
   }
 
+  const autoBreakevenStock = (() => {
+    const str = parseFloat(formData.strike)
+    const prem = parseFloat(formData.premium)
+    const ot = formData.optionType
+    if (isNaN(str) || isNaN(prem) || !ot) return null
+    return ot === 'call' ? str + prem : str - prem
+  })()
+
   return (
     <div className={`min-h-screen bg-black text-slate-100 ${sidePanel ? 'flex' : 'p-8'}`}>
       <div className={sidePanel ? 'flex-1 min-w-0 overflow-y-auto p-8' : ''}>
@@ -3623,6 +3631,17 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             <InputField label={labels.tpStockPriceLabel || 'TP Stock Price ($)'} type="number" step="0.01" value={formData.tpStockPrice} onChange={e => handleInputChange('tpStockPrice', e.target.value)} placeholder="e.g. 158.00" />
           )}
 
+          {tradeColumns.premium && (
+            <InputField
+              label="Breakeven Stock Price ($)"
+              type="number"
+              step="0.01"
+              value={formData.breakevenStock !== undefined && formData.breakevenStock !== '' ? formData.breakevenStock : (autoBreakevenStock !== null ? autoBreakevenStock.toFixed(2) : '')}
+              onChange={e => handleInputChange('breakevenStock', e.target.value)}
+              placeholder="Auto-computed: strike ± premium"
+            />
+          )}
+
           {tradeColumns.entryPrice && (
             <InputField label={labels.entryPriceLabel || 'Entry Price'} type="number" step="0.00001" value={formData.entryPrice} onChange={(e) => handleInputChange('entryPrice', e.target.value)} placeholder="e.g., 1.08500" />
           )}
@@ -3733,80 +3752,21 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             </div>
           )}
 
-          {(() => {
-            const _S = parseFloat(formData.entryStockPrice)
-            const _P = parseFloat(formData.premium)
-            const _d = parseFloat(formData.delta)
-            const _g = parseFloat(formData.gamma)
-            const _n = parseInt(formData.contracts)
-            const _sl = parseFloat(formData.slStockPrice)
-            const _tp = parseFloat(formData.tpStockPrice)
-            const _th = parseFloat(formData.theta)
-            const _expiry = formData.expiry
-            const hasGreeks = ![_S, _P, _d, _g, _n].some(isNaN) && _n > 0
-            const hasSl = !isNaN(_sl)
-            const hasTp = !isNaN(_tp)
-            const hasTheta = !isNaN(_th) && _expiry
-            if (!hasGreeks || (!hasSl && !hasTp && !hasTheta)) return null
-            const daysToExpiry = _expiry ? Math.max(0, Math.ceil((new Date(_expiry) - new Date()) / 86400000)) : null
-            const slCalc = hasSl ? calcOptionLeg(_P, _d, _g, _sl, _S, _n) : null
-            const tpCalc = hasTp ? calcOptionLeg(_P, _d, _g, _tp, _S, _n) : null
-            const rr = slCalc && tpCalc && slCalc.totalDollar !== 0 ? Math.abs(tpCalc.totalDollar / slCalc.totalDollar) : null
-            const fmtDollar = v => `${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}${v < 0 ? ' loss' : ' gain'}`
-            const fmtPct = v => v !== null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : null
-            const isLong = formData.direction === 'long'
-            const isCall = formData.optionType === 'call'
-            const deltaSignWrong = !isNaN(_d) && ((isCall && _d < 0) || (!isCall && _d > 0))
-            const thetaSignWrong = isLong && !isNaN(_th) && _th > 0
-            return (
-              <div className="bg-zinc-950 border border-zinc-900 rounded-lg p-4 mb-4">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Pre-Trade P&amp;L Estimate</p>
-                {deltaSignWrong && (
-                  <div className="mb-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40 text-red-400 text-xs">
-                    ⚠ Delta sign looks wrong for a {isCall ? 'call' : 'put'} — {isCall ? 'calls have positive' : 'puts have negative'} delta. Your SL/TP results will be inverted. Check your delta value.
-                  </div>
-                )}
-                {thetaSignWrong && (
-                  <div className="mb-3 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-400 text-xs">
-                    ⚠ Theta should be negative for long options (e.g. -0.05) — a positive value means time works in your favor, which is incorrect.
-                  </div>
-                )}
-                {hasTheta && daysToExpiry !== null && (
-                  <div className="mb-3 p-3 rounded-lg bg-zinc-900 border border-amber-500/20">
-                    <p className="text-xs text-amber-400 font-medium mb-1">Theta Decay</p>
-                    <div className="flex gap-4 text-xs text-slate-300">
-                      <span>Daily cost: <span className="text-amber-400 font-mono">-${Math.abs(_th * _n * 100).toFixed(2)}</span></span>
-                      <span>To expiry ({daysToExpiry}d): <span className="text-red-400 font-mono">-${Math.abs(_th * daysToExpiry * _n * 100).toFixed(2)}</span></span>
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  {slCalc && (
-                    <div className="p-3 rounded-lg border border-red-500/30 bg-zinc-900/50">
-                      <p className="text-xs text-red-400 font-medium mb-2">At SL (${_sl})</p>
-                      <p className="text-xs text-slate-400">Option price: <span className="text-white font-mono">${Math.max(0, slCalc.estPrice).toFixed(2)}</span></p>
-                      <p className="text-xs text-slate-400">P&amp;L: <span className={`font-mono font-semibold ${slCalc.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtDollar(slCalc.totalDollar)}</span></p>
-                      {slCalc.pctChange !== null && <p className="text-xs text-slate-500">{fmtPct(slCalc.pctChange)} option change</p>}
-                    </div>
-                  )}
-                  {tpCalc && (
-                    <div className="p-3 rounded-lg border border-emerald-500/30 bg-zinc-900/50">
-                      <p className="text-xs text-emerald-400 font-medium mb-2">At TP (${_tp})</p>
-                      <p className="text-xs text-slate-400">Option price: <span className="text-white font-mono">${Math.max(0, tpCalc.estPrice).toFixed(2)}</span></p>
-                      <p className="text-xs text-slate-400">P&amp;L: <span className={`font-mono font-semibold ${tpCalc.totalDollar >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtDollar(tpCalc.totalDollar)}</span></p>
-                      {tpCalc.pctChange !== null && <p className="text-xs text-slate-500">{fmtPct(tpCalc.pctChange)} option change</p>}
-                    </div>
-                  )}
-                </div>
-                {rr !== null && (
-                  <div className={`mt-3 p-2 rounded text-center text-xs font-semibold border ${rr >= 1.5 ? 'border-emerald-600/50 text-emerald-400' : 'border-amber-600/50 text-amber-400'}`}>
-                    R:R {rr.toFixed(2)}:1{rr < 1.5 ? ' — below 1.5:1 minimum' : ''}
-                  </div>
-                )}
-                <p className="text-xs text-zinc-700 mt-2">Delta-gamma approx. only — does not account for IV changes.</p>
-              </div>
-            )
-          })()}
+          {tradeColumns.premium && (
+            <PnLDecisionCard
+              premium={formData.premium}
+              delta={formData.delta}
+              gamma={formData.gamma}
+              contracts={formData.contracts}
+              currentStock={formData.entryStockPrice}
+              targetStock={formData.tpStockPrice}
+              stopStock={formData.slStockPrice}
+              breakevenStock={formData.breakevenStock !== undefined && formData.breakevenStock !== '' ? formData.breakevenStock : (autoBreakevenStock !== null ? String(autoBreakevenStock) : '')}
+              accountSize={currentBalance}
+              optionType={formData.optionType}
+              direction={formData.direction}
+            />
+          )}
 
           {hasMultipleAccounts && (
             <div className="pt-3 border-t border-zinc-800">
@@ -3992,6 +3952,127 @@ const calcOptionLeg = (P, d, g, targetStock, S, n) => {
   const pctChange = P !== 0 ? (dOption / P) * 100 : null
   const totalDollar = dOption * n * 100
   return { dStock, dOption, estPrice, pctChange, totalDollar }
+}
+
+const BREAKEVEN_THIN_EDGE_THRESHOLD = 0.5
+
+const PnLDecisionCard = ({
+  premium, delta, gamma, contracts,
+  currentStock, targetStock, stopStock,
+  breakevenStock, accountSize,
+  optionType, direction
+}) => {
+  const P = parseFloat(premium)
+  const d = parseFloat(delta)
+  const g = parseFloat(gamma)
+  const n = parseInt(contracts)
+  const S = parseFloat(currentStock)
+
+  const hasBase = ![P, d, g, n, S].some(isNaN) && n > 0
+  const hasTarget = targetStock !== '' && targetStock !== undefined && targetStock !== null && !isNaN(parseFloat(targetStock))
+  const hasStop = stopStock !== '' && stopStock !== undefined && stopStock !== null && !isNaN(parseFloat(stopStock))
+  if (!hasBase || (!hasTarget && !hasStop)) return null
+
+  const T = hasTarget ? parseFloat(targetStock) : null
+  const SL = hasStop ? parseFloat(stopStock) : null
+
+  const tpCalc = T !== null ? calcOptionLeg(P, d, g, T, S, n) : null
+  const slCalc = SL !== null ? calcOptionLeg(P, d, g, SL, S, n) : null
+
+  const profitAtTarget = tpCalc ? tpCalc.totalDollar : null
+  const lossAtStop = slCalc ? slCalc.totalDollar : null
+
+  const rr = (profitAtTarget !== null && lossAtStop !== null && lossAtStop !== 0)
+    ? Math.abs(profitAtTarget / lossAtStop)
+    : null
+
+  const acct = parseFloat(accountSize)
+  const maxLoss = acct > 0 ? acct * 0.05 : null
+  const absLossAtStop = lossAtStop !== null ? Math.abs(lossAtStop) : null
+  const breaches5pct = maxLoss !== null && absLossAtStop !== null && absLossAtStop > maxLoss
+
+  const BE = breakevenStock !== '' && breakevenStock !== undefined && breakevenStock !== null ? parseFloat(breakevenStock) : null
+  let beVerdict = null
+  if (BE !== null && !isNaN(BE) && T !== null && S > 0) {
+    const moveToBreakeven = Math.abs(BE - S)
+    const moveToTarget = Math.abs(T - S)
+    const breakevenGapPct = (moveToBreakeven / S) * 100
+    const breakevenShare = moveToTarget > 0 ? moveToBreakeven / moveToTarget : null
+    const targetClearsBE = optionType === 'call' ? T > BE : T < BE
+    const gapLabel = `Breakeven $${BE.toFixed(2)} — a ${breakevenGapPct.toFixed(1)}% move from here`
+
+    if (!targetClearsBE) {
+      beVerdict = { color: 'red', text: "Target never reaches breakeven — this contract can't profit even if your target hits.", gap: gapLabel }
+    } else if (breakevenShare !== null && breakevenShare > BREAKEVEN_THIN_EDGE_THRESHOLD) {
+      beVerdict = { color: 'amber', text: `Breakeven eats ${(breakevenShare * 100).toFixed(0)}% of your move to target — thin edge.`, gap: gapLabel }
+    } else {
+      const sharePct = breakevenShare !== null ? `${(breakevenShare * 100).toFixed(0)}%` : '—'
+      beVerdict = { color: 'green', text: `Breakeven is only ${sharePct} of the move — most of the target move is profit.`, gap: gapLabel }
+    }
+  }
+
+  const isCall = optionType === 'call'
+  const deltaSignWrong = !isNaN(d) && ((isCall && d < 0) || (!isCall && d > 0))
+
+  return (
+    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4">
+      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">P&L Decision</p>
+
+      {deltaSignWrong && (
+        <div className="mb-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40 text-red-400 text-xs">
+          ⚠ Delta sign looks wrong for a {isCall ? 'call' : 'put'} — {isCall ? 'calls have positive' : 'puts have negative'} delta. Results below will be inverted.
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        {tpCalc && (
+          <div className="p-3 rounded-lg border border-emerald-500/30 bg-zinc-900/50">
+            <p className="text-xs text-slate-400 mb-1">Profit at target</p>
+            <p className={`text-lg font-bold font-mono ${profitAtTarget >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {profitAtTarget >= 0 ? '+' : '-'}${Math.abs(profitAtTarget).toFixed(2)}
+            </p>
+          </div>
+        )}
+        {slCalc && (
+          <div className="p-3 rounded-lg border border-red-500/30 bg-zinc-900/50">
+            <p className="text-xs text-slate-400 mb-1">Loss at stop</p>
+            <p className="text-lg font-bold font-mono text-red-400">
+              -${absLossAtStop.toFixed(2)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {rr !== null && (
+        <div className={`p-2 rounded text-center text-xs font-semibold border mb-3 ${rr >= 3 ? 'border-emerald-600/50 text-emerald-400' : 'border-amber-600/50 text-amber-400'}`}>
+          R:R {rr.toFixed(2)}:1{rr < 3 ? ' — below 3:1 minimum' : ''}
+        </div>
+      )}
+
+      {absLossAtStop !== null && maxLoss !== null && (
+        breaches5pct ? (
+          <div className="p-3 rounded-lg bg-red-900/20 border border-red-700/40 text-red-400 text-xs mb-3">
+            ⚠ Loss at stop is ${absLossAtStop.toFixed(2)} — over your 5% limit (${maxLoss.toFixed(2)} on a ${acct.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} account)
+          </div>
+        ) : (
+          <p className="text-xs text-slate-600 mb-3">Within 5% risk limit (${maxLoss.toFixed(2)} max)</p>
+        )
+      )}
+
+      {beVerdict && (
+        <div className={`p-3 rounded-lg text-xs border mb-3 ${
+          beVerdict.color === 'red' ? 'bg-red-900/20 border-red-700/40 text-red-400' :
+          beVerdict.color === 'amber' ? 'bg-amber-900/20 border-amber-700/40 text-amber-400' :
+          'bg-emerald-900/20 border-emerald-700/40 text-emerald-400'
+        }`}>
+          <p className="font-medium mb-0.5">{beVerdict.gap}</p>
+          <p>{beVerdict.text}</p>
+        </div>
+      )}
+
+      <p className="text-xs text-zinc-700">Delta-gamma approx. only — does not account for IV changes.</p>
+    </div>
+  )
 }
 
 const OptionsAnalyzerTab = ({ isInline = false }) => {
@@ -5049,12 +5130,29 @@ const StopMarketOrderView = ({ onBack }) => {
   const [vega, setVega] = useState('')
   const [stopOptionPrice, setStopOptionPrice] = useState('')
   const [targetUnderlyingPrice, setTargetUnderlyingPrice] = useState('')
+  const [currentStockPrice, setCurrentStockPrice] = useState('')
+  const [stopLossStockPrice, setStopLossStockPrice] = useState('')
+  const [breakevenStockPrice, setBreakevenStockPrice] = useState('')
+  const [accountSize, setAccountSize] = useState(0)
   const [maxRisk, setMaxRisk] = useState('300')
   const [notes, setNotes] = useState('')
   const [playType, setPlayType] = useState('')
   const [pasteState, setPasteState] = useState('idle')
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    const loadBalance = async () => {
+      const { data } = await supabase
+        .from('options_balance_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      const bal = data?.[0]?.balance
+      if (bal != null) setAccountSize(parseFloat(bal) || 0)
+    }
+    loadBalance()
+  }, [])
 
   const extractFromImage = async (file) => {
     if (!file) return
@@ -5073,6 +5171,7 @@ const StopMarketOrderView = ({ onBack }) => {
       })
       const data = await resp.json()
       if (data.strike != null) setStrike(String(data.strike))
+      if (data.stockPrice != null) setCurrentStockPrice(String(data.stockPrice))
       if (data.premium != null) setPremium(String(data.premium))
       if (data.delta != null) setDelta(String(data.delta))
       if (data.gamma != null) setGamma(String(data.gamma))
@@ -5124,6 +5223,7 @@ const StopMarketOrderView = ({ onBack }) => {
       setPremium(''); setDelta(''); setGamma(''); setTheta(''); setVega('')
       setStopOptionPrice(''); setTargetUnderlyingPrice(''); setMaxRisk('300'); setNotes('')
       setOptionType('call'); setPlayType(''); setPasteState('idle')
+      setCurrentStockPrice(''); setStopLossStockPrice(''); setBreakevenStockPrice('')
     }
     setSubmitting(false)
   }
@@ -5239,6 +5339,25 @@ const StopMarketOrderView = ({ onBack }) => {
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
         </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Current Stock Price ($)</label>
+            <input type="number" step="0.01" value={currentStockPrice} onChange={e => setCurrentStockPrice(e.target.value)} placeholder="e.g. 185.00"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Stop-Loss Stock Price ($)</label>
+            <input type="number" step="0.01" value={stopLossStockPrice} onChange={e => setStopLossStockPrice(e.target.value)} placeholder="e.g. 178.00"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Breakeven Stock Price ($)</label>
+            <input type="number" step="0.01"
+              value={breakevenStockPrice !== '' ? breakevenStockPrice : (() => { const s = parseFloat(strike); const p = parseFloat(premium); if (isNaN(s) || isNaN(p)) return ''; return (optionType === 'call' ? s + p : s - p).toFixed(2) })()}
+              onChange={e => setBreakevenStockPrice(e.target.value)} placeholder="Auto: strike ± premium"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
+          </div>
+        </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Max Risk ($)</label>
           <input type="number" step="1" min="1" value={maxRisk} onChange={e => setMaxRisk(e.target.value)} placeholder="e.g. 300"
@@ -5249,6 +5368,19 @@ const StopMarketOrderView = ({ onBack }) => {
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Why are you placing this stop order? What's your thesis?"
             className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600 resize-none" />
         </div>
+        <PnLDecisionCard
+          premium={premium}
+          delta={delta}
+          gamma={gamma}
+          contracts={contracts}
+          currentStock={currentStockPrice}
+          targetStock={targetUnderlyingPrice}
+          stopStock={stopLossStockPrice}
+          breakevenStock={breakevenStockPrice !== '' ? breakevenStockPrice : (() => { const s = parseFloat(strike); const p = parseFloat(premium); if (isNaN(s) || isNaN(p)) return ''; return String(optionType === 'call' ? s + p : s - p) })()}
+          accountSize={accountSize}
+          optionType={optionType}
+          direction="long"
+        />
         <button type="submit" disabled={submitting}
           className={`w-full p-4 rounded-lg font-semibold transition-colors ${submitting ? 'bg-zinc-700 text-white cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}>
           {submitting ? 'Logging...' : 'Log Stop Market Order'}
