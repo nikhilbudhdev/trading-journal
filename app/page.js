@@ -956,6 +956,7 @@ const MODE_CONFIG = {
       contracts: '',
       premium: '',
       quotedPremium: '',
+      impliedVolOverride: '',
       entryOrderType: 'market',
       entryTriggerStockPrice: '',
       assumedDaysToEntry: '3',
@@ -3185,6 +3186,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
             ...(data.theta != null ? { theta: String(data.theta) } : {}),
             ...(data.vega != null ? { vega: String(data.vega) } : {}),
+            ...(data.iv != null ? { impliedVolOverride: String(data.iv) } : {}),
+            ...(data.optionType ? { optionType: data.optionType } : {}),
           }))
           setPasteFormState('success')
           setTimeout(() => setPasteFormState('idle'), 4000)
@@ -3457,8 +3460,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     const qP = parseFloat(formData.quotedPremium || formData.premium)
     const K = parseFloat(formData.strike)
     const dte = formData.expiry ? Math.max(0, Math.ceil((new Date(formData.expiry) - new Date()) / 86400000)) : null
-    if (!S || !qP || !K || !dte || dte <= 0) return null
-    return solveIV({ S, K, T: dte / 365, premium: qP, optionType: formData.optionType || 'call' })
+    if (S && qP && K && dte > 0) return solveIV({ S, K, T: dte / 365, premium: qP, optionType: formData.optionType || 'call' })
+    const ivOvr = parseFloat(formData.impliedVolOverride)
+    if (ivOvr > 0) return ivOvr
+    return null
   })()
 
   const computedEntryPremium = (() => {
@@ -3562,6 +3567,8 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
                     ...(data.gamma != null ? { gamma: String(data.gamma) } : {}),
                     ...(data.theta != null ? { theta: String(data.theta) } : {}),
                     ...(data.vega != null ? { vega: String(data.vega) } : {}),
+                    ...(data.iv != null ? { impliedVolOverride: String(data.iv) } : {}),
+                    ...(data.optionType ? { optionType: data.optionType } : {}),
                   }))
                   setPasteFormState('success')
                   setTimeout(() => setPasteFormState('idle'), 4000)
@@ -4261,6 +4268,7 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
   const [pasteState, setPasteState] = useState('idle')
+  const [pasteWarnings, setPasteWarnings] = useState([])
 
   const extractFromImage = async (file) => {
     if (!file || !file.type.startsWith('image/')) return
@@ -4283,6 +4291,7 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
         if (data.gamma != null) setGamma(String(data.gamma))
         if (data.theta != null) setTheta(String(data.theta))
         if (data.vega != null) setVega(String(data.vega))
+        setPasteWarnings(data.warnings?.length ? data.warnings : [])
         setPasteState('success')
         setTimeout(() => setPasteState('idle'), 4000)
       } catch {
@@ -4489,6 +4498,11 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
         {pasteState === 'error' && 'Could not extract — please fill in fields manually'}
         {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill Greeks'}
       </div>
+      {pasteWarnings.length > 0 && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-300 text-xs">
+          Check {pasteWarnings.join(', ')} — auto-read may be uncertain for these fields
+        </div>
+      )}
 
       {/* ── SECTION 1: INPUTS ─────────────────────────────────────────── */}
       <div className="space-y-4 mb-6">
@@ -5300,6 +5314,8 @@ const StopMarketOrderView = ({ onBack }) => {
   const [gamma, setGamma] = useState('')
   const [theta, setTheta] = useState('')
   const [vega, setVega] = useState('')
+  const [impliedVolOverride, setImpliedVolOverride] = useState('')
+  const [pasteWarnings, setPasteWarnings] = useState([])
   const [stopOptionPrice, setStopOptionPrice] = useState('')
   const [takeProfitStockPrice, setTakeProfitStockPrice] = useState('')
   const [currentStockPrice, setCurrentStockPrice] = useState('')
@@ -5349,6 +5365,9 @@ const StopMarketOrderView = ({ onBack }) => {
       if (data.gamma != null) setGamma(String(data.gamma))
       if (data.theta != null) setTheta(String(data.theta))
       if (data.vega != null) setVega(String(data.vega))
+      if (data.iv != null) setImpliedVolOverride(String(data.iv))
+      if (data.optionType) setOptionType(data.optionType)
+      setPasteWarnings(data.warnings?.length ? data.warnings : [])
       setPasteState('success')
     } catch {
       setPasteState('error')
@@ -5407,6 +5426,7 @@ const StopMarketOrderView = ({ onBack }) => {
       setEntryOrderType('buy_stop'); setEntryTriggerStockPrice('')
       setAssumedDaysToEntry('3'); setAssumedDaysToStop('0')
       setCurrentStockPrice(''); setStopLossStockPrice(''); setBreakevenStockPrice('')
+      setImpliedVolOverride(''); setPasteWarnings([])
     }
     setSubmitting(false)
   }
@@ -5438,6 +5458,11 @@ const StopMarketOrderView = ({ onBack }) => {
         {pasteState === 'error' && 'Could not extract — fill in fields manually'}
         {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
       </div>
+      {pasteWarnings.length > 0 && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-300 text-xs">
+          Check {pasteWarnings.join(', ')} — auto-read may be uncertain for these fields
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
         <div className="grid grid-cols-3 gap-4">
@@ -5598,9 +5623,10 @@ const StopMarketOrderView = ({ onBack }) => {
         {(() => {
           const _K = parseFloat(strike)
           const _dte = expiry ? Math.max(0, Math.ceil((new Date(expiry) - new Date()) / 86400000)) : null
-          const _sigma = (_K > 0 && _dte > 0 && parseFloat(currentStockPrice) > 0 && parseFloat(quotedPremium) > 0)
-            ? solveIV({ S: parseFloat(currentStockPrice), K: _K, T: _dte / 365, premium: parseFloat(quotedPremium), optionType })
-            : null
+          const _quotedPrem = parseFloat(quotedPremium)
+          const _sigma = (_K > 0 && _dte > 0 && parseFloat(currentStockPrice) > 0 && _quotedPrem > 0)
+            ? solveIV({ S: parseFloat(currentStockPrice), K: _K, T: _dte / 365, premium: _quotedPrem, optionType })
+            : (parseFloat(impliedVolOverride) > 0 ? parseFloat(impliedVolOverride) : null)
           const _forecastPrem = (_sigma && entryOrderType === 'buy_stop' && parseFloat(entryTriggerStockPrice) > 0 && _dte)
             ? bsForecastPremium({ triggerStock: parseFloat(entryTriggerStockPrice), daysToEntry: parseInt(assumedDaysToEntry) || 3, sigma: _sigma, K: _K, daysToExpiry: _dte, optionType })
             : null
