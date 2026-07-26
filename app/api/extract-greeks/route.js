@@ -69,6 +69,7 @@ Rules:
     })
 
     const text = msg.content.find(b => b.type === 'text')?.text ?? ''
+    console.log('[extract-greeks] model response:', text)
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return Response.json({ error: 'No JSON in response' }, { status: 500 })
 

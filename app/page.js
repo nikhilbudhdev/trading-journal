@@ -5316,6 +5316,7 @@ const StopMarketOrderView = ({ onBack }) => {
   const [vega, setVega] = useState('')
   const [impliedVolOverride, setImpliedVolOverride] = useState('')
   const [pasteWarnings, setPasteWarnings] = useState([])
+  const [pasteError, setPasteError] = useState('')
   const [stopOptionPrice, setStopOptionPrice] = useState('')
   const [takeProfitStockPrice, setTakeProfitStockPrice] = useState('')
   const [currentStockPrice, setCurrentStockPrice] = useState('')
@@ -5355,7 +5356,7 @@ const StopMarketOrderView = ({ onBack }) => {
       const resp = await fetch('/api/extract-greeks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mediaType: file.type })
+        body: JSON.stringify({ imageBase64: base64, mediaType: file.type || 'image/png' })
       })
       const data = await resp.json()
       if (data.error) throw new Error(data.error)
@@ -5369,8 +5370,10 @@ const StopMarketOrderView = ({ onBack }) => {
       if (data.iv != null) setImpliedVolOverride(String(data.iv))
       if (data.optionType) setOptionType(data.optionType)
       setPasteWarnings(data.warnings?.length ? data.warnings : [])
+      setPasteError('')
       setPasteState('success')
-    } catch {
+    } catch (err) {
+      setPasteError(err.message || 'Extraction failed')
       setPasteState('error')
     }
   }
@@ -5456,7 +5459,7 @@ const StopMarketOrderView = ({ onBack }) => {
       >
         {pasteState === 'loading' && 'Extracting from screenshot...'}
         {pasteState === 'success' && '✓ Auto-filled strike, premium & Greeks — review and adjust'}
-        {pasteState === 'error' && 'Could not extract — fill in fields manually'}
+        {pasteState === 'error' && (pasteError ? `Error: ${pasteError}` : 'Could not extract — fill in fields manually')}
         {pasteState === 'idle' && 'Paste broker screenshot (Ctrl+V / ⌘V) or drag & drop to auto-fill option fields'}
       </div>
       {pasteWarnings.length > 0 && (
