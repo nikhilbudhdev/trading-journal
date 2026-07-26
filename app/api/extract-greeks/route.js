@@ -115,10 +115,13 @@ Rules:
     if (delta != null && Math.abs(delta) > 1) warnings.push('delta')
     if (iv    != null && (iv <= 0 || iv > 5)) warnings.push('iv')
 
-    return Response.json({
+    const result = {
       stockPrice, strike, premium, delta, gamma, theta, vega,
       iv, breakeven, optionType, warnings,
-    })
+      _debug: { columnHeaders, optionRow, mapped },
+    }
+    console.log('[extract-greeks] mapped result:', JSON.stringify(result, null, 2))
+    return Response.json(result)
   } catch (err) {
     console.error('extract-greeks error:', err)
     return Response.json({ error: err.message || 'Extraction failed' }, { status: 500 })

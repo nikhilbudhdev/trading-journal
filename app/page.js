@@ -5317,6 +5317,7 @@ const StopMarketOrderView = ({ onBack }) => {
   const [impliedVolOverride, setImpliedVolOverride] = useState('')
   const [pasteWarnings, setPasteWarnings] = useState([])
   const [pasteError, setPasteError] = useState('')
+  const [pasteDebug, setPasteDebug] = useState(null)
   const [stopOptionPrice, setStopOptionPrice] = useState('')
   const [takeProfitStockPrice, setTakeProfitStockPrice] = useState('')
   const [currentStockPrice, setCurrentStockPrice] = useState('')
@@ -5359,6 +5360,7 @@ const StopMarketOrderView = ({ onBack }) => {
         body: JSON.stringify({ imageBase64: base64, mediaType: file.type || 'image/png' })
       })
       const data = await resp.json()
+      console.log('[extract-greeks client] response:', data)
       if (data.error) throw new Error(data.error)
       if (data.strike != null) setStrike(String(data.strike))
       if (data.stockPrice != null) setCurrentStockPrice(String(data.stockPrice))
@@ -5370,10 +5372,12 @@ const StopMarketOrderView = ({ onBack }) => {
       if (data.iv != null) setImpliedVolOverride(String(data.iv))
       if (data.optionType) setOptionType(data.optionType)
       setPasteWarnings(data.warnings?.length ? data.warnings : [])
+      setPasteDebug(data)
       setPasteError('')
       setPasteState('success')
     } catch (err) {
       setPasteError(err.message || 'Extraction failed')
+      setPasteDebug(null)
       setPasteState('error')
     }
   }
@@ -5466,6 +5470,12 @@ const StopMarketOrderView = ({ onBack }) => {
         <div className="mb-4 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-300 text-xs">
           Check {pasteWarnings.join(', ')} — auto-read may be uncertain for these fields
         </div>
+      )}
+      {pasteDebug && (
+        <details className="mb-4 px-3 py-2 rounded-lg bg-zinc-900/50 border border-zinc-800 text-xs text-slate-400">
+          <summary className="cursor-pointer text-slate-500">Debug: raw extraction response (click to expand)</summary>
+          <pre className="mt-2 overflow-auto text-slate-300">{JSON.stringify(pasteDebug, null, 2)}</pre>
+        </details>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5 bg-zinc-900 border border-zinc-800 p-6 rounded-lg">
