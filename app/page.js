@@ -5358,6 +5358,7 @@ const StopMarketOrderView = ({ onBack }) => {
         body: JSON.stringify({ imageBase64: base64, mediaType: file.type })
       })
       const data = await resp.json()
+      if (data.error) throw new Error(data.error)
       if (data.strike != null) setStrike(String(data.strike))
       if (data.stockPrice != null) setCurrentStockPrice(String(data.stockPrice))
       if (data.premium != null) setQuotedPremium(String(data.premium))

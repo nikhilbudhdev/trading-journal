@@ -33,7 +33,7 @@ export async function POST(req) {
 
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
+      max_tokens: 800,
       messages: [
         {
           role: 'user',
@@ -75,12 +75,13 @@ Rules:
     const parsed = JSON.parse(jsonMatch[0])
     const { columnHeaders, optionRow, underlyingPrice, optionType: rawOptionType } = parsed
 
-    if (!Array.isArray(columnHeaders) || !Array.isArray(optionRow) ||
-        columnHeaders.length === 0 || optionRow.length !== columnHeaders.length) {
-      return Response.json({ error: 'Malformed transcription — column/row length mismatch' }, { status: 500 })
+    if (!Array.isArray(columnHeaders) || !Array.isArray(optionRow) || columnHeaders.length === 0) {
+      return Response.json({ error: 'Malformed transcription — missing headers or row' }, { status: 500 })
     }
-
-    const mapped = mapRow({ columnHeaders, optionRow })
+    // Truncate to whichever array is shorter — length mismatches happen when the model
+    // miscounts a merged cell; partial data is better than a hard error.
+    const len = Math.min(columnHeaders.length, optionRow.length)
+    const mapped = mapRow({ columnHeaders: columnHeaders.slice(0, len), optionRow: optionRow.slice(0, len) })
 
     // IV: broker reports percent (33.43) → convert to fraction (0.3343)
     let iv = mapped.iv != null ? parseFloat(mapped.iv) : null
