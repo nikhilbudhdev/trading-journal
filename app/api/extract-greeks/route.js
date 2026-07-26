@@ -57,16 +57,28 @@ Provide BOTH of these:
 
 1. columnHeaders + optionRow — ONLY if the screenshot has a proper header row with TEXT LABELS ("Strike", "Delta", "IV" etc.) directly above the data row. If there are no text labels visible (e.g. a compact Greeks card with just numbers), set BOTH to null. Headers must be text — NEVER copy numeric values as headers.
 
-2. fields — Your best semantic interpretation of the values regardless of whether headers exist. Use these patterns to identify each field:
-   - stockPrice: current underlying price (usually shown alone with %/change), NOT a strike
-   - strike: option strike price (e.g. the 190 in "190 Put")
-   - premium: option mid/last/mark price
-   - iv: implied volatility, may be % (33.4) or fraction (0.334)
-   - delta: in [-1, 1], NEGATIVE for puts, POSITIVE for calls
-   - gamma: always small POSITIVE (e.g. 0.016)
-   - theta: NEGATIVE for long options (e.g. -0.203)
-   - vega: always POSITIVE for long options (e.g. 0.295)
-   - breakeven: stock price where P/L = 0
+2. fields — Your best semantic interpretation of the values.
+
+COMPACT GREEKS CARD (no text headers, 5 numeric values):
+When the screenshot shows a small Greeks summary card with exactly 5 numeric values and NO text labels, the values are ALWAYS in this fixed order left-to-right or top-to-bottom:
+  [IV, Delta, Gamma, Theta, Vega]
+- The FIRST value is IV (may have % suffix like "30.71%" or be a fraction like "0.3071")
+- The SECOND value is Delta (in [-1, 1], negative for puts)
+- The THIRD value is Gamma (small positive, e.g. 0.016)
+- The FOURTH value is Theta (negative for long options)
+- The FIFTH value is Vega (positive for long options)
+Do NOT reorder these by magnitude. Trust the position.
+
+FIELD DEFINITIONS:
+- stockPrice: LEAVE NULL unless the screenshot clearly shows the underlying stock/ETF ticker with its current price banner. Compact Greeks cards do NOT contain stock price — the user enters it manually. Do not guess.
+- strike: option strike price (e.g. the 190 in "190 Put"). Only populate if visible.
+- premium: option mid/last/mark/bid/ask price. Only populate if visible.
+- iv: implied volatility, may be % (33.4) or fraction (0.334)
+- delta: in [-1, 1], NEGATIVE for puts, POSITIVE for calls
+- gamma: always small POSITIVE (e.g. 0.016)
+- theta: NEGATIVE for long options (e.g. -0.203)
+- vega: always POSITIVE for long options (e.g. 0.295)
+- breakeven: stock price where P/L = 0
 
 Return JSON in this exact shape:
 
@@ -84,7 +96,8 @@ Return JSON in this exact shape:
 Rules:
 - Strip $, %, commas from all numbers.
 - columnHeaders and optionRow must be equal length if both present; otherwise both must be null.
-- ALWAYS populate the "fields" object with your best interpretation.`,
+- ALWAYS populate the "fields" object with your best interpretation.
+- underlyingPrice should be null unless a clear underlying price banner is visible (independent of any option row).`,
             },
           ],
         },
