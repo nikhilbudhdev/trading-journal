@@ -4,13 +4,13 @@ const client = new Anthropic()
 
 const HEADER_ALIASES = {
   strike:    ['strike'],
-  premium:   ['premium', 'mark', 'last', 'mid', 'price'],
+  premium:   ['premium', 'mark', 'last', 'mid', 'price', 'bid', 'ask'],
   delta:     ['delta'],
   gamma:     ['gamma'],
   theta:     ['theta'],
   vega:      ['vega'],
   iv:        ['iv', 'impliedvol', 'impliedvolatility', 'vol'],
-  breakeven: ['be', 'breakeven', 'breakeven'],
+  breakeven: ['be', 'breakeven'],
 }
 
 const norm = s => String(s).toLowerCase().replace(/[^a-z]/g, '')
@@ -22,6 +22,13 @@ function mapRow({ columnHeaders, optionRow }) {
     if (key && out[key] == null) out[key] = optionRow[i]
   })
   return out
+}
+
+// Headers are only trustworthy if they contain letters (text labels like "Delta").
+// The model sometimes fakes headers by copying numeric row values with a stray "%" suffix.
+function headersLookReal(columnHeaders) {
+  if (!Array.isArray(columnHeaders) || columnHeaders.length === 0) return false
+  return columnHeaders.some(h => h != null && /[a-zA-Z]/.test(String(h)))
 }
 
 export async function POST(req) {
@@ -44,24 +51,40 @@ export async function POST(req) {
             },
             {
               type: 'text',
-              text: `You are transcribing one row of an options chain from a broker screenshot.
-Return ONLY valid JSON, no prose, with these keys:
+              text: `You are extracting option data from a broker screenshot. Return ONLY valid JSON, no prose.
+
+Provide BOTH of these:
+
+1. columnHeaders + optionRow — ONLY if the screenshot has a proper header row with TEXT LABELS ("Strike", "Delta", "IV" etc.) directly above the data row. If there are no text labels visible (e.g. a compact Greeks card with just numbers), set BOTH to null. Headers must be text — NEVER copy numeric values as headers.
+
+2. fields — Your best semantic interpretation of the values regardless of whether headers exist. Use these patterns to identify each field:
+   - stockPrice: current underlying price (usually shown alone with %/change), NOT a strike
+   - strike: option strike price (e.g. the 190 in "190 Put")
+   - premium: option mid/last/mark price
+   - iv: implied volatility, may be % (33.4) or fraction (0.334)
+   - delta: in [-1, 1], NEGATIVE for puts, POSITIVE for calls
+   - gamma: always small POSITIVE (e.g. 0.016)
+   - theta: NEGATIVE for long options (e.g. -0.203)
+   - vega: always POSITIVE for long options (e.g. 0.295)
+   - breakeven: stock price where P/L = 0
+
+Return JSON in this exact shape:
 
 {
-  "columnHeaders": [],
-  "optionRow":     [],
+  "columnHeaders": ["Strike","Delta",...] or null,
+  "optionRow":     [190,-0.46,...]     or null,
+  "fields": {
+    "stockPrice": null, "strike": null, "premium": null, "iv": null,
+    "delta": null, "gamma": null, "theta": null, "vega": null, "breakeven": null
+  },
   "underlyingPrice": null,
-  "optionType": null
+  "optionType": "call"|"put"|null
 }
 
 Rules:
-- columnHeaders: every column header visible, left to right, verbatim.
-- optionRow: the highlighted/selected strike row — one cell per header, SAME length and order as columnHeaders. Numbers only, strip % and $ and commas. Use null for blank cells.
-- underlyingPrice: the current underlying price shown alone with a +/-% change, NOT one of the strikes. null if absent.
-- optionType: "call" or "put" if determinable from context, else null.
-- Transcribe cells in visual order. Do NOT reorder, skip, or interpret columns.
-- optionRow.length MUST equal columnHeaders.length.
-- Do not decide which column is delta/theta/etc. Just copy headers and values exactly.`,
+- Strip $, %, commas from all numbers.
+- columnHeaders and optionRow must be equal length if both present; otherwise both must be null.
+- ALWAYS populate the "fields" object with your best interpretation.`,
             },
           ],
         },
@@ -74,40 +97,49 @@ Rules:
     if (!jsonMatch) return Response.json({ error: 'No JSON in response' }, { status: 500 })
 
     const parsed = JSON.parse(jsonMatch[0])
-    const { columnHeaders, optionRow, underlyingPrice, optionType: rawOptionType } = parsed
+    const { columnHeaders, optionRow, fields = {}, underlyingPrice, optionType: rawOptionType } = parsed
 
-    if (!Array.isArray(columnHeaders) || !Array.isArray(optionRow) || columnHeaders.length === 0) {
-      return Response.json({ error: 'Malformed transcription — missing headers or row' }, { status: 500 })
+    // Prefer header-based mapping when headers are real; otherwise use semantic fields.
+    let mapped = {}
+    let source = 'fields'
+    if (headersLookReal(columnHeaders) && Array.isArray(optionRow)) {
+      const len = Math.min(columnHeaders.length, optionRow.length)
+      mapped = mapRow({ columnHeaders: columnHeaders.slice(0, len), optionRow: optionRow.slice(0, len) })
+      source = 'transcription'
     }
-    // Truncate to whichever array is shorter — length mismatches happen when the model
-    // miscounts a merged cell; partial data is better than a hard error.
-    const len = Math.min(columnHeaders.length, optionRow.length)
-    const mapped = mapRow({ columnHeaders: columnHeaders.slice(0, len), optionRow: optionRow.slice(0, len) })
+
+    // Merge: transcription takes precedence, semantic fields fill gaps.
+    const pick = (k) => mapped[k] != null ? mapped[k] : fields[k]
 
     // IV: broker reports percent (33.43) → convert to fraction (0.3343)
-    let iv = mapped.iv != null ? parseFloat(mapped.iv) : null
+    let iv = pick('iv')
+    iv = iv != null ? parseFloat(iv) : null
     if (iv != null && iv > 1.5) iv = iv / 100
 
     // Derive premium from breakeven + strike when absent
-    let premium = mapped.premium != null ? parseFloat(mapped.premium) : null
-    if (premium == null && mapped.breakeven != null && mapped.strike != null) {
-      premium = Math.abs(parseFloat(mapped.breakeven) - parseFloat(mapped.strike))
+    let premium = pick('premium')
+    premium = premium != null ? parseFloat(premium) : null
+    const rawBreakeven = pick('breakeven')
+    const rawStrike = pick('strike')
+    if (premium == null && rawBreakeven != null && rawStrike != null) {
+      premium = Math.abs(parseFloat(rawBreakeven) - parseFloat(rawStrike))
       if (isNaN(premium)) premium = null
     }
 
-    const strike     = mapped.strike != null ? parseFloat(mapped.strike) : null
-    const delta      = mapped.delta  != null ? parseFloat(mapped.delta)  : null
-    const gamma      = mapped.gamma  != null ? parseFloat(mapped.gamma)  : null
-    const theta      = mapped.theta  != null ? parseFloat(mapped.theta)  : null
-    const vega       = mapped.vega   != null ? parseFloat(mapped.vega)   : null
-    const breakeven  = mapped.breakeven != null ? parseFloat(mapped.breakeven) : null
-    const stockPrice = underlyingPrice != null ? parseFloat(underlyingPrice) : null
+    const strike     = rawStrike     != null ? parseFloat(rawStrike)     : null
+    const delta      = pick('delta') != null ? parseFloat(pick('delta')) : null
+    const gamma      = pick('gamma') != null ? parseFloat(pick('gamma')) : null
+    const theta      = pick('theta') != null ? parseFloat(pick('theta')) : null
+    const vega       = pick('vega')  != null ? parseFloat(pick('vega'))  : null
+    const breakeven  = rawBreakeven  != null ? parseFloat(rawBreakeven)  : null
+    const stockPrice = underlyingPrice != null
+      ? parseFloat(underlyingPrice)
+      : (fields.stockPrice != null ? parseFloat(fields.stockPrice) : null)
 
     // optionType fallback: sign of delta
     let optionType = rawOptionType || null
     if (!optionType && delta != null) optionType = delta < 0 ? 'put' : 'call'
 
-    // Validation warnings
     const warnings = []
     if (gamma != null && gamma < 0)           warnings.push('gamma')
     if (vega  != null && vega  < 0)           warnings.push('vega')
@@ -118,7 +150,7 @@ Rules:
     const result = {
       stockPrice, strike, premium, delta, gamma, theta, vega,
       iv, breakeven, optionType, warnings,
-      _debug: { columnHeaders, optionRow, mapped },
+      _debug: { columnHeaders, optionRow, fields, mapped, source },
     }
     console.log('[extract-greeks] mapped result:', JSON.stringify(result, null, 2))
     return Response.json(result)
