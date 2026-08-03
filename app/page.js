@@ -5841,6 +5841,7 @@ const ParentTrancheTrackerTab = () => {
   const [months, setMonths] = useState([])
   const [showSetup, setShowSetup] = useState(false)
   const [draft, setDraft] = useState(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -5910,14 +5911,20 @@ const ParentTrancheTrackerTab = () => {
     const startNav = parseFloat(settings.startNav) || 10
     const startVal = parseFloat(settings.startAccountValue) || 0
     let nav = startNav
+    let prevNav = startNav
     let selfUnits = startNav > 0 ? startVal / startNav : 0
     let parentUnits = 0
     let pContrib = 0, pTax = 0, sContrib = 0, sExtract = 0
     const rows = []
+    const parentGainByYear = {}
     months.forEach((m) => {
       const pre = parseFloat(m.valuePreFlows)
       const before = selfUnits + parentUnits
       if (before > 0 && isFinite(pre)) nav = pre / before
+      const parentGainThisMonth = parentUnits * (nav - prevNav)
+      const yr = String(m.label || '').slice(0, 4)
+      if (yr) parentGainByYear[yr] = (parentGainByYear[yr] || 0) + parentGainThisMonth
+      prevNav = nav
       const se = parseFloat(m.selfExtraction) || 0
       const pt = parseFloat(m.parentTaxRedemption) || 0
       const sc = parseFloat(m.selfContrib) || 0
@@ -5940,12 +5947,15 @@ const ParentTrancheTrackerTab = () => {
       parentNetGain: 0, parentGrossGain: 0, selfUnits, selfValue: startVal, selfContributed: 0,
       selfExtracted: 0, accountValue: startVal, parentPct: 0,
     }
-    return { rows, last, startNav, startVal }
+    return { rows, last, startNav, startVal, parentGainByYear }
   }, [settings, months])
 
   const L = ledger.last
-  const untaxedGain = Math.max(0, L.parentGrossGain - L.parentTaxPaid)
-  const suggestedTax = untaxedGain * (parseFloat(settings.taxRate) || 0)
+  const marginalRate = parseFloat(settings.taxRate) || 0
+  const currentYear = String(months[months.length - 1]?.label || settings.startMonth).slice(0, 4)
+  const parentGainThisYear = ledger.parentGainByYear[currentYear] || 0
+  const currentYearTaxOwed = Math.max(0, parentGainThisYear) * marginalRate
+  const lifetimeParentGain = Object.values(ledger.parentGainByYear).reduce((a, b) => a + b, 0)
 
   const projection = useMemo(() => {
     const elapsed = months.length
@@ -6060,7 +6070,7 @@ const ParentTrancheTrackerTab = () => {
               ['Starting NAV', 'startNav', 'number'],
               ['Default parent / mo', 'defaultParentContrib', 'number'],
               ['Default self / mo', 'defaultSelfContrib', 'number'],
-              ['Tax rate (0–1)', 'taxRate', 'number'],
+              ['Your marginal tax rate (0–1)', 'taxRate', 'number'],
               ['Projection rate (0–1)', 'projRate', 'number'],
             ].map(([lab, key, type]) => (
               <div key={key}>
@@ -6079,6 +6089,10 @@ const ParentTrancheTrackerTab = () => {
             Starting account value &amp; NAV define your existing capital at inception (all yours). The first row then
             applies that month&apos;s contributions. NAV is arbitrary — $10 is just a clean baseline.
           </p>
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+            Business-income treatment: the full realized gain is taxable at your marginal rate (100% inclusion), not 50%.
+            This models the parents&apos; share of the tax you pay on the account.
+          </p>
         </div>
       )}
 
@@ -6086,7 +6100,7 @@ const ParentTrancheTrackerTab = () => {
         <div className={cardClass}>
           <p className="text-[11px] uppercase tracking-wide text-amber-400 font-bold">Parents&apos; value</p>
           <p className="text-2xl font-semibold mt-2 font-mono">{trancheCad(L.parentValue)}</p>
-          <p className="text-xs text-slate-500 mt-1 font-mono">{trancheNum(L.parentUnits, 2)} units @ {trancheCad(L.nav)}</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono">parents own {tranchePct(L.parentPct)}</p>
         </div>
         <div className={cardClass}>
           <p className="text-[11px] uppercase tracking-wide text-slate-400 font-bold">Contributed</p>
@@ -6106,6 +6120,11 @@ const ParentTrancheTrackerTab = () => {
           <p className="text-[11px] uppercase tracking-wide text-sky-400 font-bold">Account total</p>
           <p className="text-2xl font-semibold mt-2 font-mono">{trancheCad(L.accountValue)}</p>
           <p className="text-xs text-slate-500 mt-1 font-mono">parents {tranchePct(L.parentPct)} · you {tranchePct(1 - L.parentPct)}</p>
+        </div>
+        <div className={cardClass}>
+          <p className="text-[11px] uppercase tracking-wide text-red-400 font-bold">This year&apos;s tax (their share)</p>
+          <p className="text-2xl font-semibold mt-2 font-mono">{trancheCad(currentYearTaxOwed)}</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono">{currentYear} · business income @ {tranchePct(marginalRate)}</p>
         </div>
       </div>
 
@@ -6138,28 +6157,34 @@ const ParentTrancheTrackerTab = () => {
           <div className="flex items-center gap-2 mt-4">
             <button className={primaryBtn} onClick={commitDraft}>Save entry</button>
             <button className={ghostBtn} onClick={() => setDraft(null)}>Cancel</button>
-            {suggestedTax > 0 && (
+            {currentYearTaxOwed > 0 && (
               <span className="text-xs text-slate-500">
-                year-end tax est. ≈ {trancheCad(suggestedTax)} ({tranchePct(parseFloat(settings.taxRate) || 0)} of untaxed gain)
+                {currentYear} tax (their share) ≈ {trancheCad(currentYearTaxOwed)} — {tranchePct(marginalRate)} of this year&apos;s {trancheCad(parentGainThisYear)} gain, funded by a matching parent tax redemption
               </span>
             )}
           </div>
         </div>
       )}
 
+      <div className="flex justify-end">
+        <button className="text-xs text-slate-500 hover:text-slate-300 transition-colors" onClick={() => setShowAdvanced(s => !s)}>
+          {showAdvanced ? 'Hide fund accounting' : 'Show fund accounting (NAV & units)'}
+        </button>
+      </div>
+
       <div className={`${cardClass} p-0 overflow-hidden`}>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: 760 }}>
+          <table className="w-full text-sm" style={{ minWidth: showAdvanced ? 760 : 520 }}>
             <thead>
               <tr className="border-b border-zinc-800">
                 <th className="p-3 text-left text-slate-400 text-xs uppercase tracking-wide">Month</th>
-                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">NAV</th>
-                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Parent units</th>
+                {showAdvanced && <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">NAV</th>}
+                {showAdvanced && <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Parent units</th>}
                 <th className="p-3 text-right text-amber-400 text-xs uppercase tracking-wide">Parent value</th>
                 <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Contributed</th>
                 <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Net gain</th>
-                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Your value</th>
-                <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Account</th>
+                {showAdvanced && <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Your value</th>}
+                {showAdvanced && <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">Account</th>}
                 <th className="p-3 text-right text-slate-400 text-xs uppercase tracking-wide">P %</th>
                 <th className="p-3"></th>
               </tr>
@@ -6167,21 +6192,21 @@ const ParentTrancheTrackerTab = () => {
             <tbody>
               {ledger.rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-500 text-sm">No entries yet — add a month to start.</td>
+                  <td colSpan={showAdvanced ? 10 : 6} className="p-8 text-center text-slate-500 text-sm">No entries yet — add a month to start.</td>
                 </tr>
               )}
               {ledger.rows.map(r => (
                 <tr key={r.id} className="border-b border-zinc-800 hover:bg-zinc-900/50">
                   <td className="p-3 text-left font-medium text-slate-200">{r.label}</td>
-                  <td className="p-3 text-right font-mono text-slate-300">{trancheCad(r.nav)}</td>
-                  <td className="p-3 text-right font-mono text-slate-400">{trancheNum(r.parentUnits, 2)}</td>
+                  {showAdvanced && <td className="p-3 text-right font-mono text-slate-300">{trancheCad(r.nav)}</td>}
+                  {showAdvanced && <td className="p-3 text-right font-mono text-slate-400">{trancheNum(r.parentUnits, 2)}</td>}
                   <td className="p-3 text-right font-mono text-amber-400 font-semibold">{trancheCad(r.parentValue)}</td>
                   <td className="p-3 text-right font-mono text-slate-400">{trancheCad(r.parentContributed)}</td>
                   <td className={`p-3 text-right font-mono ${r.parentNetGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {r.parentNetGain >= 0 ? '+' : ''}{trancheCad(r.parentNetGain)}
                   </td>
-                  <td className="p-3 text-right font-mono text-sky-400">{trancheCad(r.selfValue)}</td>
-                  <td className="p-3 text-right font-mono text-slate-300">{trancheCad(r.accountValue)}</td>
+                  {showAdvanced && <td className="p-3 text-right font-mono text-sky-400">{trancheCad(r.selfValue)}</td>}
+                  {showAdvanced && <td className="p-3 text-right font-mono text-slate-300">{trancheCad(r.accountValue)}</td>}
                   <td className="p-3 text-right font-mono text-slate-400">{tranchePct(r.parentPct)}</td>
                   <td className="p-3 text-right">
                     <button onClick={() => removeRow(r.id)} className="text-slate-500 hover:text-red-400 transition-colors" title="Remove">✕</button>
@@ -6191,6 +6216,30 @@ const ParentTrancheTrackerTab = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className={cardClass}>
+        <p className="text-base font-semibold mb-3">Tax by year (their share)</p>
+        <table className="w-full text-sm">
+          <thead><tr>
+            <th className="text-left text-slate-400">Year</th>
+            <th className="text-right text-slate-400">Parents&apos; gain</th>
+            <th className="text-right text-slate-400">Tax @ {tranchePct(marginalRate)}</th>
+          </tr></thead>
+          <tbody>
+            {Object.keys(ledger.parentGainByYear).sort().map(yr => {
+              const g = ledger.parentGainByYear[yr]
+              return (
+                <tr key={yr}>
+                  <td>{yr}</td>
+                  <td className={`text-right font-mono ${g >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{g >= 0 ? '+' : ''}{trancheCad(g)}</td>
+                  <td className="text-right font-mono">{trancheCad(Math.max(0, g) * marginalRate)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <p className="text-xs text-slate-500 mt-2">A negative year is a business loss — no tax that year, and deductible against other income. Confirm treatment with a CPA.</p>
       </div>
 
       <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)' }}>
