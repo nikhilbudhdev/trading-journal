@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { solveIV, optionValueAt, forecastEntryPremium as bsForecastPremium } from '../lib/blackScholes'
+import { solveIV, optionValueAt, forecastEntryPremium as bsForecastPremium, breakEvenStockAt } from '../lib/blackScholes'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
 
 const MenuButton = ({ onClick, children, className = '' }) => (
@@ -3742,12 +3742,12 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
           {tradeColumns.premium && (
             <InputField
-              label="Breakeven Stock Price ($)"
+              label="Breakeven at expiry ($)"
               type="number"
               step="0.01"
               value={formData.breakevenStock !== undefined && formData.breakevenStock !== '' ? formData.breakevenStock : (autoBreakevenStock !== null ? autoBreakevenStock.toFixed(2) : '')}
               onChange={e => handleInputChange('breakevenStock', e.target.value)}
-              placeholder="Auto-computed: strike ± premium"
+              placeholder="Auto: strike ± entry premium"
             />
           )}
 
@@ -4153,23 +4153,66 @@ const PnLDecisionCard = ({
 
   // Breakeven verdict
   const BE = breakevenStock !== '' && breakevenStock !== undefined && breakevenStock !== null ? parseFloat(breakevenStock) : null
-  let beVerdict = null
-  if (BE !== null && !isNaN(BE) && T_tgt !== null && S > 0) {
-    const moveToBreakeven = Math.abs(BE - S)
-    const moveToTarget = Math.abs(T_tgt - S)
-    const breakevenGapPct = (moveToBreakeven / S) * 100
-    const breakevenShare = moveToTarget > 0 ? moveToBreakeven / moveToTarget : null
-    const targetClearsBE = (optionType || 'call') === 'call' ? T_tgt > BE : T_tgt < BE
-    const gapLabel = `Breakeven $${BE.toFixed(2)} — a ${breakevenGapPct.toFixed(1)}% move from here`
+  const beExpiry = BE !== null && !isNaN(BE) ? BE : null
+  const beNow = (canUseBs && T_tgt !== null)
+    ? breakEvenStockAt({
+        S, K, daysToExpiry: dte, daysElapsed: daysToExit, sigma,
+        optionType: optionType || 'call', entryPremium: P_entry
+      })
+    : null
 
-    if (!targetClearsBE) {
-      beVerdict = { color: 'red', text: "Target never reaches breakeven — this contract can't profit even if your target hits.", gap: gapLabel }
-    } else if (breakevenShare !== null && breakevenShare > BREAKEVEN_THIN_EDGE_THRESHOLD) {
-      beVerdict = { color: 'amber', text: `Breakeven eats ${(breakevenShare * 100).toFixed(0)}% of your move to target — thin edge.`, gap: gapLabel }
-    } else {
-      const sharePct = breakevenShare !== null ? `${(breakevenShare * 100).toFixed(0)}%` : '—'
-      beVerdict = { color: 'green', text: `Breakeven is only ${sharePct} of the move — most of the target move is profit.`, gap: gapLabel }
+  let beVerdict = null
+  if (T_tgt !== null && S > 0) {
+    const moveToTarget = Math.abs(T_tgt - S)
+    if (beNow !== null) {
+      const moveToBE_now = Math.abs(beNow - S)
+      const moveNowPct = (moveToBE_now / S) * 100
+      const shareNow = moveToTarget > 0 ? moveToBE_now / moveToTarget : null
+      const targetClearsBE_now = (optionType || 'call') === 'call' ? T_tgt > beNow : T_tgt < beNow
+      const expiryTail = beExpiry !== null ? ` (Hold to expiry: $${beExpiry.toFixed(2)}.)` : ''
+      const gapLabel = `Profit above $${beNow.toFixed(2)} on a ${daysToExit}-day hold — a ${moveNowPct.toFixed(2)}% move.${expiryTail}`
+
+      if (!targetClearsBE_now) {
+        beVerdict = { color: 'red', text: "Target is below the profit threshold for this holding period — this contract can't profit on your plan.", gap: gapLabel }
+      } else if (shareNow !== null && shareNow > BREAKEVEN_THIN_EDGE_THRESHOLD) {
+        beVerdict = { color: 'amber', text: `Breakeven eats ${(shareNow * 100).toFixed(0)}% of your move to target — thin edge.`, gap: gapLabel }
+      } else {
+        const sharePct = shareNow !== null ? `${(shareNow * 100).toFixed(0)}%` : '—'
+        beVerdict = { color: 'green', text: `Breakeven is only ${sharePct} of the move — most of the target move is profit.`, gap: gapLabel }
+      }
+    } else if (beExpiry !== null) {
+      const moveToBreakeven = Math.abs(beExpiry - S)
+      const breakevenGapPct = (moveToBreakeven / S) * 100
+      const breakevenShare = moveToTarget > 0 ? moveToBreakeven / moveToTarget : null
+      const targetClearsBE = (optionType || 'call') === 'call' ? T_tgt > beExpiry : T_tgt < beExpiry
+      const gapLabel = `Breakeven $${beExpiry.toFixed(2)} at expiry — a ${breakevenGapPct.toFixed(1)}% move from here`
+
+      if (!targetClearsBE) {
+        beVerdict = { color: 'red', text: "Target never reaches breakeven at expiry — this contract can't profit even if your target hits.", gap: gapLabel }
+      } else if (breakevenShare !== null && breakevenShare > BREAKEVEN_THIN_EDGE_THRESHOLD) {
+        beVerdict = { color: 'amber', text: `Breakeven at expiry eats ${(breakevenShare * 100).toFixed(0)}% of your move to target — thin edge.`, gap: gapLabel }
+      } else {
+        const sharePct = breakevenShare !== null ? `${(breakevenShare * 100).toFixed(0)}%` : '—'
+        beVerdict = { color: 'green', text: `Breakeven at expiry is only ${sharePct} of the move — most of the target move is profit.`, gap: gapLabel }
+      }
     }
+  }
+
+  // Profit-threshold-by-holding-period rows
+  let beCurve = null
+  if (canUseBs) {
+    const holds = [0, 3, 5, 10, 20].filter(h => h < dte)
+    const tail = Math.max(0, Math.floor(dte) - 1)
+    if (tail > 0 && !holds.includes(tail)) holds.push(tail)
+    const rows = holds.map(h => {
+      const be = breakEvenStockAt({
+        S, K, daysToExpiry: dte, daysElapsed: h, sigma,
+        optionType: optionType || 'call', entryPremium: P_entry
+      })
+      const movePct = be !== null ? ((be - S) / S) * 100 : null
+      return { days: h, be, movePct }
+    }).filter(r => r.be !== null)
+    if (rows.length > 0) beCurve = rows
   }
 
   const isCall = (optionType || 'call') === 'call'
@@ -4239,6 +4282,39 @@ const PnLDecisionCard = ({
           <p className="font-medium mb-0.5">{beVerdict.gap}</p>
           <p>{beVerdict.text}</p>
         </div>
+      )}
+
+      {beCurve && (
+        <details className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/40">
+          <summary className="cursor-pointer select-none px-3 py-2 text-xs text-slate-300">
+            Profit threshold by holding period
+          </summary>
+          <div className="px-3 pb-3">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="text-left font-normal py-1">Hold</th>
+                  <th className="text-right font-normal py-1">Profit above</th>
+                  <th className="text-right font-normal py-1">Move</th>
+                </tr>
+              </thead>
+              <tbody>
+                {beCurve.map(r => (
+                  <tr key={r.days} className="text-slate-300 border-t border-zinc-800/60">
+                    <td className="py-1">{r.days}d</td>
+                    <td className="py-1 text-right">${r.be.toFixed(2)}</td>
+                    <td className={`py-1 text-right ${r.movePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {r.movePct >= 0 ? '+' : ''}{r.movePct.toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[10px] text-zinc-600 mt-2">
+              Assumes IV unchanged. A vol crush (e.g. post-earnings) can produce a loss even on a favourable move.
+            </p>
+          </div>
+        </details>
       )}
 
       <p className="text-xs text-zinc-700">
@@ -5617,7 +5693,7 @@ const StopMarketOrderView = ({ onBack }) => {
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 text-sm focus:border-zinc-500 focus:outline-none placeholder-slate-600" />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Breakeven Stock Price ($)</label>
+            <label className="block text-xs text-slate-400 mb-1">Breakeven at expiry ($)</label>
             <input type="number" step="0.01"
               value={breakevenStockPrice !== '' ? breakevenStockPrice : (() => { const s = parseFloat(strike); const p = parseFloat(entryPremiumOverride || quotedPremium); if (isNaN(s) || isNaN(p)) return ''; return (optionType === 'call' ? s + p : s - p).toFixed(2) })()}
               onChange={e => setBreakevenStockPrice(e.target.value)} placeholder="Auto: strike ± entry premium"
