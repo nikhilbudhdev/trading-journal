@@ -4072,6 +4072,7 @@ const calcOptionLeg = (P, d, g, targetStock, S, n) => {
 }
 
 const BREAKEVEN_THIN_EDGE_THRESHOLD = 0.5
+const STOP_PRICE_BAND = 0.15 // +/-15% band on the predicted stop option price
 
 const PnLDecisionCard = ({
   // Core inputs
@@ -4142,6 +4143,22 @@ const PnLDecisionCard = ({
   const profitAtTarget = T_tgt !== null ? computePnL(T_tgt) : null
   const lossAtStop = T_sl !== null ? computePnL(T_sl) : null
   const absLossAtStop = lossAtStop !== null ? Math.abs(lossAtStop) : null
+
+  // Predicted per-contract option price at the stop-loss stock price
+  let stopOptPrice = null
+  if (T_sl !== null) {
+    if (canUseBs) {
+      stopOptPrice = optionValueAt({
+        S: T_sl, daysElapsed: daysToExit, sigma, K, daysToExpiry: dte, optionType: optionType || 'call'
+      })
+    } else {
+      const leg = calcOptionLeg(P_entry, d, g, T_sl, S, n)
+      stopOptPrice = leg.estPrice
+    }
+    if (stopOptPrice != null) stopOptPrice = Math.max(0, stopOptPrice)
+  }
+  const stopOptLo = stopOptPrice != null ? stopOptPrice * (1 - STOP_PRICE_BAND) : null
+  const stopOptHi = stopOptPrice != null ? stopOptPrice * (1 + STOP_PRICE_BAND) : null
 
   const rr = (profitAtTarget !== null && lossAtStop !== null && lossAtStop !== 0)
     ? Math.abs(profitAtTarget / lossAtStop)
@@ -4253,6 +4270,13 @@ const PnLDecisionCard = ({
             <p className="text-lg font-bold font-mono text-red-400">
               -${absLossAtStop.toFixed(2)}
             </p>
+            {stopOptPrice != null && (
+              <div className="mt-1 text-xs text-slate-400">
+                Predicted option price at stop: <span className="text-slate-200 font-mono">${stopOptPrice.toFixed(2)}</span>
+                <span className="text-slate-500"> (±{(STOP_PRICE_BAND * 100).toFixed(0)}%: ${stopOptLo.toFixed(2)}–${stopOptHi.toFixed(2)})</span>
+                <span className="text-slate-600"> /contract, {daysToExit}-day hold</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -6506,6 +6530,176 @@ const EquityCurveView = ({ config, onBack }) => {
   )
 }
 
+const TradingCalendarView = ({ config, onBack }) => {
+  const { tables, tradeColumns } = config
+  const [trades, setTrades] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
+  const [selectedDay, setSelectedDay] = useState(null)
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true)
+      const { data } = await supabase.from(tables.trades).select('*')
+        .eq(tradeColumns.status, 'closed')
+      setTrades((data || []).filter(t => t[tradeColumns.pnl] != null && t[tradeColumns.exitDate]))
+      setLoading(false)
+    })()
+  }, [tables.trades, tradeColumns.status, tradeColumns.pnl, tradeColumns.exitDate])
+
+  const byDay = useMemo(() => {
+    const map = {} // 'YYYY-MM-DD' -> { pnl, count, trades: [] }
+    for (const t of trades) {
+      const d = new Date(t[tradeColumns.exitDate])
+      if (isNaN(d)) continue
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      if (!map[key]) map[key] = { pnl: 0, count: 0, trades: [] }
+      map[key].pnl += parseFloat(t[tradeColumns.pnl]) || 0
+      map[key].count += 1
+      map[key].trades.push(t)
+    }
+    return map
+  }, [trades, tradeColumns])
+
+  const { y, m } = cursor
+  const monthLabel = new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const firstWeekday = new Date(y, m, 1).getDay()
+  const daysInMonth = new Date(y, m + 1, 0).getDate()
+
+  const cells = []
+  for (let i = 0; i < firstWeekday; i++) cells.push(null)
+  for (let day = 1; day <= daysInMonth; day++) cells.push(day)
+
+  const monthStats = useMemo(() => {
+    let total = 0, tradingDays = 0, winDays = 0, lossDays = 0
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      const entry = byDay[key]
+      if (!entry) continue
+      total += entry.pnl
+      tradingDays += 1
+      if (entry.pnl >= 0) winDays += 1
+      else lossDays += 1
+    }
+    return { total, tradingDays, winDays, lossDays }
+  }, [byDay, y, m, daysInMonth])
+
+  const stepMonth = (delta) => {
+    setCursor(prev => {
+      let newM = prev.m + delta
+      let newY = prev.y
+      if (newM < 0) { newM = 11; newY -= 1 }
+      else if (newM > 11) { newM = 0; newY += 1 }
+      return { y: newY, m: newM }
+    })
+    setSelectedDay(null)
+  }
+
+  const goToday = () => {
+    const d = new Date()
+    setCursor({ y: d.getFullYear(), m: d.getMonth() })
+    setSelectedDay(null)
+  }
+
+  const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  const selectedEntry = selectedDay ? byDay[selectedDay] : null
+
+  return (
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={onBack} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Trading Calendar</h1>
+
+        {loading ? <p className="text-slate-400">Loading trades...</p> : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <button onClick={() => stepMonth(-1)} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-slate-300">‹</button>
+                <h2 className="text-xl font-semibold w-48 text-center">{monthLabel}</h2>
+                <button onClick={() => stepMonth(1)} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-slate-300">›</button>
+              </div>
+              <button onClick={goToday} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-xs text-slate-400">Today</button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <p className="text-xs text-slate-400 mb-1">Month P&L</p>
+                <p className={`text-xl font-bold ${monthStats.total >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {monthStats.total >= 0 ? '+' : '-'}${Math.abs(monthStats.total).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <p className="text-xs text-slate-400 mb-1">Trading Days</p>
+                <p className="text-xl font-bold text-slate-100">{monthStats.tradingDays}</p>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <p className="text-xs text-slate-400 mb-1">Win Days</p>
+                <p className="text-xl font-bold text-emerald-400">{monthStats.winDays}</p>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <p className="text-xs text-slate-400 mb-1">Loss Days</p>
+                <p className="text-xl font-bold text-red-400">{monthStats.lossDays}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {weekdayLabels.map(w => (
+                <div key={w} className="text-center text-xs text-slate-500 font-medium py-1">{w}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {cells.map((day, i) => {
+                if (day === null) return <div key={`blank-${i}`} className="aspect-square rounded-lg" />
+                const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                const entry = byDay[key]
+                const isProfit = entry && entry.pnl >= 0
+                const bg = entry ? (isProfit ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-red-950/30 border-red-800/40') : 'bg-zinc-950 border-zinc-800/60'
+                return (
+                  <button
+                    key={key}
+                    onClick={() => entry && setSelectedDay(selectedDay === key ? null : key)}
+                    className={`aspect-square rounded-lg border p-1.5 flex flex-col items-start text-left ${bg} ${entry ? 'cursor-pointer hover:border-zinc-600' : 'cursor-default'} ${selectedDay === key ? 'ring-1 ring-slate-400' : ''}`}
+                  >
+                    <span className="text-xs text-slate-500">{day}</span>
+                    {entry && (
+                      <>
+                        <span className={`text-xs font-mono font-semibold mt-auto ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isProfit ? '+' : '-'}${Math.abs(entry.pnl).toFixed(0)}
+                        </span>
+                        <span className="text-[10px] text-slate-600">{entry.count} trade{entry.count !== 1 ? 's' : ''}</span>
+                      </>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {selectedEntry && (
+              <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <p className="text-sm font-semibold text-slate-300 mb-2">{selectedDay} — {selectedEntry.count} closed trade{selectedEntry.count !== 1 ? 's' : ''}</p>
+                <div className="space-y-1">
+                  {selectedEntry.trades.map(t => {
+                    const pnl = parseFloat(t[tradeColumns.pnl]) || 0
+                    return (
+                      <div key={t[tradeColumns.id]} className="flex items-center justify-between text-xs py-1 border-t border-zinc-800/60 first:border-t-0">
+                        <span className="text-slate-300">{t[tradeColumns.instrument] || '—'}</span>
+                        <span className={`font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const FuturesPositionSizer = ({ config, onBack }) => {
   const [mode, setMode] = useState('stopFromContracts')
   const [currentBalance, setCurrentBalance] = useState(0)
@@ -7173,6 +7367,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
               ...(supportsEquityCurve ? [{ label: 'Equity Curve', view: 'equity-curve' }] : []),
               { label: 'Weekly Review', view: 'weekly-review' },
+              { label: 'Trading Calendar', view: 'trading-calendar' },
               { label: 'Daily Journal', view: 'daily-journal' },
             ].map(({ label, view, primary }) => (
               <button key={view} onClick={() => setCurrentView(view)}
@@ -7266,6 +7461,7 @@ const TradingEnvironment = ({ config, onBack }) => {
   if (currentView === 'options-tools' && supportsGreeksCalculator) return <OptionsToolsView onBack={() => setCurrentView('menu')} />
   if (currentView === 'forex-tools' && supportsForexTools) return <ForexToolsView config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'weekly-review') return <WeeklyReviewView config={config} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'trading-calendar') return <TradingCalendarView config={config} onBack={() => setCurrentView('menu')} />
   if (currentView === 'daily-journal') return <DailyJournalView onBack={() => setCurrentView('menu')} />
   return null
 }
