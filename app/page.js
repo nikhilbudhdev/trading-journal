@@ -1978,6 +1978,136 @@ const ManageTagsView = ({ setCurrentView }) => {
   )
 }
 
+const ManageAccountsView = ({ setCurrentView, config }) => {
+  const [accounts, setAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [newLabel, setNewLabel] = useState('')
+  const [message, setMessage] = useState('')
+
+  const loadAccounts = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('trading_accounts').select('*')
+      .eq('workspace', config.key).order('sort_order', { ascending: true })
+    setAccounts(data || [])
+    setLoading(false)
+  }
+  useEffect(() => { loadAccounts() }, [config.key])
+
+  const slugify = (label) => label.trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    const label = newLabel.trim()
+    if (!label) return
+    const base = slugify(label)
+    let value = base
+    const existingValues = new Set(accounts.map(a => a.value))
+    let suffix = 2
+    while (existingValues.has(value)) { value = `${base}-${suffix++}` }
+
+    const maxSort = accounts.reduce((m, a) => Math.max(m, a.sort_order || 0), -1)
+    const { error } = await supabase.from('trading_accounts').insert([{
+      workspace: config.key, value, label, sort_order: maxSort + 1
+    }])
+    if (error) { setMessage(`Error: ${error.message}`); return }
+    setNewLabel('')
+    setMessage(`Added "${label}."`)
+    loadAccounts()
+  }
+
+  const handleDelete = async (account) => {
+    const [{ count: tradeCount }, { count: balanceCount }] = await Promise.all([
+      supabase.from(config.tables.trades).select('*', { count: 'exact', head: true })
+        .eq(config.tradeColumns.account, account.value),
+      supabase.from(config.tables.balance).select('*', { count: 'exact', head: true })
+        .eq(config.balanceColumns.currency, account.value),
+    ])
+    const inUse = (tradeCount || 0) + (balanceCount || 0) > 0
+
+    if (inUse) {
+      const archive = window.confirm(
+        `"${account.label}" has ${tradeCount || 0} trade(s) and ${balanceCount || 0} balance ` +
+        `record(s). It can't be deleted without losing that history. Archive it instead? ` +
+        `Archived accounts stop appearing in new-trade and balance dropdowns, but past ` +
+        `records keep showing "${account.label}."`
+      )
+      if (!archive) return
+      const { error } = await supabase.from('trading_accounts')
+        .update({ archived: true }).eq('id', account.id)
+      if (error) { setMessage(`Error: ${error.message}`); return }
+      setMessage(`Archived "${account.label}."`)
+      loadAccounts()
+      return
+    }
+
+    if (!window.confirm(`Delete "${account.label}"? This account has no trades or balance history, so this is permanent.`)) return
+    const { error } = await supabase.from('trading_accounts').delete().eq('id', account.id)
+    if (error) { setMessage(`Error: ${error.message}`); return }
+    setMessage(`Deleted "${account.label}."`)
+    loadAccounts()
+  }
+
+  const handleUnarchive = async (account) => {
+    const { error } = await supabase.from('trading_accounts')
+      .update({ archived: false }).eq('id', account.id)
+    if (error) { setMessage(`Error: ${error.message}`); return }
+    loadAccounts()
+  }
+
+  const activeAccounts = accounts.filter(a => !a.archived)
+  const archivedAccounts = accounts.filter(a => a.archived)
+
+  return (
+    <div className="min-h-screen bg-black text-slate-100 p-8">
+      <button onClick={() => setCurrentView('menu')} className="mb-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 transition-colors">← Back to Menu</button>
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Manage Accounts</h1>
+        {message && <div className={`p-4 rounded-lg mb-6 border ${message.includes('Error') ? 'bg-red-900/20 text-red-300 border-red-800' : 'bg-emerald-900/20 text-emerald-300 border-emerald-800'}`}>{message}</div>}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold mb-4">Add New Account</h2>
+          <form onSubmit={handleAdd} className="flex gap-3 items-end">
+            <div className="flex-1">
+              <InputField label="Account Label" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Margin" required />
+            </div>
+            <button type="submit" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors">Add</button>
+          </form>
+        </div>
+        {loading ? <p className="text-slate-400">Loading accounts...</p> : (
+          <>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-semibold mb-4">Active Accounts ({activeAccounts.length})</h2>
+              {activeAccounts.length === 0 ? <p className="text-slate-400">No active accounts.</p> : (
+                <div className="space-y-2">
+                  {activeAccounts.map(account => (
+                    <div key={account.id} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
+                      <span className="text-slate-200">{account.label}</span>
+                      <button onClick={() => handleDelete(account)} className="text-slate-500 hover:text-red-400 transition-colors text-sm">Delete</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {archivedAccounts.length > 0 && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+                <h2 className="text-lg font-semibold mb-4 text-slate-400">Archived ({archivedAccounts.length})</h2>
+                <div className="space-y-2">
+                  {archivedAccounts.map(account => (
+                    <div key={account.id} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+                      <span className="text-slate-500">{account.label}</span>
+                      <button onClick={() => handleUnarchive(account)} className="text-slate-500 hover:text-emerald-400 transition-colors text-sm">Unarchive</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const TagPicker = ({ tradeId, tagLinksTable }) => {
   const [allTags, setAllTags] = useState([])
   const [linkedTagIds, setLinkedTagIds] = useState(new Set())
@@ -7288,6 +7418,8 @@ const TradingEnvironment = ({ config, onBack }) => {
   const supportsPartialExits = Boolean(config.tables?.partialExits)
   const supportsTagLinks = Boolean(config.tables?.tagLinks)
   const supportsEquityCurve = Boolean(config.tables?.balance)
+  const [accountsList, setAccountsList] = useState(config.accounts || [])
+  const liveConfig = useMemo(() => ({ ...config, accounts: accountsList }), [config, accountsList])
 
   useEffect(() => {
     setCurrentView('menu')
@@ -7295,7 +7427,25 @@ const TradingEnvironment = ({ config, onBack }) => {
     setIsSubmitting(false)
     setFormData({ ...config.formDefaults })
     setDashStats(null)
+    setAccountsList(config.accounts || [])
   }, [config])
+
+  useEffect(() => {
+    if (!config.key || currentView !== 'menu') return
+    let cancelled = false
+    supabase.from('trading_accounts')
+      .select('*')
+      .eq('workspace', config.key)
+      .eq('archived', false)
+      .order('sort_order', { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return
+        if (data && data.length > 0) {
+          setAccountsList(data.map(r => ({ value: r.value, label: r.label })))
+        }
+      })
+    return () => { cancelled = true }
+  }, [config.key, currentView])
 
   useEffect(() => {
     if (currentView !== 'menu') return
@@ -7351,7 +7501,7 @@ const TradingEnvironment = ({ config, onBack }) => {
             </div>
           )}
 
-          {config.checklist?.tables?.attempts && <ChecklistAnalyticsCard config={config} />}
+          {config.checklist?.tables?.attempts && <ChecklistAnalyticsCard config={liveConfig} />}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {[
@@ -7366,6 +7516,7 @@ const TradingEnvironment = ({ config, onBack }) => {
               ...(supportsMissedTrades ? [{ label: 'Missed Trades', view: 'missed-trades' }] : []),
               ...(supportsTradingPlan ? [{ label: config.labels.tradingPlanButton, view: 'trading-plan' }] : []),
               ...(supportsEquityCurve ? [{ label: 'Equity Curve', view: 'equity-curve' }] : []),
+              ...(config.balanceColumns?.currency ? [{ label: 'Manage Accounts', view: 'manage-accounts' }] : []),
               { label: 'Weekly Review', view: 'weekly-review' },
               { label: 'Trading Calendar', view: 'trading-calendar' },
               { label: 'Daily Journal', view: 'daily-journal' },
@@ -7391,7 +7542,7 @@ const TradingEnvironment = ({ config, onBack }) => {
         setIsSubmitting={setIsSubmitting}
         message={message}
         setMessage={setMessage}
-        config={config}
+        config={liveConfig}
         onTradeLogged={pendingStopOrderId ? async () => {
           await supabase.from('stop_market_orders')
             .update({ status: 'executed', executed_at: new Date().toISOString() })
@@ -7443,25 +7594,26 @@ const TradingEnvironment = ({ config, onBack }) => {
         message={message}
         isSubmitting={isSubmitting}
         setIsSubmitting={setIsSubmitting}
-        config={config}
+        config={liveConfig}
       />
     )
   }
 
-  if (currentView === 'edit-trade') return <EditTradeView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'partial-exit' && supportsPartialExits) return <PartialExitView setCurrentView={setCurrentView} config={config} />
+  if (currentView === 'edit-trade') return <EditTradeView setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'partial-exit' && supportsPartialExits) return <PartialExitView setCurrentView={setCurrentView} config={liveConfig} />
   if (currentView === 'manage-tags' && supportsTagLinks) return <ManageTagsView setCurrentView={setCurrentView} />
-  if (currentView === 'equity-curve' && supportsEquityCurve) return <EquityCurveView config={config} onBack={() => setCurrentView('menu')} />
-  if (currentView === 'view-data') return <ViewHistoricalData setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-trades' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-trade' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'missed-data' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={config} />
-  if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={config} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'manage-accounts' && config.balanceColumns?.currency) return <ManageAccountsView setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'equity-curve' && supportsEquityCurve) return <EquityCurveView config={liveConfig} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'view-data') return <ViewHistoricalData setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'missed-trades' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'missed-trade' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'missed-data' && supportsMissedTrades) return <MissedTradesView setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'trading-plan' && supportsTradingPlan) return <TradingPlanView setCurrentView={setCurrentView} config={liveConfig} />
+  if (currentView === 'position-sizer' && supportsPositionSizer) return <FuturesPositionSizer config={liveConfig} onBack={() => setCurrentView('menu')} />
   if (currentView === 'options-tools' && supportsGreeksCalculator) return <OptionsToolsView onBack={() => setCurrentView('menu')} />
-  if (currentView === 'forex-tools' && supportsForexTools) return <ForexToolsView config={config} onBack={() => setCurrentView('menu')} />
-  if (currentView === 'weekly-review') return <WeeklyReviewView config={config} onBack={() => setCurrentView('menu')} />
-  if (currentView === 'trading-calendar') return <TradingCalendarView config={config} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'forex-tools' && supportsForexTools) return <ForexToolsView config={liveConfig} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'weekly-review') return <WeeklyReviewView config={liveConfig} onBack={() => setCurrentView('menu')} />
+  if (currentView === 'trading-calendar') return <TradingCalendarView config={liveConfig} onBack={() => setCurrentView('menu')} />
   if (currentView === 'daily-journal') return <DailyJournalView onBack={() => setCurrentView('menu')} />
   return null
 }
