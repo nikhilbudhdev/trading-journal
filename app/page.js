@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { solveIV, optionValueAt, forecastEntryPremium as bsForecastPremium, breakEvenStockAt } from '../lib/blackScholes'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
+import { buildExportRows, toCsv, downloadCsv, formatDateLocal } from '../lib/exportTrades'
 
 const MenuButton = ({ onClick, children, className = '' }) => (
   <button
@@ -845,6 +846,9 @@ const MODE_CONFIG = {
       quotedPremium: 'quoted_premium',
       entryTriggerStockPrice: 'entry_trigger_stock_price',
       assumedDaysToEntry: 'assumed_days_to_entry',
+      exitPrice: 'exit_price',
+      fees: 'fees',
+      riskAtEntry: 'risk_at_entry',
     },
     balanceColumns: {
       id: 'id',
@@ -973,6 +977,7 @@ const MODE_CONFIG = {
       notes: '',
       account: 'non-registered',
       playType: '',
+      riskAtEntry: '',
     },
     riskFraction: 0.005,
     stopSizeStep: null,
@@ -1358,6 +1363,8 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   const exitUrlColumn = tradeColumns.exitUrl
   const exitDateColumn = tradeColumns.exitDate
   const pnlColumn = tradeColumns.pnl
+  const exitPriceColumn = tradeColumns.exitPrice
+  const feesColumn = tradeColumns.fees
   const balanceCreatedAt = balanceColumns.createdAt
   const balanceValueColumn = balanceColumns.balance
   const changeAmountColumn = balanceColumns.changeAmount
@@ -1365,11 +1372,47 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
   const currencyColumn = balanceColumns.currency
   const accountField = tradeColumns.account
   const hasMultipleAccounts = accounts.length > 0 && currencyColumn
+  const partialExitsTable = tables.partialExits
 
   const [openTrades, setOpenTrades] = useState([])
   const [selectedTrade, setSelectedTrade] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [updateData, setUpdateData] = useState({ exitUrl: '', pnl: '', notes: '' })
+  const [updateData, setUpdateData] = useState({ exitUrl: '', pnl: '', notes: '', exitPrice: '', fees: '' })
+  const [pnlTouched, setPnlTouched] = useState(false)
+  const [selectedTradePartials, setSelectedTradePartials] = useState([])
+
+  const handleSelectTrade = (trade) => {
+    setSelectedTrade(trade)
+    setUpdateData({ exitUrl: '', pnl: '', notes: '', exitPrice: '', fees: '' })
+    setPnlTouched(false)
+    setSelectedTradePartials([])
+    if (partialExitsTable) {
+      supabase.from(partialExitsTable).select('*').eq('trade_id', trade[tradeColumns.id]).then(({ data }) => {
+        setSelectedTradePartials(data || [])
+      })
+    }
+  }
+
+  const handleExitPriceChange = (value) => {
+    setUpdateData(prev => {
+      const next = { ...prev, exitPrice: value }
+      if (!pnlTouched && selectedTrade && exitPriceColumn) {
+        const exitVal = parseFloat(value)
+        const entryVal = parseFloat(selectedTrade[tradeColumns.premium] ?? 0)
+        const totalContracts = parseFloat(selectedTrade[tradeColumns.contracts] ?? 0)
+        const exitedContracts = selectedTradePartials.reduce((sum, p) => sum + (parseFloat(p.contracts_exited) || 0), 0)
+        const remainingContracts = totalContracts - exitedContracts
+        if (!isNaN(exitVal) && !isNaN(entryVal) && remainingContracts > 0) {
+          const isShort = selectedTrade[tradeColumns.direction] === 'short'
+          const suggested = isShort
+            ? (entryVal - exitVal) * remainingContracts * 100
+            : (exitVal - entryVal) * remainingContracts * 100
+          next.pnl = suggested.toFixed(2)
+        }
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     const loadOpenTrades = async () => {
@@ -1400,15 +1443,19 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
     try {
       const pnlAmount = updateData.pnl ? parseFloat(updateData.pnl) : 0
 
+      const updatePayload = {
+        [exitDateColumn]: new Date().toISOString(),
+        [exitUrlColumn]: updateData.exitUrl || null,
+        [pnlColumn]: pnlAmount,
+        [notesColumn]: updateData.notes || selectedTrade[notesColumn] || null,
+        [statusColumn]: 'closed'
+      }
+      if (exitPriceColumn) updatePayload[exitPriceColumn] = updateData.exitPrice === '' ? null : parseFloat(updateData.exitPrice)
+      if (feesColumn) updatePayload[feesColumn] = updateData.fees === '' ? null : parseFloat(updateData.fees)
+
       const { error } = await supabase
         .from(tradesTable)
-        .update({
-          [exitDateColumn]: new Date().toISOString(),
-          [exitUrlColumn]: updateData.exitUrl || null,
-          [pnlColumn]: pnlAmount,
-          [notesColumn]: updateData.notes || selectedTrade[notesColumn] || null,
-          [statusColumn]: 'closed'
-        })
+        .update(updatePayload)
         .eq(tradeColumns.id, selectedTrade[tradeColumns.id])
 
       if (error) throw error
@@ -1462,7 +1509,8 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
       localStorage.setItem(reminderKey, String(Date.now() + 7 * 24 * 60 * 60 * 1000))
       setMessage('Trade updated successfully! Balance automatically adjusted.')
       setSelectedTrade(null)
-      setUpdateData({ exitUrl: '', pnl: '', notes: '' })
+      setUpdateData({ exitUrl: '', pnl: '', notes: '', exitPrice: '', fees: '' })
+      setPnlTouched(false)
 
       const { data: updatedTrades } = await supabase
         .from(tradesTable)
@@ -1521,7 +1569,7 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                   <div
                     key={trade[tradeColumns.id]}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTrade?.[tradeColumns.id] === trade[tradeColumns.id] ? 'border-emerald-500 bg-emerald-900/20' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900'}`}
-                    onClick={() => setSelectedTrade(trade)}
+                    onClick={() => handleSelectTrade(trade)}
                   >
                     <div className="flex justify-between items-start gap-4">
                       <div className="space-y-1">
@@ -1558,12 +1606,32 @@ const UpdateTradeView = ({ setCurrentView, setMessage, message, isSubmitting, se
                     onChange={(e) => setUpdateData(prev => ({ ...prev, exitUrl: e.target.value }))}
                     placeholder="https://tradingview.com/chart/..."
                   />
+                  {exitPriceColumn && (
+                    <InputField
+                      label="Exit Price (per contract)"
+                      type="number"
+                      step="0.01"
+                      value={updateData.exitPrice}
+                      onChange={(e) => handleExitPriceChange(e.target.value)}
+                      placeholder="e.g., 1.20"
+                    />
+                  )}
+                  {feesColumn && (
+                    <InputField
+                      label="Fees ($)"
+                      type="number"
+                      step="0.01"
+                      value={updateData.fees}
+                      onChange={(e) => setUpdateData(prev => ({ ...prev, fees: e.target.value }))}
+                      placeholder="Total commissions for this trade"
+                    />
+                  )}
                   <InputField
                     label={config.labels.pnlLabel}
                     type="number"
                     step="0.01"
                     value={updateData.pnl}
-                    onChange={(e) => setUpdateData(prev => ({ ...prev, pnl: e.target.value }))}
+                    onChange={(e) => { setPnlTouched(true); setUpdateData(prev => ({ ...prev, pnl: e.target.value })) }}
                     placeholder="e.g., 150.00 or -75.50"
                     required
                   />
@@ -1666,6 +1734,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
     if (tradeColumns.entryUrl) data.entryUrl = trade[tradeColumns.entryUrl] || ''
     if (tradeColumns.notes) data.notes = trade[tradeColumns.notes] || ''
     if (tradeColumns.entryDate) data.entryDate = trade[entryDateColumn] ? trade[entryDateColumn].split('T')[0] : ''
+    if (tradeColumns.exitPrice) data.exitPrice = trade[tradeColumns.exitPrice] ?? ''
+    if (tradeColumns.fees) data.fees = trade[tradeColumns.fees] ?? ''
+    if (tradeColumns.riskAtEntry) data.riskAtEntry = trade[tradeColumns.riskAtEntry] ?? ''
     setEditData(data)
     setMessage('')
   }
@@ -1702,6 +1773,9 @@ const EditTradeView = ({ setCurrentView, config }) => {
       set(tradeColumns.entryUrl, editData.entryUrl || null)
       set(tradeColumns.notes, editData.notes || null)
       if (tradeColumns.entryDate && editData.entryDate) set(tradeColumns.entryDate, editData.entryDate)
+      set(tradeColumns.exitPrice, editData.exitPrice === '' ? null : (editData.exitPrice != null ? parseFloat(editData.exitPrice) : null))
+      set(tradeColumns.fees, editData.fees === '' ? null : (editData.fees != null ? parseFloat(editData.fees) : null))
+      set(tradeColumns.riskAtEntry, editData.riskAtEntry === '' ? null : (editData.riskAtEntry != null ? parseFloat(editData.riskAtEntry) : null))
 
       const { error } = await supabase.from(tradesTable).update(payload).eq(idColumn, selectedTrade[idColumn])
       if (error) throw error
@@ -1881,6 +1955,15 @@ const EditTradeView = ({ setCurrentView, config }) => {
                       <label className="block text-sm font-medium mb-2 text-slate-300">{labels.notesLabel || 'Notes'}</label>
                       <textarea value={editData.notes || ''} onChange={(e) => setEditData(p => ({ ...p, notes: e.target.value }))} rows="3" className="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder-slate-400" />
                     </div>
+                  )}
+                  {tradeColumns.exitPrice && (
+                    <InputField label="Exit Price (per contract)" type="number" step="0.01" value={editData.exitPrice ?? ''} onChange={(e) => setEditData(p => ({ ...p, exitPrice: e.target.value }))} />
+                  )}
+                  {tradeColumns.fees && (
+                    <InputField label="Fees ($)" type="number" step="0.01" value={editData.fees ?? ''} onChange={(e) => setEditData(p => ({ ...p, fees: e.target.value }))} />
+                  )}
+                  {tradeColumns.riskAtEntry && (
+                    <InputField label="Risk at Entry ($)" type="number" step="0.01" value={editData.riskAtEntry ?? ''} onChange={(e) => setEditData(p => ({ ...p, riskAtEntry: e.target.value }))} />
                   )}
                   <div className="flex gap-3 pt-2">
                     <button type="button" onClick={() => { setSelectedTrade(null); setEditData({}) }} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-800 text-white rounded-lg transition-colors">Cancel</button>
@@ -2167,7 +2250,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedTrade, setSelectedTrade] = useState(null)
   const [partialExits, setPartialExits] = useState([])
-  const [formData, setFormData] = useState({ contractsExited: '', exitValue: '', notes: '', exitUrl: '' })
+  const [formData, setFormData] = useState({ contractsExited: '', exitValue: '', notes: '', exitUrl: '', fees: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -2197,7 +2280,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
 
   const handleSelectTrade = (trade) => {
     setSelectedTrade(trade)
-    setFormData({ contractsExited: '', exitValue: '', notes: '', exitUrl: '' })
+    setFormData({ contractsExited: '', exitValue: '', notes: '', exitUrl: '', fees: '' })
     setMessage('')
     loadPartialExits(trade[idColumn])
   }
@@ -2228,7 +2311,8 @@ const PartialExitView = ({ setCurrentView, config }) => {
         [isOptions ? 'exit_premium' : 'exit_price']: exitVal,
         pnl,
         notes: formData.notes || null,
-        exit_url: formData.exitUrl || null
+        exit_url: formData.exitUrl || null,
+        fees: formData.fees === '' ? null : parseFloat(formData.fees)
       }
       const { error } = await supabase.from(partialExitsTable).insert([payload])
       if (error) throw error
@@ -2243,7 +2327,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
       }])
 
       setMessage(`Partial exit logged! P&L: $${pnl.toFixed(2)}`)
-      setFormData({ contractsExited: '', exitValue: '', notes: '', exitUrl: '' })
+      setFormData({ contractsExited: '', exitValue: '', notes: '', exitUrl: '', fees: '' })
       loadPartialExits(selectedTrade[idColumn])
     } catch (err) {
       setMessage(`Error: ${err.message}`)
@@ -2293,6 +2377,7 @@ const PartialExitView = ({ setCurrentView, config }) => {
                     <InputField label="Contracts Exited" type="number" step="1" value={formData.contractsExited} onChange={e => setFormData(p => ({ ...p, contractsExited: e.target.value }))} placeholder="e.g. 2" required />
                     <InputField label={isOptions ? 'Exit Premium ($ per contract)' : 'Exit Price'} type="number" step="0.01" value={formData.exitValue} onChange={e => setFormData(p => ({ ...p, exitValue: e.target.value }))} placeholder={isOptions ? 'e.g. 4.50' : 'e.g. 4510.00'} required />
                     <InputField label="Exit URL (Optional)" type="url" value={formData.exitUrl} onChange={e => setFormData(p => ({ ...p, exitUrl: e.target.value }))} placeholder="https://tradingview.com/chart/..." />
+                    <InputField label="Fees ($)" type="number" step="0.01" value={formData.fees} onChange={e => setFormData(p => ({ ...p, fees: e.target.value }))} placeholder="Optional" />
                     <div>
                       <label className="block text-sm font-medium mb-2 text-slate-300">Notes (Optional)</label>
                       <textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} rows="2" className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-slate-100 focus:border-emerald-500 focus:outline-none placeholder-slate-400" />
@@ -2526,6 +2611,9 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   const [journalSaving, setJournalSaving] = useState(false)
   const [journalMessage, setJournalMessage] = useState('')
   const [journalReminders, setJournalReminders] = useState([])
+  const [exportError, setExportError] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const supportsExport = Boolean(tables.partialExits && tradeColumns.optionType)
   const checklistLogColumns = checklist.logColumns || DEFAULT_CHECKLIST_LOG_COLUMNS
   const checklistTables = checklist.tables || {}
   const checklistWorkspaceValue = checklist.workspaceValue || config.key
@@ -2683,6 +2771,33 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
     return result
   })()
 
+  const handleExportCsv = async () => {
+    if (!supportsExport || displayedTrades.length === 0) return
+    setExporting(true)
+    setExportError('')
+    try {
+      const tradeIds = displayedTrades.map(t => t[tradeColumns.id])
+      const partialsByTradeId = {}
+      for (let i = 0; i < tradeIds.length; i += 200) {
+        const chunk = tradeIds.slice(i, i + 200)
+        const { data, error } = await supabase.from(tables.partialExits).select('*').in('trade_id', chunk)
+        if (error) throw error
+        for (const row of (data || [])) {
+          if (!partialsByTradeId[row.trade_id]) partialsByTradeId[row.trade_id] = []
+          partialsByTradeId[row.trade_id].push(row)
+        }
+      }
+      const rows = buildExportRows(displayedTrades, partialsByTradeId, tradeColumns)
+      const csv = toCsv(rows)
+      const dateSuffix = formatDateLocal(new Date().toISOString())
+      const accountSuffix = filterAccount ? `_${filterAccount}` : ''
+      downloadCsv(`options-trades_${dateSuffix}${accountSuffix}.csv`, csv)
+    } catch (err) {
+      setExportError(`Export failed: ${err.message}`)
+    }
+    setExporting(false)
+  }
+
   const totalPnL = trades.filter(t => t[pnlColumn] !== null && t[pnlColumn] !== undefined).reduce((sum, t) => sum + (parseFloat(t[pnlColumn]) || 0), 0)
   const totalPnLPercent = currentBalance > 0 ? (totalPnL / currentBalance) * 100 : 0
   const winningTrades = trades.filter(t => (parseFloat(t[pnlColumn]) || 0) > 0).length
@@ -2763,6 +2878,12 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                 <button onClick={() => setFilter('all')} className={`px-3 py-1 rounded border text-sm ${filter === 'all' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-zinc-600'}`}>All</button>
                 <button onClick={() => setFilter('open')} className={`px-3 py-1 rounded border text-sm ${filter === 'open' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-zinc-600'}`}>Open</button>
                 <button onClick={() => setFilter('closed')} className={`px-3 py-1 rounded border text-sm ${filter === 'closed' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-zinc-600'}`}>Closed</button>
+                {supportsExport && (
+                  <button onClick={handleExportCsv} disabled={exporting || displayedTrades.length === 0}
+                    className={`px-3 py-1 rounded border text-sm ${exporting || displayedTrades.length === 0 ? 'bg-zinc-800 text-slate-500 border-zinc-700 cursor-not-allowed' : 'bg-zinc-800 text-slate-300 border-zinc-700 hover:border-slate-500'}`}>
+                    {exporting ? 'Exporting...' : `Export CSV (${displayedTrades.length})`}
+                  </button>
+                )}
                 <div className="flex items-center gap-2 ml-auto">
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-slate-300 text-sm focus:outline-none focus:border-slate-500" />
                   <span className="text-slate-500 text-sm">to</span>
@@ -2810,6 +2931,9 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
                 )}
               </div>
             </div>
+            {exportError && (
+              <div className="p-3 rounded-lg mb-4 bg-red-900/20 text-red-300 border border-red-800 text-sm">{exportError}</div>
+            )}
             {loading ? (
               <p className="text-slate-400">Loading trades...</p>
             ) : trades.length === 0 ? (
@@ -3282,6 +3406,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const [checklistComplete, setChecklistComplete] = useState(false)
   const [checklistSnapshot, setChecklistSnapshot] = useState(null)
   const [pasteFormState, setPasteFormState] = useState('idle')
+  const [riskAtEntryTouched, setRiskAtEntryTouched] = useState(false)
   const [reviewPending, setReviewPending] = useState(null)
   const [duplicateAccounts, setDuplicateAccounts] = useState([])
 
@@ -3407,6 +3532,16 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const handleRiskAtEntryChange = (value) => {
+    setRiskAtEntryTouched(true)
+    setFormData(prev => ({ ...prev, riskAtEntry: value }))
+  }
+
+  const handleLossAtStop = useCallback((absLoss) => {
+    if (riskAtEntryTouched || absLoss === null) return
+    setFormData(prev => ({ ...prev, riskAtEntry: String(absLoss) }))
+  }, [riskAtEntryTouched, setFormData])
+
   const logChecklistAttempt = useCallback(async ({ status, snapshot, failureReason }) => {
     if (!checklistTables.attempts) return
     const payload = {}
@@ -3502,6 +3637,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.pattern, formData.pattern || null)
       assignValue(tradeColumns.notes, formData.notes || null)
       assignValue(tradeColumns.playType, formData.playType || null)
+      assignValue(tradeColumns.riskAtEntry, formData.riskAtEntry === '' ? null : parseFloat(formData.riskAtEntry))
       assignValue(tradeColumns.status, 'open')
       assignValue(accountField, formData.account || accounts[0]?.value || null)
 
@@ -4012,6 +4148,18 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
               accountSize={currentBalance}
               optionType={formData.optionType}
               direction={formData.direction}
+              onLossAtStop={handleLossAtStop}
+            />
+          )}
+
+          {tradeColumns.riskAtEntry && (
+            <InputField
+              label="Risk at Entry ($)"
+              type="number"
+              step="0.01"
+              value={formData.riskAtEntry}
+              onChange={(e) => handleRiskAtEntryChange(e.target.value)}
+              placeholder="Dollars you're willing to lose"
             />
           )}
 
@@ -4214,6 +4362,7 @@ const PnLDecisionCard = ({
   strike, daysToExpiry,
   entryOrderType, entryTriggerStockPrice,
   assumedDaysToEntry, assumedDaysToStop,
+  onLossAtStop,
 }) => {
   const d = parseFloat(delta)
   const g = parseFloat(gamma)
@@ -4228,7 +4377,6 @@ const PnLDecisionCard = ({
   const hasBase = ![d, g, n, S].some(isNaN) && n > 0 && P_entry > 0
   const hasTarget = targetStock !== '' && targetStock !== undefined && targetStock !== null && !isNaN(parseFloat(targetStock))
   const hasStop = stopStock !== '' && stopStock !== undefined && stopStock !== null && !isNaN(parseFloat(stopStock))
-  if (!hasBase || (!hasTarget && !hasStop)) return null
 
   const T_tgt = hasTarget ? parseFloat(targetStock) : null
   const T_sl = hasStop ? parseFloat(stopStock) : null
@@ -4247,18 +4395,6 @@ const PnLDecisionCard = ({
   }
   const canUseBs = sigma !== null && sigma > 0
 
-  // Guard: timeline must not exceed expiry
-  if (canUseBs && daysToExit >= dte) {
-    return (
-      <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4">
-        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">P&L Decision</p>
-        <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-400 text-xs">
-          Assumed timeline ({daysToExit} days) runs past expiry ({dte} days). Shorten days to entry / stop or check the expiry date.
-        </div>
-      </div>
-    )
-  }
-
   // Compute P&L at a given underlying stock price
   const computePnL = (targetS) => {
     if (canUseBs) {
@@ -4270,9 +4406,28 @@ const PnLDecisionCard = ({
     return calcOptionLeg(P_entry, d, g, targetS, S, n).totalDollar
   }
 
-  const profitAtTarget = T_tgt !== null ? computePnL(T_tgt) : null
-  const lossAtStop = T_sl !== null ? computePnL(T_sl) : null
+  const profitAtTarget = (hasBase && T_tgt !== null) ? computePnL(T_tgt) : null
+  const lossAtStop = (hasBase && T_sl !== null) ? computePnL(T_sl) : null
   const absLossAtStop = lossAtStop !== null ? Math.abs(lossAtStop) : null
+  const roundedAbsLossAtStop = absLossAtStop !== null && !isNaN(absLossAtStop) ? Math.round(absLossAtStop * 100) / 100 : null
+
+  useEffect(() => {
+    if (onLossAtStop) onLossAtStop(roundedAbsLossAtStop)
+  }, [roundedAbsLossAtStop, onLossAtStop])
+
+  if (!hasBase || (!hasTarget && !hasStop)) return null
+
+  // Guard: timeline must not exceed expiry
+  if (canUseBs && daysToExit >= dte) {
+    return (
+      <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">P&L Decision</p>
+        <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-400 text-xs">
+          Assumed timeline ({daysToExit} days) runs past expiry ({dte} days). Shorten days to entry / stop or check the expiry date.
+        </div>
+      </div>
+    )
+  }
 
   // Predicted per-contract option price at the stop-loss stock price
   let stopOptPrice = null
@@ -7579,6 +7734,7 @@ const TradingEnvironment = ({ config, onBack }) => {
           entryUrl: '',
           forecastUrl: '',
           notes: order.notes || '',
+          riskAtEntry: order.max_risk != null ? String(order.max_risk) : '',
         })
         setPendingStopOrderId(order.id)
         setCurrentView('new-trade')
