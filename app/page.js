@@ -5296,65 +5296,6 @@ const OptionsAnalyzerTab = ({ isInline = false }) => {
 }
 
 
-const TrailingStopBanner = ({ onGoToStops }) => {
-  const [alerts, setAlerts] = useState([])
-  const [dismissed, setDismissed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('trailing_dismissed') || '{}') } catch { return {} }
-  })
-
-  useEffect(() => {
-    supabase
-      .from('options_trades')
-      .select('id, ticker, trailing_stop_price, trailing_stop_set_date, contracts')
-      .eq('status', 'open')
-      .not('trailing_stop_price', 'is', null)
-      .then(({ data }) => { if (data) setAlerts(data) })
-  }, [])
-
-  const today = new Date().toISOString().split('T')[0]
-
-  const dismiss = (id) => {
-    const key = `${id}_${today}`
-    const next = { ...dismissed, [key]: true }
-    setDismissed(next)
-    localStorage.setItem('trailing_dismissed', JSON.stringify(next))
-  }
-
-  const expired = alerts.filter(a => {
-    if (!a.trailing_stop_set_date) return false
-    const setDate = a.trailing_stop_set_date.split('T')[0]
-    return setDate < today && !dismissed[`${a.id}_${today}`]
-  })
-
-  if (expired.length === 0) return null
-
-  return (
-    <div className="mb-6 space-y-2">
-      {expired.map(a => (
-        <div key={a.id} className="flex items-start justify-between gap-4 p-4 bg-amber-900/20 border border-amber-700/40 rounded-xl">
-          <div>
-            <p className="text-sm font-semibold text-amber-400">
-              Trailing Stop Expired — {a.ticker}
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Your trailing stop at <span className="text-white font-mono">${a.trailing_stop_price}</span> from {a.trailing_stop_set_date} has expired.
-              Re-enter it in your broker, or close the trade if your stop was hit.
-            </p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button onClick={() => { dismiss(a.id); onGoToStops?.() }}
-              className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded font-medium transition-colors whitespace-nowrap">
-              Re-enter Stop
-            </button>
-            <button onClick={() => dismiss(a.id)}
-              className="px-2 py-1.5 text-xs text-slate-400 hover:text-white transition-colors">&#x2715;</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 const TrailingStopsTab = () => {
   const [openTrades, setOpenTrades] = useState([])
   const [selectedImport, setSelectedImport] = useState('')
@@ -5411,7 +5352,7 @@ const TrailingStopsTab = () => {
       .from('options_trades')
       .update({ trailing_stop_price: stopSP, trailing_stop_set_date: today })
       .eq('id', selectedImport)
-    setLogMsg(error ? `Error: ${error.message}` : `Trailing stop at $${stopSP.toFixed(2)} logged for today.`)
+    setLogMsg(error ? `Error: ${error.message}` : `Trailing stop at $${stopSP.toFixed(2)} logged.`)
     setTimeout(() => setLogMsg(''), 4000)
   }
 
@@ -7655,10 +7596,6 @@ const TradingEnvironment = ({ config, onBack }) => {
         </div>
 
         <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-          {supportsGreeksCalculator && (
-            <TrailingStopBanner onGoToStops={() => setCurrentView('options-tools')} />
-          )}
-
           {dashStats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {statCards.map(({ label, value, color }) => (
