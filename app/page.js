@@ -783,6 +783,12 @@ const ChecklistAnalyticsCard = ({ config }) => {
   )
 }
 
+const resolveDefaultAccount = (config, accounts = config.accounts || []) => {
+  const wanted = config.defaultAccount
+  if (wanted && accounts.some(a => a.value === wanted)) return wanted
+  return accounts[0]?.value || ''
+}
+
 const MODE_CONFIG = {
   options: {
     key: 'options',
@@ -801,6 +807,7 @@ const MODE_CONFIG = {
       { value: 'tfsa', label: 'TFSA (Alpha Generation)' },
       { value: 'rrsp', label: 'RRSP' },
     ],
+    defaultAccount: 'rrsp',
     checklist: {
       tables: {
         logs: 'options_checklist_logs',
@@ -975,7 +982,7 @@ const MODE_CONFIG = {
       entryUrl: '',
       forecastUrl: '',
       notes: '',
-      account: 'non-registered',
+      account: 'rrsp',
       playType: '',
       riskAtEntry: '',
     },
@@ -1139,6 +1146,7 @@ const BalanceManager = ({ config }) => {
   const currencyColumn = balanceColumns.currency
 
   const hasMultipleAccounts = accounts.length > 0 && currencyColumn
+  const defaultAccountValue = resolveDefaultAccount(config, accounts)
 
   const [currentBalance, setCurrentBalance] = useState(0)
   const [currentBalances, setCurrentBalances] = useState({})
@@ -1146,13 +1154,13 @@ const BalanceManager = ({ config }) => {
   const [loading, setLoading] = useState(true)
   const [showAddBalance, setShowAddBalance] = useState(false)
   const [newBalance, setNewBalance] = useState({ amount: '', reason: '' })
-  const [selectedAccount, setSelectedAccount] = useState(accounts[0]?.value || '')
+  const [selectedAccount, setSelectedAccount] = useState(defaultAccountValue)
 
   useEffect(() => {
     if (accounts.length) {
-      setSelectedAccount(accounts[0]?.value || '')
+      setSelectedAccount(defaultAccountValue)
     }
-  }, [accounts])
+  }, [accounts, defaultAccountValue])
 
   const loadBalanceData = useCallback(async () => {
     setLoading(true)
@@ -1192,7 +1200,7 @@ const BalanceManager = ({ config }) => {
     if (!newBalance.amount) return
 
     try {
-      const accountValue = hasMultipleAccounts ? (selectedAccount || accounts[0]?.value) : null
+      const accountValue = hasMultipleAccounts ? (selectedAccount || defaultAccountValue) : null
       if (hasMultipleAccounts && !accountValue) return
 
       const changeAmount = parseFloat(newBalance.amount)
@@ -2236,7 +2244,7 @@ const TagPicker = ({ tradeId, tagLinksTable }) => {
 }
 
 const PartialExitView = ({ setCurrentView, config }) => {
-  const { tables, tradeColumns, balanceColumns, classes } = config
+  const { tables, tradeColumns, balanceColumns, classes, accounts = [] } = config
   const tradesTable = tables.trades
   const partialExitsTable = tables.partialExits
   const idColumn = tradeColumns.id
@@ -2246,6 +2254,9 @@ const PartialExitView = ({ setCurrentView, config }) => {
   const entryDateColumn = tradeColumns.entryDate
   const contractsColumn = tradeColumns.contracts
   const balanceTable = tables.balance
+  const accountField = tradeColumns.account
+  const currencyColumn = balanceColumns.currency
+  const hasMultipleAccounts = accounts.length > 0 && currencyColumn
 
   const [openTrades, setOpenTrades] = useState([])
   const [selectedTrade, setSelectedTrade] = useState(null)
@@ -2317,14 +2328,24 @@ const PartialExitView = ({ setCurrentView, config }) => {
       const { error } = await supabase.from(partialExitsTable).insert([payload])
       if (error) throw error
 
-      const { data: balHistory } = await supabase.from(balanceTable).select('*').order(balanceColumns.createdAt, { ascending: false }).limit(1)
+      const tradeAccount = accountField ? selectedTrade[accountField] : null
+      const useAccount = Boolean(hasMultipleAccounts && tradeAccount)
+
+      let balQuery = supabase.from(balanceTable).select('*')
+      if (useAccount) balQuery = balQuery.eq(currencyColumn, tradeAccount)
+      const { data: balHistory, error: balFetchError } = await balQuery
+        .order(balanceColumns.createdAt, { ascending: false }).limit(1)
+      if (balFetchError) throw balFetchError
       const currentBal = balHistory?.[0] ? parseFloat(balHistory[0][balanceColumns.balance]) || 0 : 0
-      await supabase.from(balanceTable).insert([{
+
+      const { error: balInsertError } = await supabase.from(balanceTable).insert([{
         [balanceColumns.balance]: currentBal + pnl,
         [balanceColumns.changeAmount]: pnl,
         [balanceColumns.reason]: `Partial exit: ${selectedTrade[instrumentColumn]} (${n} contracts)`,
-        [balanceColumns.tradeId]: selectedTrade[idColumn]
+        [balanceColumns.tradeId]: selectedTrade[idColumn],
+        ...(useAccount ? { [currencyColumn]: tradeAccount } : {}),
       }])
+      if (balInsertError) throw balInsertError
 
       setMessage(`Partial exit logged! P&L: $${pnl.toFixed(2)}`)
       setFormData({ contractsExited: '', exitValue: '', notes: '', exitUrl: '', fees: '' })
@@ -2674,30 +2695,20 @@ const ViewHistoricalData = ({ setCurrentView, config }) => {
   useEffect(() => {
     const loadCurrentBalance = async () => {
       try {
-        const { data: history, error } = await supabase
-          .from(config.tables.balance)
-          .select('*')
+        let query = supabase.from(config.tables.balance).select('*')
+        if (hasMultipleAccounts) query = query.eq(config.balanceColumns.currency, resolveDefaultAccount(config, accounts))
+        const { data: history, error } = await query
           .order(config.balanceColumns.createdAt, { ascending: false })
+          .limit(1)
         if (error) throw error
-        const historyData = history || []
-        if (hasMultipleAccounts) {
-          const balances = accounts.reduce((acc, account) => {
-            const latest = historyData.find(entry => entry[config.balanceColumns.currency] === account.value)
-            acc[account.value] = latest ? parseFloat(latest[config.balanceColumns.balance]) || 0 : 0
-            return acc
-          }, {})
-          const total = Object.values(balances).reduce((sum, value) => sum + value, 0)
-          setCurrentBalance(total)
-        } else {
-          const latest = historyData[0]
-          setCurrentBalance(latest ? parseFloat(latest[config.balanceColumns.balance]) || 0 : 0)
-        }
+        const latest = history?.[0]
+        setCurrentBalance(latest ? parseFloat(latest[config.balanceColumns.balance]) || 0 : 0)
       } catch (err) {
         console.error('Error loading balance:', err.message)
       }
     }
     loadCurrentBalance()
-  }, [accounts, config.tables.balance, config.balanceColumns.balance, config.balanceColumns.createdAt, config.balanceColumns.currency, hasMultipleAccounts])
+  }, [accounts, config, hasMultipleAccounts])
 
   useEffect(() => {
     if (!trades.length) return
@@ -3395,6 +3406,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
   const balanceColumns = config.balanceColumns
   const accountField = tradeColumns.account
   const hasMultipleAccounts = accounts.length > 0 && balanceColumns.currency
+  const defaultAccountValue = resolveDefaultAccount(config, accounts)
   const checklistTables = checklist.tables || {}
   const checklistLogColumns = checklist.logColumns || DEFAULT_CHECKLIST_LOG_COLUMNS
   const checklistAttemptColumns = checklist.attemptColumns || DEFAULT_CHECKLIST_ATTEMPT_COLUMNS
@@ -3475,10 +3487,10 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
 
   useEffect(() => {
     if (!checklistComplete) return
-    if (hasMultipleAccounts && !formData.account && accounts[0]?.value) {
-      setFormData(prev => ({ ...prev, account: accounts[0].value }))
+    if (hasMultipleAccounts && !formData.account && defaultAccountValue) {
+      setFormData(prev => ({ ...prev, account: defaultAccountValue }))
     }
-  }, [accounts, checklistComplete, formData.account, hasMultipleAccounts, setFormData])
+  }, [checklistComplete, defaultAccountValue, formData.account, hasMultipleAccounts, setFormData])
 
   useEffect(() => {
     if (!checklistComplete) return
@@ -3500,7 +3512,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
             return acc
           }, {})
           setAccountBalances(balances)
-          const selected = formData.account || accounts[0]?.value
+          const selected = formData.account || defaultAccountValue
           setCurrentBalance(selected ? balances[selected] || 0 : 0)
         } else {
           const latest = history[0]
@@ -3512,20 +3524,20 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       setBalanceLoading(false)
     }
     loadBalances()
-  }, [accounts, balanceColumns.balance, balanceColumns.createdAt, balanceColumns.currency, balanceTable, checklistComplete, formData.account, hasMultipleAccounts])
+  }, [accounts, balanceColumns.balance, balanceColumns.createdAt, balanceColumns.currency, balanceTable, checklistComplete, defaultAccountValue, formData.account, hasMultipleAccounts])
 
   useEffect(() => {
     if (!checklistComplete) return
     if (!hasMultipleAccounts) return
-    const selected = formData.account || accounts[0]?.value
+    const selected = formData.account || defaultAccountValue
     if (!selected) return
     setCurrentBalance(accountBalances[selected] || 0)
-  }, [accounts, accountBalances, checklistComplete, formData.account, hasMultipleAccounts])
+  }, [accountBalances, checklistComplete, defaultAccountValue, formData.account, hasMultipleAccounts])
 
   const maxRisk = currentBalance * (riskFraction || 0)
   const riskAmount = parseFloat(formData.riskAmount) || 0
   const exceedsLimit = tradeColumns.riskAmount ? riskAmount > maxRisk : false
-  const selectedAccountValue = formData.account || accounts[0]?.value || ''
+  const selectedAccountValue = formData.account || defaultAccountValue || ''
   const selectedAccountLabel = accounts.find(account => account.value === selectedAccountValue)?.label
 
   const handleInputChange = (field, value) => {
@@ -3639,7 +3651,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
       assignValue(tradeColumns.playType, formData.playType || null)
       assignValue(tradeColumns.riskAtEntry, formData.riskAtEntry === '' ? null : parseFloat(formData.riskAtEntry))
       assignValue(tradeColumns.status, 'open')
-      assignValue(accountField, formData.account || accounts[0]?.value || null)
+      assignValue(accountField, formData.account || defaultAccountValue || null)
 
       const { data, error } = await supabase
         .from(tradesTable)
@@ -3861,7 +3873,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
           {accountField && accounts.length > 0 && (
             <SelectField
               label={labels.accountLabel}
-              value={formData.account || accounts[0]?.value || ''}
+              value={formData.account || defaultAccountValue || ''}
               onChange={(e) => handleInputChange('account', e.target.value)}
               options={accounts}
               required
@@ -4168,7 +4180,7 @@ const NewTradeView = ({ setCurrentView, formData, setFormData, isSubmitting, set
               <p className="text-xs text-slate-500 mb-2">Also log to</p>
               <div className="flex flex-wrap gap-4">
                 {accounts
-                  .filter(a => a.value !== (formData.account || accounts[0]?.value))
+                  .filter(a => a.value !== (formData.account || defaultAccountValue))
                   .map(a => (
                     <label key={a.value} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
                       <input
@@ -5721,6 +5733,7 @@ const StopMarketOrderView = ({ onBack }) => {
       const { data } = await supabase
         .from('options_balance_history')
         .select('*')
+        .eq('account_type', resolveDefaultAccount(MODE_CONFIG.options))
         .order('created_at', { ascending: false })
         .limit(1)
       const bal = data?.[0]?.balance
@@ -6719,15 +6732,14 @@ const EquityCurveView = ({ config, onBack }) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const { data } = await supabase
-        .from(tables.balance)
-        .select('*')
-        .order(balanceColumns.createdAt, { ascending: true })
+      let query = supabase.from(tables.balance).select('*')
+      if (balanceColumns.currency) query = query.eq(balanceColumns.currency, resolveDefaultAccount(config))
+      const { data } = await query.order(balanceColumns.createdAt, { ascending: true })
       setHistory(data || [])
       setLoading(false)
     }
     load()
-  }, [tables.balance, balanceColumns.createdAt])
+  }, [config, tables.balance, balanceColumns.createdAt, balanceColumns.currency])
 
   const chartData = history.map((row, i) => ({
     index: i + 1,
@@ -7606,9 +7618,11 @@ const TradingEnvironment = ({ config, onBack }) => {
     if (currentView !== 'menu') return
     const load = async () => {
       const { tradeColumns, balanceColumns } = config
+      let balQuery = supabase.from(config.tables.balance).select('*')
+      if (balanceColumns.currency) balQuery = balQuery.eq(balanceColumns.currency, resolveDefaultAccount(liveConfig))
       const [tradesRes, balRes] = await Promise.all([
         supabase.from(config.tables.trades).select('*').order(tradeColumns.entryDate, { ascending: false }).limit(50),
-        supabase.from(config.tables.balance).select('*').order(balanceColumns.createdAt, { ascending: false }).limit(1)
+        balQuery.order(balanceColumns.createdAt, { ascending: false }).limit(1)
       ])
       const trades = tradesRes.data || []
       const balance = balRes.data?.[0] ? parseFloat(balRes.data[0][balanceColumns.balance]) || 0 : 0
@@ -7621,7 +7635,7 @@ const TradingEnvironment = ({ config, onBack }) => {
       setDashStats({ balance, openCount: open.length, winRate, avgPnL, totalPnL })
     }
     load()
-  }, [currentView, config])
+  }, [currentView, config, liveConfig])
 
   if (currentView === 'menu') {
     const { tradeColumns } = config
@@ -7735,6 +7749,7 @@ const TradingEnvironment = ({ config, onBack }) => {
           forecastUrl: '',
           notes: order.notes || '',
           riskAtEntry: order.max_risk != null ? String(order.max_risk) : '',
+          account: resolveDefaultAccount(liveConfig),
         })
         setPendingStopOrderId(order.id)
         setCurrentView('new-trade')
